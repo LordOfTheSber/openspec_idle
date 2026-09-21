@@ -1,0 +1,1960 @@
+<title>OpenSpec IDE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+
+<style>
+  :root {
+    --bg: #F7F4F6;
+    --surface: #FFFFFF;
+    --surface-2: #F1ECEF;
+    --surface-3: #E7DFE4;
+    --border: #DFD6DC;
+    --border-strong: #C9BCC4;
+    --text: #1F181D;
+    --text-2: #4C424A;
+    --muted: #776C74;
+    --accent: #7D2E55;
+    --accent-2: #A54A78;
+    --accent-soft: #F6E6EE;
+    --accent-line: #E3C4D4;
+
+    --added: #2F7A4F;
+    --added-soft: #E4F2E9;
+    --modified: #9A6212;
+    --modified-soft: #F8EEDC;
+    --removed: #B03A2E;
+    --removed-soft: #FAE6E3;
+    --renamed: #2A5FA8;
+    --renamed-soft: #E3EBF7;
+
+    --shadow-sm: 0 1px 2px rgba(31, 24, 29, .06);
+    --shadow-lg: 0 18px 44px -20px rgba(31, 24, 29, .34), 0 2px 6px rgba(31, 24, 29, .05);
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+
+    --r: 6px;
+    --r-lg: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141114;
+      --surface: #1D181C;
+      --surface-2: #251F24;
+      --surface-3: #2F272D;
+      --border: #382F36;
+      --border-strong: #4C4049;
+      --text: #F0E9ED;
+      --text-2: #C9BDC5;
+      --muted: #9B8D96;
+      --accent: #E58BB4;
+      --accent-2: #F0A8C8;
+      --accent-soft: #34202A;
+      --accent-line: #4D3140;
+
+      --added: #63C08C;
+      --added-soft: #1B2E24;
+      --modified: #E3AC4E;
+      --modified-soft: #322718;
+      --removed: #F08C7E;
+      --removed-soft: #34201D;
+      --renamed: #85B6F5;
+      --renamed-soft: #1C2636;
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+      --shadow-lg: 0 20px 48px -22px rgba(0, 0, 0, .8), 0 2px 8px rgba(0, 0, 0, .3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #141114;
+    --surface: #1D181C;
+    --surface-2: #251F24;
+    --surface-3: #2F272D;
+    --border: #382F36;
+    --border-strong: #4C4049;
+    --text: #F0E9ED;
+    --text-2: #C9BDC5;
+    --muted: #9B8D96;
+    --accent: #E58BB4;
+    --accent-2: #F0A8C8;
+    --accent-soft: #34202A;
+    --accent-line: #4D3140;
+
+    --added: #63C08C;
+    --added-soft: #1B2E24;
+    --modified: #E3AC4E;
+    --modified-soft: #322718;
+    --removed: #F08C7E;
+    --removed-soft: #34201D;
+    --renamed: #85B6F5;
+    --renamed-soft: #1C2636;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+    --shadow-lg: 0 20px 48px -22px rgba(0, 0, 0, .8), 0 2px 8px rgba(0, 0, 0, .3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 40px 64px;
+  }
+
+  /* ---------- page head ---------- */
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(34px, 6vw, 52px);
+    line-height: 1.05;
+    letter-spacing: -.02em;
+    margin: 0 0 16px;
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-size: 17px;
+    color: var(--text-2);
+    max-width: 62ch;
+    margin: 0 0 26px;
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 34px;
+  }
+
+  .fact {
+    flex: 1 1 130px;
+    padding: 14px 18px 14px 0;
+    border-right: 1px solid var(--border);
+  }
+  .fact:last-child { border-right: 0; }
+  .fact:not(:first-child) { padding-left: 18px; }
+
+  .fact dt {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 4px;
+  }
+
+  .fact dd {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+  }
+
+  /* ---------- screen switcher ---------- */
+
+  .switch-bar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 30;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    margin-inline: -16px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .switch {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: 1;
+  }
+  .switch::-webkit-scrollbar { display: none; }
+
+  .switch button {
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-2);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 6px 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: background .14s, color .14s, border-color .14s;
+  }
+  .switch button:hover { background: var(--surface-2); color: var(--text); }
+  .switch button[aria-selected="true"] {
+    background: var(--accent-soft);
+    border-color: var(--accent-line);
+    color: var(--accent);
+  }
+  .switch button .num {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+  .switch button[aria-selected="true"] .num { color: var(--accent); }
+
+  .theme-btn {
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 12px;
+    color: var(--text-2);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .theme-btn:hover { border-color: var(--border-strong); color: var(--text); }
+
+  /* ---------- window chrome ---------- */
+
+  .window {
+    margin-top: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+
+  .chrome {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dots { display: flex; gap: 6px; flex: 0 0 auto; }
+  .dots i {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border-strong);
+  }
+
+  .addr {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 12px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---------- app shell ---------- */
+
+  .app {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    min-height: 560px;
+  }
+
+  .rail {
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    gap: 4px;
+  }
+
+  .rail i {
+    width: 36px; height: 36px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .rail i.on { background: var(--accent-soft); color: var(--accent); }
+  .rail hr { width: 24px; border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
+
+  .stage { min-width: 0; display: flex; flex-direction: column; }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -.005em;
+  }
+
+  .crumbs {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .spacer { flex: 1 1 auto; }
+
+  .btn {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: var(--r);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    padding: 4px 11px;
+    cursor: default;
+    white-space: nowrap;
+  }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  :root[data-theme="dark"] .btn.primary { color: #2A1520; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .btn.primary { color: #2A1520; }
+  }
+
+  .statusbar {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .statusbar b { font-weight: 600; color: var(--text-2); }
+  .statusbar .ok { color: var(--added); }
+  .statusbar .warn { color: var(--modified); }
+
+  /* ---------- panes ---------- */
+
+  .panes { display: grid; min-height: 0; flex: 1; }
+  .panes.explorer { grid-template-columns: 232px minmax(0, 1fr) 244px; }
+  .panes.two { grid-template-columns: 232px minmax(0, 1fr); }
+  .panes.solo { grid-template-columns: minmax(0, 1fr); }
+
+  .pane { min-width: 0; padding: 12px 14px; }
+  .pane + .pane { border-left: 1px solid var(--border); }
+  .pane.tight { padding: 0; }
+
+  .pane-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pane-title .count {
+    background: var(--surface-3);
+    border-radius: 999px;
+    padding: 0 6px;
+    letter-spacing: 0;
+    color: var(--text-2);
+  }
+
+  /* ---------- tree ---------- */
+
+  .tree { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .tree ul { list-style: none; margin: 0; padding-left: 14px; }
+
+  .node {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: var(--text-2);
+  }
+  .node.sel { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .node .tw {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    width: 8px;
+  }
+  .node .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .node .nm.mono { font-family: var(--mono); font-size: 12px; }
+  .node .tail {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    font-weight: 400;
+    flex: 0 0 auto;
+  }
+
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+  .dot.ok { background: var(--added); }
+  .dot.warn { background: var(--modified); }
+  .dot.err { background: var(--removed); }
+  .dot.none { background: transparent; border: 1px dashed var(--border-strong); }
+
+  .grp {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 14px 0 5px;
+    padding-left: 6px;
+  }
+  .grp:first-child { margin-top: 0; }
+
+  /* ---------- code editor ---------- */
+
+  .code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.75;
+    margin: 0;
+    overflow-x: auto;
+    tab-size: 2;
+  }
+  .code .ln {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .code .ln > span:first-child {
+    color: var(--muted);
+    opacity: .55;
+    text-align: right;
+    user-select: none;
+    font-size: 11px;
+  }
+  .code .ln.hl { background: var(--accent-soft); }
+  .code .ln.bad { background: var(--removed-soft); }
+  .code .h2 { color: var(--accent); font-weight: 600; }
+  .code .h3 { color: var(--text); font-weight: 600; }
+  .code .h4 { color: var(--renamed); font-weight: 600; }
+  .code .kw { color: var(--added); font-weight: 600; }
+  .code .txt { color: var(--text-2); }
+  .code .sq { color: var(--muted); opacity: .6; }
+  .code .err-u {
+    text-decoration: underline wavy var(--removed);
+    text-underline-offset: 3px;
+  }
+
+  /* ---------- lists / problems ---------- */
+
+  .problems { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .problems li {
+    display: flex;
+    gap: 9px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+  .problems li:last-child { border-bottom: 0; }
+  .problems .sev {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+  .problems .sev.e { background: var(--removed-soft); color: var(--removed); }
+  .problems .sev.w { background: var(--modified-soft); color: var(--modified); }
+  .problems .sev.s { background: var(--added-soft); color: var(--added); }
+  .problems .where {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ---------- outline ---------- */
+
+  .outline { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .outline > li { margin-bottom: 3px; }
+  .outline .r {
+    display: flex;
+    gap: 7px;
+    align-items: baseline;
+    color: var(--text-2);
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+  .outline .r .g { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  .outline .s {
+    padding: 1px 4px 1px 22px;
+    color: var(--muted);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---------- delta viewer ---------- */
+
+  .delta-groups { display: flex; flex-direction: column; gap: 14px; }
+
+  .dgroup { border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+  .dgroup > header {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .dgroup .glyph {
+    width: 17px; height: 17px;
+    border-radius: 4px;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .dgroup .n { margin-left: auto; font-weight: 500; letter-spacing: 0; }
+
+  .dgroup.added > header { background: var(--added-soft); color: var(--added); }
+  .dgroup.added .glyph { background: var(--added); color: var(--added-soft); }
+  .dgroup.modified > header { background: var(--modified-soft); color: var(--modified); }
+  .dgroup.modified .glyph { background: var(--modified); color: var(--modified-soft); }
+  .dgroup.removed > header { background: var(--removed-soft); color: var(--removed); }
+  .dgroup.removed .glyph { background: var(--removed); color: var(--removed-soft); }
+  .dgroup.renamed > header { background: var(--renamed-soft); color: var(--renamed); }
+  .dgroup.renamed .glyph { background: var(--renamed); color: var(--renamed-soft); }
+
+  .dgroup ul { list-style: none; margin: 0; padding: 0; }
+  .dgroup li {
+    padding: 9px 12px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .dgroup li:first-child { border-top: 0; }
+  .dgroup li .sc {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    flex: 0 0 auto;
+  }
+
+  .diff {
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .diff > header {
+    padding: 7px 12px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .diff .row { display: grid; grid-template-columns: 20px minmax(0, 1fr); padding: 0 12px; }
+  .diff .row > span:first-child { color: var(--muted); opacity: .6; user-select: none; }
+  .diff .row.plus { background: var(--added-soft); color: var(--added); }
+  .diff .row.minus { background: var(--removed-soft); color: var(--removed); }
+  .diff .row.ctx { color: var(--text-2); }
+
+  /* ---------- kanban ---------- */
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(210px, 1fr));
+    gap: 12px;
+    overflow-x: auto;
+    padding: 14px;
+    align-items: start;
+  }
+
+  .col { min-width: 0; }
+  .col > header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 9px;
+    padding-bottom: 7px;
+    border-bottom: 2px solid var(--border);
+  }
+  .col > header h3 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -.005em;
+  }
+  .col > header .n {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .col.p1 > header { border-bottom-color: var(--border-strong); }
+  .col.p2 > header { border-bottom-color: var(--renamed); }
+  .col.p3 > header { border-bottom-color: var(--modified); }
+  .col.p4 > header { border-bottom-color: var(--added); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 11px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 9px;
+  }
+  .card.lift { border-color: var(--accent-line); box-shadow: 0 6px 16px -8px rgba(125, 46, 85, .4); }
+  .card h4 {
+    margin: 0 0 8px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 9px; }
+  .chip {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    color: var(--muted);
+  }
+  .chip.on { background: var(--added-soft); color: var(--added); }
+  .chip.no { background: var(--surface-3); color: var(--muted); }
+  .chip.bad { background: var(--removed-soft); color: var(--removed); }
+
+  .meter {
+    height: 5px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .meter > i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+  .meter.good > i { background: var(--added); }
+  .meter.warn > i { background: var(--modified); }
+
+  .card .foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+  .card .foot .ok { color: var(--added); }
+  .card .foot .err { color: var(--removed); }
+
+  /* ---------- metrics ---------- */
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .tile {
+    padding: 12px 14px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .tile .k {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .tile .v {
+    font-size: 24px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.015em;
+    line-height: 1.1;
+  }
+  .tile .v small {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-left: 3px;
+    letter-spacing: 0;
+  }
+  .tile .sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .tile .v.flag { color: var(--modified); }
+
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r); }
+  table.m { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 620px; }
+  table.m th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  table.m td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  table.m tr:last-child td { border-bottom: 0; }
+  table.m td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  table.m td.id { font-family: var(--mono); color: var(--accent); font-weight: 600; white-space: nowrap; }
+  table.m td.task { color: var(--text-2); min-width: 210px; }
+
+  .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  .state .dot { width: 6px; height: 6px; }
+
+  /* single-hue magnitude bars: value labels + 4px rounded ends + 2px row gap */
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 132px;
+  }
+  .bar .track {
+    flex: 1;
+    height: 9px;
+    background: var(--surface-3);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bar .fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 0 4px 4px 0;
+  }
+  .bar .val {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-2);
+    width: 66px;
+    text-align: right;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .bar .val.nd { color: var(--muted); font-style: italic; }
+  tr:hover .bar .fill { background: var(--accent-2); }
+
+  /* ---------- agent ---------- */
+
+  .term {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    padding: 11px 13px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .term .cmd { color: var(--text); }
+  .term .flag { color: var(--accent); }
+  .term .str { color: var(--added); }
+  .term .cm { color: var(--muted); }
+
+  .events { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .events li {
+    display: grid;
+    grid-template-columns: 52px 18px minmax(0, 1fr);
+    gap: 9px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border);
+    align-items: baseline;
+  }
+  .events li:last-child { border-bottom: 0; }
+  .events .t { font-family: var(--mono); font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .events .ic { font-family: var(--mono); font-size: 11px; text-align: center; }
+  .events .ic.tool { color: var(--renamed); }
+  .events .ic.msg { color: var(--accent); }
+  .events .ic.ok { color: var(--added); }
+  .events .ic.warn { color: var(--modified); }
+  .events .body { color: var(--text-2); min-width: 0; }
+  .events .body code {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    background: var(--surface-2);
+    padding: 0 4px;
+    border-radius: 3px;
+    color: var(--text);
+  }
+  .events .cursor {
+    display: inline-block;
+    width: 7px; height: 13px;
+    background: var(--accent);
+    vertical-align: -2px;
+    animation: blink 1.1s steps(2, start) infinite;
+  }
+  @keyframes blink { to { visibility: hidden; } }
+  @media (prefers-reduced-motion: reduce) {
+    .events .cursor { animation: none; }
+  }
+
+  .budgets { display: flex; flex-direction: column; gap: 12px; }
+  .budget .lbl {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12px;
+    margin-bottom: 5px;
+    gap: 8px;
+  }
+  .budget .lbl b { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .budget .lbl span { color: var(--muted); }
+
+  .kv { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .kv li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .kv li:last-child { border-bottom: 0; }
+  .kv .k { color: var(--muted); }
+  .kv .v { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* ---------- settings ---------- */
+
+  .form { max-width: 620px; display: flex; flex-direction: column; gap: 18px; padding: 16px 18px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+  .field .hint { font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+  .input {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 7px 10px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .input .ph { color: var(--muted); }
+  .input.locked { background: var(--surface-3); color: var(--muted); }
+
+  .radios { display: flex; flex-direction: column; gap: 6px; }
+  .radio {
+    display: flex;
+    gap: 9px;
+    align-items: flex-start;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 8px 11px;
+    font-size: 12.5px;
+  }
+  .radio.on { border-color: var(--accent); background: var(--accent-soft); }
+  .radio .mark {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-strong);
+    flex: 0 0 auto;
+    margin-top: 3px;
+  }
+  .radio.on .mark { border-color: var(--accent); border-width: 4px; }
+  .radio.risky { border-color: var(--modified); }
+  .radio b { display: block; font-weight: 600; }
+  .radio span { color: var(--muted); font-size: 11.5px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .notice {
+    display: flex;
+    gap: 9px;
+    border-radius: var(--r);
+    padding: 9px 11px;
+    font-size: 12.5px;
+    align-items: flex-start;
+  }
+  .notice.ok { background: var(--added-soft); color: var(--added); }
+  .notice.warn { background: var(--modified-soft); color: var(--modified); }
+  .notice b { font-weight: 600; }
+  .notice .ic { font-family: var(--mono); flex: 0 0 auto; }
+
+  /* ---------- caption ---------- */
+
+  .caption {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+    gap: 28px;
+    align-items: start;
+  }
+  .caption h3 {
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    letter-spacing: -.01em;
+  }
+  .caption p { margin: 0 0 10px; color: var(--text-2); max-width: 60ch; font-size: 14.5px; }
+  .caption .reqs {
+    border-left: 2px solid var(--accent-line);
+    padding-left: 14px;
+  }
+  .caption .reqs h4 {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 8px;
+    font-weight: 500;
+  }
+  .caption .reqs ul { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .caption .reqs li { padding: 3px 0; color: var(--text-2); }
+  .caption .reqs li code {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    display: block;
+  }
+
+  .tip {
+    position: fixed;
+    z-index: 60;
+    pointer-events: none;
+    background: var(--text);
+    color: var(--bg);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity .1s;
+  }
+  .tip.on { opacity: 1; }
+
+  .foot-note {
+    margin-top: 48px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+  }
+  .foot-note code { font-family: var(--mono); color: var(--text-2); }
+
+  /* ---------- narrow ---------- */
+
+  @media (max-width: 900px) {
+    .panes.explorer { grid-template-columns: 200px minmax(0, 1fr); }
+    .panes.explorer > .pane:nth-child(3) { display: none; }
+    .caption { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .two-col { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 680px) {
+    .app { grid-template-columns: 1fr; }
+    .rail { flex-direction: row; justify-content: flex-start; border-right: 0; border-bottom: 1px solid var(--border); padding: 6px 8px; overflow-x: auto; }
+    .rail hr { display: none; }
+    .panes.explorer, .panes.two { grid-template-columns: minmax(0, 1fr); }
+    .panes.explorer > .pane:nth-child(1), .panes.two > .pane:nth-child(1) { border-bottom: 1px solid var(--border); }
+    .pane + .pane { border-left: 0; }
+    .board { grid-template-columns: repeat(4, 78vw); }
+  }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Change <code>add-openspec-ide</code> · фаза макетов</p>
+  <h1>OpenSpec IDE</h1>
+  <p class="lede">
+    Локальная среда для работы по OpenSpec: артефакты change редактируются с живой
+    валидацией, дельты читаются как требования, а не как markdown, процесс виден на доске,
+    каждый пункт плана несёт метрики, и агент запускается через GigaCode CLI с бюджетом.
+    Шесть экранов ниже — макеты к 35 требованиям спецификации этого change.
+  </p>
+
+  <dl class="facts">
+    <div class="fact"><dt>Capability</dt><dd>7</dd></div>
+    <div class="fact"><dt>Требований</dt><dd>35</dd></div>
+    <div class="fact"><dt>Сценариев</dt><dd>116</dd></div>
+    <div class="fact"><dt>Канал к LLM</dt><dd style="font-size:15px">GigaCode CLI</dd></div>
+    <div class="fact"><dt>Источник истины</dt><dd style="font-size:15px">файлы <code style="font-family:var(--mono)">openspec/</code></dd></div>
+  </dl>
+
+  <div class="switch-bar">
+    <div class="switch" role="tablist" aria-label="Экраны макета">
+      <button role="tab" aria-selected="true" data-screen="s1"><span class="num">01</span> Обозреватель</button>
+      <button role="tab" aria-selected="false" data-screen="s2"><span class="num">02</span> Дельты</button>
+      <button role="tab" aria-selected="false" data-screen="s3"><span class="num">03</span> Доска</button>
+      <button role="tab" aria-selected="false" data-screen="s4"><span class="num">04</span> Метрики</button>
+      <button role="tab" aria-selected="false" data-screen="s5"><span class="num">05</span> Агент</button>
+      <button role="tab" aria-selected="false" data-screen="s6"><span class="num">06</span> Настройки</button>
+    </div>
+    <button class="theme-btn" id="theme">Тема</button>
+  </div>
+
+  <!-- ================= SCREEN 1 ================= -->
+  <section id="s1" class="screen">
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">127.0.0.1:7410 — ~/work/openspec_idle</div>
+      </div>
+      <div class="app">
+        <nav class="rail">
+          <i class="on">Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i>
+        </nav>
+        <div class="stage">
+          <div class="toolbar">
+            <h2>Обозреватель</h2>
+            <span class="crumbs">add-openspec-ide / specs / agent-bridge / spec.md</span>
+            <span class="spacer"></span>
+            <button class="btn">Проверить</button>
+            <button class="btn primary">Сохранить</button>
+          </div>
+
+          <div class="panes explorer">
+            <div class="pane">
+              <p class="pane-title">Рабочее пространство</p>
+              <ul class="tree">
+                <li>
+                  <div class="grp">Изменения · 3</div>
+                  <div class="node"><span class="tw">▾</span><span class="dot warn"></span><span class="nm mono">add-openspec-ide</span><span class="tail">4/11</span></div>
+                  <ul>
+                    <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm">proposal.md</span></div></li>
+                    <li><div class="node"><span class="tw">▾</span><span class="dot ok"></span><span class="nm">specs</span><span class="tail">7</span></div>
+                      <ul>
+                        <li><div class="node sel"><span class="tw"></span><span class="dot warn"></span><span class="nm mono">agent-bridge</span><span class="tail">8</span></div></li>
+                        <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">task-metrics</span><span class="tail">6</span></div></li>
+                        <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">ide-runtime</span><span class="tail">6</span></div></li>
+                        <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">workflow-board</span><span class="tail">4</span></div></li>
+                      </ul>
+                    </li>
+                    <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm">design.md</span></div></li>
+                    <li><div class="node"><span class="tw"></span><span class="dot warn"></span><span class="nm">tasks.md</span><span class="tail">4/11</span></div></li>
+                  </ul>
+                  <div class="node"><span class="tw">▸</span><span class="dot none"></span><span class="nm mono">extract-metrics-export</span><span class="tail">0/6</span></div>
+                  <div class="node"><span class="tw">▸</span><span class="dot err"></span><span class="nm mono">rework-agent-budgets</span><span class="tail">2 ошибки</span></div>
+
+                  <div class="grp">Спеки · 0</div>
+                  <div class="node"><span class="tw"></span><span class="dot none"></span><span class="nm" style="color:var(--muted)">Пока ни одной capability</span></div>
+
+                  <div class="grp">Архив · 0</div>
+                  <div class="node"><span class="tw"></span><span class="dot none"></span><span class="nm" style="color:var(--muted)">Пусто</span></div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="pane">
+              <p class="pane-title">specs/agent-bridge/spec.md <span class="count">изменён</span></p>
+              <pre class="code"><div class="ln"><span>26</span><span class="h2">## ADDED Requirements</span></div><div class="ln"><span>27</span><span></span></div><div class="ln hl"><span>28</span><span class="h3">### Requirement: Запуск агента и потоковый вывод</span></div><div class="ln"><span>29</span><span></span></div><div class="ln"><span>30</span><span class="txt">Система <b class="kw">ДОЛЖНА (SHALL)</b> запускать GigaCode CLI как</span></div><div class="ln"><span>31</span><span class="txt">отдельный процесс в корне рабочего пространства в</span></div><div class="ln"><span>32</span><span class="txt">неинтерактивном режиме с потоковым выводом.</span></div><div class="ln"><span>33</span><span></span></div><div class="ln"><span>34</span><span class="h4">#### Scenario: Отображение хода работы</span></div><div class="ln"><span>35</span><span></span></div><div class="ln"><span>36</span><span><span class="sq">- </span><span class="kw">**WHEN**</span><span class="txt"> агент запущен и присылает события</span></span></div><div class="ln"><span>37</span><span><span class="sq">- </span><span class="kw">**THEN**</span><span class="txt"> панель показывает сообщения модели</span></span></div><div class="ln"><span>38</span><span><span class="sq">- </span><span class="kw">**AND**</span><span class="txt"> видны длительность и бюджет</span></span></div><div class="ln"><span>39</span><span></span></div><div class="ln bad"><span>40</span><span class="h4 err-u">### Scenario: Успешное завершение</span></div><div class="ln"><span>41</span><span></span></div><div class="ln"><span>42</span><span><span class="sq">- </span><span class="kw">**WHEN**</span><span class="txt"> процесс завершается с кодом 0</span></span></div><div class="ln"><span>43</span><span><span class="sq">- </span><span class="kw">**THEN**</span><span class="txt"> запуск помечается успешным</span></span></div></pre>
+
+              <p class="pane-title" style="margin-top:18px">Проверки <span class="count">1 ошибка · 1 предупреждение</span></p>
+              <ul class="problems">
+                <li>
+                  <span class="sev e">ERR</span>
+                  <span>Сценарий записан тремя решётками — OpenSpec требует ровно четырёх, иначе блок молча не распознаётся.
+                    <span class="where">specs/agent-bridge/spec.md:40 · «Успешное завершение»</span></span>
+                </li>
+                <li>
+                  <span class="sev w">WARN</span>
+                  <span>Требование «Бюджеты запуска» не содержит SHALL или MUST.
+                    <span class="where">specs/agent-bridge/spec.md:112 · openspec validate --strict</span></span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="pane">
+              <p class="pane-title">Структура <span class="count">8 треб.</span></p>
+              <ul class="outline">
+                <li><div class="r"><span class="g">R1</span> Настройка подключения</div></li>
+                <li><div class="r"><span class="g">R2</span> Проверка доступности</div></li>
+                <li><div class="r"><span class="g">R3</span> Сборка промпта</div></li>
+                <li>
+                  <div class="r" style="background:var(--accent-soft);color:var(--accent)"><span class="g">R4</span> Запуск и потоковый вывод</div>
+                  <div class="s">→ Отображение хода работы</div>
+                  <div class="s">→ Успешное завершение</div>
+                  <div class="s">→ Завершение с ошибкой</div>
+                  <div class="s">→ Прерывание пользователем</div>
+                  <div class="s">→ Параллельный запуск</div>
+                  <div class="s">→ Нераспознанное событие</div>
+                </li>
+                <li><div class="r"><span class="g">R5</span> Бюджеты запуска</div></li>
+                <li><div class="r"><span class="g">R6</span> Режим подтверждения</div></li>
+                <li><div class="r"><span class="g">R7</span> Журнал запусков</div></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="statusbar">
+            <span>корень <b>~/work/openspec_idle</b></span>
+            <span class="warn">✕ 1 ошибка · ⚠ 1 предупреждение</span>
+            <span>schema <b>spec-driven</b></span>
+            <span class="spacer"></span>
+            <span class="ok">● наблюдение за файлами</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Всё видно на одном экране</h3>
+        <p>
+          Дерево слева отражает то, что отдают <code>openspec list --json</code> и
+          <code>openspec status --json</code>: индикатор состояния у каждого артефакта,
+          прогресс <code>4/11</code> у задач, число требований у каждой дельты.
+          Редактор подсвечивает не markdown вообще, а именно формат OpenSpec — и ловит
+          классическую ошибку с тремя решётками прямо в строке, до запуска валидации.
+        </p>
+        <p>
+          Панель проверок — это разобранный вывод <code>openspec validate --strict --json</code>:
+          каждая запись кликабельна и ведёт в файл на нужную строку.
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Дерево рабочего пространства <code>workspace-explorer</code></li>
+          <li>Индикаторы состояния артефактов <code>workspace-explorer</code></li>
+          <li>Синхронизация с файловой системой <code>workspace-explorer</code></li>
+          <li>Структурная подсветка формата <code>artifact-editor</code></li>
+          <li>Живая валидация артефактов <code>artifact-editor</code></li>
+          <li>Разрешение корня OpenSpec <code>ide-runtime</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 2 ================= -->
+  <section id="s2" class="screen" hidden>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">127.0.0.1:7410 — дельты change add-openspec-ide</div>
+      </div>
+      <div class="app">
+        <nav class="rail">
+          <i>Об</i><i class="on">Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i>
+        </nav>
+        <div class="stage">
+          <div class="toolbar">
+            <h2>Дельты</h2>
+            <span class="crumbs">capability <b>task-metrics</b> · 6 требований</span>
+            <span class="spacer"></span>
+            <button class="btn">Карта связей</button>
+            <button class="btn">Открыть основной спек</button>
+          </div>
+
+          <div class="panes two">
+            <div class="pane">
+              <p class="pane-title">Capability <span class="count">7</span></p>
+              <ul class="tree">
+                <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">ide-runtime</span><span class="tail">+6</span></div></li>
+                <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">workspace-explorer</span><span class="tail">+4</span></div></li>
+                <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">artifact-editor</span><span class="tail">+4</span></div></li>
+                <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">spec-delta-viewer</span><span class="tail">+4</span></div></li>
+                <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">workflow-board</span><span class="tail">+4</span></div></li>
+                <li><div class="node sel"><span class="tw"></span><span class="dot warn"></span><span class="nm mono">task-metrics</span><span class="tail">+5 ~1</span></div></li>
+                <li><div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">agent-bridge</span><span class="tail">+8</span></div></li>
+              </ul>
+
+              <p class="pane-title" style="margin-top:20px">Связи capability</p>
+              <ul class="problems">
+                <li>
+                  <span class="sev w">2</span>
+                  <span>Два активных change меняют <b>task-metrics</b> — требование «Набор метрик пункта плана» затрагивают оба.
+                    <span class="where">add-openspec-ide · extract-metrics-export</span></span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="pane">
+              <div class="delta-groups">
+                <div class="dgroup added">
+                  <header><span class="glyph">+</span> Добавлено <span class="n">5 требований · 22 сценария</span></header>
+                  <ul>
+                    <li>Идентификация пунктов плана <span class="sc">5 сцен.</span></li>
+                    <li>Набор метрик пункта плана <span class="sc">4 сцен.</span></li>
+                    <li>Метрика приёмки задачи <span class="sc">4 сцен.</span></li>
+                    <li>Сводные метрики change <span class="sc">3 сцен.</span></li>
+                    <li>Хранение метрик отдельно от артефактов <span class="sc">4 сцен.</span></li>
+                  </ul>
+                </div>
+
+                <div class="dgroup modified">
+                  <header><span class="glyph">~</span> Изменено <span class="n">1 требование</span></header>
+                  <ul>
+                    <li>Экспорт метрик <span class="sc">2 сцен. · 1 новый</span></li>
+                  </ul>
+                </div>
+
+                <div class="dgroup removed">
+                  <header><span class="glyph">−</span> Удалено <span class="n">0</span></header>
+                  <ul><li style="color:var(--muted)">Ничего не удаляется</li></ul>
+                </div>
+              </div>
+
+              <p class="pane-title" style="margin-top:18px">Сравнение с основным спеком <span class="count">Экспорт метрик</span></p>
+              <div class="diff">
+                <header><span>openspec/specs/task-metrics/spec.md</span><span style="margin-left:auto">→ дельта change</span></header>
+                <div class="row ctx"><span> </span><span>### Requirement: Экспорт метрик</span></div>
+                <div class="row minus"><span>−</span><span>Система ДОЛЖНА выгружать метрики задач</span></div>
+                <div class="row plus"><span>+</span><span>Система ДОЛЖНА выгружать метрики задач и changes</span></div>
+                <div class="row plus"><span>+</span><span>с указанием версии схемы данных.</span></div>
+                <div class="row ctx"><span> </span><span>#### Scenario: Экспорт метрик change</span></div>
+                <div class="row plus"><span>+</span><span>#### Scenario: Экспорт всего рабочего пространства</span></div>
+                <div class="row plus"><span>+</span><span>- **WHEN** пользователь запрашивает экспорт по всем changes</span></div>
+                <div class="row plus"><span>+</span><span>- **THEN** выдача содержит активные и архивные changes</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="statusbar">
+            <span>дельт <b>7</b></span>
+            <span>требований <b>35</b></span>
+            <span>сценариев <b>116</b></span>
+            <span class="spacer"></span>
+            <span class="ok">✓ openspec validate --strict</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Дельта читается как требования, а не как markdown</h3>
+        <p>
+          Операции разнесены по группам ADDED / MODIFIED / REMOVED / RENAMED — каждая со
+          своим глифом и подписью, так что смысл читается и без цвета. Для изменённого
+          требования IDE достаёт его текст из основного спека и показывает, что именно
+          меняется: OpenSpec требует, чтобы MODIFIED содержал требование целиком, и
+          именно здесь видно, не потерялась ли при копировании часть сценариев.
+        </p>
+        <p>
+          Слева — карта связей: одна capability под двумя активными changes подсвечивает
+          пересекающиеся требования как конфликт до того, как он всплывёт при архивации.
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Структурный просмотр спека <code>spec-delta-viewer</code></li>
+          <li>Просмотр дельт change <code>spec-delta-viewer</code></li>
+          <li>Сравнение дельты с основным спеком <code>spec-delta-viewer</code></li>
+          <li>Карта связей capability и changes <code>spec-delta-viewer</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 3 ================= -->
+  <section id="s3" class="screen" hidden>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">127.0.0.1:7410 — доска процесса</div>
+      </div>
+      <div class="app">
+        <nav class="rail">
+          <i>Об</i><i>Дл</i><i class="on">Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i>
+        </nav>
+        <div class="stage">
+          <div class="toolbar">
+            <h2>Доска</h2>
+            <span class="crumbs">фаза вычисляется из openspec status, вручную не двигается</span>
+            <span class="spacer"></span>
+            <button class="btn primary">Новый change</button>
+          </div>
+
+          <div class="board">
+            <div class="col p1">
+              <header><h3>Предложение</h3><span class="n">1</span></header>
+              <div class="card">
+                <h4>extract-metrics-export</h4>
+                <div class="chips">
+                  <span class="chip on">proposal</span>
+                  <span class="chip no">specs</span>
+                  <span class="chip no">design</span>
+                  <span class="chip no">tasks</span>
+                </div>
+                <div class="meter"><i style="width:0%"></i></div>
+                <div class="foot"><span>0/0 задач</span><span style="margin-left:auto">не проверялся</span></div>
+              </div>
+            </div>
+
+            <div class="col p2">
+              <header><h3>Готово к работе</h3><span class="n">1</span></header>
+              <div class="card">
+                <h4>rework-agent-budgets</h4>
+                <div class="chips">
+                  <span class="chip on">proposal</span>
+                  <span class="chip on">specs</span>
+                  <span class="chip on">design</span>
+                  <span class="chip on">tasks</span>
+                </div>
+                <div class="meter"><i style="width:0%"></i></div>
+                <div class="foot"><span>0/6 задач</span><span class="err" style="margin-left:auto">✕ 2 ошибки</span></div>
+              </div>
+            </div>
+
+            <div class="col p3">
+              <header><h3>В работе</h3><span class="n">1</span></header>
+              <div class="card lift">
+                <h4>add-openspec-ide</h4>
+                <div class="chips">
+                  <span class="chip on">proposal</span>
+                  <span class="chip on">specs · 7</span>
+                  <span class="chip on">design</span>
+                  <span class="chip on">tasks</span>
+                </div>
+                <div class="meter warn"><i style="width:36%"></i></div>
+                <div class="foot"><span>4/11 задач</span><span class="ok" style="margin-left:auto">✓ валиден</span></div>
+              </div>
+              <div class="card" style="border-style:dashed;background:transparent;box-shadow:none;color:var(--muted);text-align:center;font-size:12px;padding:16px">
+                перетащить сюда нельзя — фаза следует за файлами
+              </div>
+            </div>
+
+            <div class="col p4">
+              <header><h3>Готово к архивации</h3><span class="n">1</span></header>
+              <div class="card">
+                <h4>fix-tree-watcher</h4>
+                <div class="chips">
+                  <span class="chip on">proposal</span>
+                  <span class="chip on">specs · 1</span>
+                  <span class="chip no">design</span>
+                  <span class="chip on">tasks</span>
+                </div>
+                <div class="meter good"><i style="width:100%"></i></div>
+                <div class="foot"><span>5/5 задач</span><span class="ok" style="margin-left:auto">✓ валиден</span></div>
+                <div style="margin-top:9px;display:flex;gap:6px">
+                  <button class="btn primary" style="flex:1">Архивировать</button>
+                  <button class="btn">Метрики</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="statusbar">
+            <span>активных change <b>4</b></span>
+            <span>в архиве <b>0</b></span>
+            <span class="spacer"></span>
+            <span>операции выполняет <b>openspec</b>, не IDE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Колонку выбирают файлы, а не человек</h3>
+        <p>
+          Карточка не перетаскивается между колонками: фаза выводится из состояния
+          артефактов и прогресса <code>tasks.md</code>, которые отдаёт
+          <code>openspec status --json</code>. Отметил последнюю задачу — карточка сама
+          переехала в «Готово к архивации». Это принципиально: доска не может рассказывать
+          про процесс то, чего нет в файлах.
+        </p>
+        <p>
+          Создание и архивация выполняются командами <code>openspec new change</code> и
+          <code>openspec archive</code> — IDE не пишет свою реализацию этих операций, чтобы
+          результат совпадал с тем, что получит коллега из терминала.
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Доска фаз жизненного цикла <code>workflow-board</code></li>
+          <li>Содержимое карточки change <code>workflow-board</code></li>
+          <li>Операции над change с доски <code>workflow-board</code></li>
+          <li>Отметка выполнения задач с доски <code>workflow-board</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 4 ================= -->
+  <section id="s4" class="screen" hidden>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">127.0.0.1:7410 — метрики change add-openspec-ide</div>
+      </div>
+      <div class="app">
+        <nav class="rail">
+          <i>Об</i><i>Дл</i><i>Дс</i><hr><i class="on">Мт</i><i>Аг</i><i>Нс</i>
+        </nav>
+        <div class="stage">
+          <div class="toolbar">
+            <h2>Метрики</h2>
+            <span class="crumbs">add-openspec-ide · 11 пунктов плана</span>
+            <span class="spacer"></span>
+            <button class="btn">Экспорт</button>
+          </div>
+
+          <div class="pane">
+            <div class="tiles">
+              <div class="tile">
+                <div class="k">Выполнено</div>
+                <div class="v">36<small>%</small></div>
+                <div class="sub">4 из 11 задач</div>
+              </div>
+              <div class="tile">
+                <div class="k">Токенов всего</div>
+                <div class="v">184<small>тыс.</small></div>
+                <div class="sub">по 6 задачам с данными</div>
+              </div>
+              <div class="tile">
+                <div class="k">В среднем на задачу</div>
+                <div class="v">30,7<small>тыс.</small></div>
+                <div class="sub">медиана 24,1 тыс.</div>
+              </div>
+              <div class="tile">
+                <div class="k">Время агента</div>
+                <div class="v">41<small>мин</small></div>
+                <div class="sub">9 запусков, 2 неуспешных</div>
+              </div>
+              <div class="tile">
+                <div class="k">Без критерия приёмки</div>
+                <div class="v flag">1</div>
+                <div class="sub">задача 3.2</div>
+              </div>
+              <div class="tile">
+                <div class="k">Расхождений приёмки</div>
+                <div class="v flag">1</div>
+                <div class="sub">отмечена, проверка красная</div>
+              </div>
+            </div>
+
+            <p class="pane-title">Пункты плана <span class="count">сортировка: по токенам</span></p>
+            <div class="tbl-wrap">
+              <table class="m">
+                <thead>
+                  <tr>
+                    <th>Пункт</th>
+                    <th>Задача</th>
+                    <th>Состояние</th>
+                    <th style="text-align:right">Запусков</th>
+                    <th>Токены</th>
+                    <th style="text-align:right">Время</th>
+                    <th>Приёмка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="id">2.3</td>
+                    <td class="task">Адаптер GigaCode CLI и разбор потока событий</td>
+                    <td><span class="state"><span class="dot warn"></span>в работе</span></td>
+                    <td class="num">4</td>
+                    <td><span class="bar" data-tip="2.3 — 61 400 токенов, 3 успешных запуска из 4"><span class="track"><i class="fill" style="width:100%"></i></span><span class="val">61,4k</span></span></td>
+                    <td class="num">16 мин</td>
+                    <td><span class="state"><span class="dot warn"></span>не запускалась</span></td>
+                  </tr>
+                  <tr>
+                    <td class="id">1.4</td>
+                    <td class="task">Обёртка над openspec CLI с разбором JSON</td>
+                    <td><span class="state"><span class="dot ok"></span>готово</span></td>
+                    <td class="num">2</td>
+                    <td><span class="bar" data-tip="1.4 — 38 900 токенов, 2 успешных запуска"><span class="track"><i class="fill" style="width:63%"></i></span><span class="val">38,9k</span></span></td>
+                    <td class="num">8 мин</td>
+                    <td><span class="state"><span class="dot ok"></span>пройдена</span></td>
+                  </tr>
+                  <tr>
+                    <td class="id">3.1</td>
+                    <td class="task">Дерево рабочего пространства и наблюдение за файлами</td>
+                    <td><span class="state"><span class="dot ok"></span>готово</span></td>
+                    <td class="num">2</td>
+                    <td><span class="bar" data-tip="3.1 — 31 200 токенов, 1 успешный запуск из 2"><span class="track"><i class="fill" style="width:51%"></i></span><span class="val">31,2k</span></span></td>
+                    <td class="num">7 мин</td>
+                    <td><span class="state"><span class="dot ok"></span>пройдена</span></td>
+                  </tr>
+                  <tr>
+                    <td class="id">1.2</td>
+                    <td class="task">Каркас монорепозитория и сборка пакетов</td>
+                    <td><span class="state"><span class="dot ok"></span>готово</span></td>
+                    <td class="num">1</td>
+                    <td><span class="bar" data-tip="1.2 — 27 500 токенов, 1 успешный запуск"><span class="track"><i class="fill" style="width:45%"></i></span><span class="val">27,5k</span></span></td>
+                    <td class="num">6 мин</td>
+                    <td><span class="state"><span class="dot ok"></span>пройдена</span></td>
+                  </tr>
+                  <tr>
+                    <td class="id">3.2</td>
+                    <td class="task">Панель проверок по выводу validate</td>
+                    <td><span class="state"><span class="dot ok"></span>готово</span></td>
+                    <td class="num">1</td>
+                    <td><span class="bar" data-tip="3.2 — 15 100 токенов, 1 успешный запуск"><span class="track"><i class="fill" style="width:25%"></i></span><span class="val">15,1k</span></span></td>
+                    <td class="num">3 мин</td>
+                    <td><span class="state"><span class="dot none"></span>нет критерия</span></td>
+                  </tr>
+                  <tr>
+                    <td class="id">4.1</td>
+                    <td class="task">Модель метрик и журнал событий</td>
+                    <td><span class="state"><span class="dot err"></span>расхождение</span></td>
+                    <td class="num">1</td>
+                    <td><span class="bar" data-tip="4.1 — 9 800 токенов, 1 неуспешный запуск"><span class="track"><i class="fill" style="width:16%"></i></span><span class="val">9,8k</span></span></td>
+                    <td class="num">1 мин</td>
+                    <td><span class="state"><span class="dot err"></span>не пройдена</span></td>
+                  </tr>
+                  <tr>
+                    <td class="id">5.1</td>
+                    <td class="task">Доска фаз и операции над change</td>
+                    <td><span class="state"><span class="dot none"></span>не начата</span></td>
+                    <td class="num">0</td>
+                    <td><span class="bar"><span class="track"></span><span class="val nd">нет данных</span></span></td>
+                    <td class="num">—</td>
+                    <td><span class="state"><span class="dot none"></span>не запускалась</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p style="font-size:11.5px;color:var(--muted);margin:10px 0 0">
+              Задачи без данных о расходе помещаются в конец списка и не подменяются нулём в средних значениях.
+              Показано 7 из 11 пунктов.
+            </p>
+          </div>
+
+          <div class="statusbar">
+            <span>журнал <b>.openspec-ide/runs.jsonl</b></span>
+            <span>снимок <b>.openspec-ide/metrics.json</b></span>
+            <span class="spacer"></span>
+            <span>артефакты OpenSpec метриками не изменяются</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Каждый пункт плана измерим</h3>
+        <p>
+          Пункт <code>tasks.md</code> получает устойчивый идентификатор «change · группа ·
+          номер», и метрики переживают переформулировку задачи. По каждому пункту видно
+          состояние, число запусков агента и их исход, израсходованные токены, время
+          работы модели и результат проверки приёмки — той самой, которую схема OpenSpec
+          требует зашивать в формулировку задачи.
+        </p>
+        <p>
+          Два показателя намеренно вынесены наверх как флаги качества плана: задачи без
+          критерия приёмки и задачи, отмеченные выполненными при красной проверке. Первый
+          означает, что план непроверяем; второй — что отметка опередила результат.
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Идентификация пунктов плана <code>task-metrics</code></li>
+          <li>Набор метрик пункта плана <code>task-metrics</code></li>
+          <li>Метрика приёмки задачи <code>task-metrics</code></li>
+          <li>Сводные метрики change <code>task-metrics</code></li>
+          <li>Хранение метрик отдельно от артефактов <code>task-metrics</code></li>
+          <li>Экспорт метрик <code>task-metrics</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 5 ================= -->
+  <section id="s5" class="screen" hidden>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">127.0.0.1:7410 — запуск агента · задача 2.3</div>
+      </div>
+      <div class="app">
+        <nav class="rail">
+          <i>Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i class="on">Аг</i><i>Нс</i>
+        </nav>
+        <div class="stage">
+          <div class="toolbar">
+            <h2>Агент</h2>
+            <span class="crumbs">GigaCode CLI · задача 2.3 «Адаптер GigaCode CLI и разбор потока событий»</span>
+            <span class="spacer"></span>
+            <button class="btn">Остановить</button>
+          </div>
+
+          <div class="panes two" style="grid-template-columns: minmax(0,1fr) 268px">
+            <div class="pane">
+              <p class="pane-title">Команда запуска <span class="count">режим auto-edit</span></p>
+              <div class="term"><span class="cmd">gigacode</span> <span class="str">"Реализуй задачу 2.3 …"</span> \
+  <span class="flag">--output-format</span> stream-json \
+  <span class="flag">--approval-mode</span> auto-edit \
+  <span class="flag">--max-wall-time</span> 15m <span class="flag">--max-tool-calls</span> 120 \
+  <span class="flag">--include-directories</span> packages/server \
+  <span class="flag">-m</span> GigaChat-2-Max
+<span class="cm"># промпт собран из openspec instructions tasks --json</span>
+<span class="cm"># учётные данные: $GIGACODE_API_KEY (значение не хранится в IDE)</span></div>
+
+              <p class="pane-title" style="margin-top:18px">Ход работы <span class="count">выполняется · 06:12</span></p>
+              <ul class="events">
+                <li><span class="t">00:00</span><span class="ic msg">▸</span><span class="body">Промпт отправлен: инструкции артефакта <code>tasks</code> + текст задачи 2.3 + критерий приёмки</span></li>
+                <li><span class="t">00:04</span><span class="ic tool">⚙</span><span class="body"><code>read_file</code> packages/server/src/agent/gigacode.ts</span></li>
+                <li><span class="t">00:31</span><span class="ic tool">⚙</span><span class="body"><code>write_file</code> packages/server/src/agent/stream.ts <span style="color:var(--added)">+142</span></span></li>
+                <li><span class="t">01:47</span><span class="ic tool">⚙</span><span class="body"><code>run_shell</code> npm test -w @openspec-ide/server</span></li>
+                <li><span class="t">02:10</span><span class="ic warn">⚠</span><span class="body">Событие типа <code>thought_summary</code> не распознано — сохранено в журнал как есть, обработка продолжена</span></li>
+                <li><span class="t">04:55</span><span class="ic tool">⚙</span><span class="body"><code>write_file</code> packages/server/src/agent/stream.test.ts <span style="color:var(--added)">+88</span></span></li>
+                <li><span class="t">06:12</span><span class="ic msg">▸</span><span class="body">Разбор NDJSON готов, добиваю случай оборванной строки<span class="cursor"></span></span></li>
+              </ul>
+            </div>
+
+            <div class="pane">
+              <p class="pane-title">Бюджет</p>
+              <div class="budgets">
+                <div class="budget">
+                  <div class="lbl"><span>Время</span><b>6:12 / 15:00</b></div>
+                  <div class="meter"><i style="width:41%"></i></div>
+                </div>
+                <div class="budget">
+                  <div class="lbl"><span>Вызовы инструментов</span><b>37 / 120</b></div>
+                  <div class="meter"><i style="width:31%"></i></div>
+                </div>
+                <div class="budget">
+                  <div class="lbl"><span>Токены</span><b>24,8k</b></div>
+                  <div class="meter good"><i style="width:22%"></i></div>
+                </div>
+              </div>
+
+              <p class="pane-title" style="margin-top:20px">Запуск</p>
+              <ul class="kv">
+                <li><span class="k">Модель</span><span class="v">GigaChat-2-Max</span></li>
+                <li><span class="k">Режим</span><span class="v">auto-edit</span></li>
+                <li><span class="k">Сессия</span><span class="v">a41f…9c2</span></li>
+                <li><span class="k">Затронуто файлов</span><span class="v">3</span></li>
+                <li><span class="k">Начат</span><span class="v">14:02:37</span></li>
+              </ul>
+
+              <p class="pane-title" style="margin-top:20px">История задачи 2.3 <span class="count">4</span></p>
+              <ul class="problems">
+                <li><span class="sev w">▶</span><span>выполняется · 24,8k<span class="where">14:02 · auto-edit</span></span></li>
+                <li><span class="sev e">✕</span><span>превышен бюджет времени · 12,1k<span class="where">11:40 · предел был 5 мин</span></span></li>
+                <li><span class="sev s">✓</span><span>успешно · 15,3k<span class="where">10:18 · план без изменений</span></span></li>
+                <li><span class="sev s">✓</span><span>успешно · 9,2k<span class="where">09:51 · plan</span></span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="statusbar">
+            <span>процесс <b>pid 41822</b></span>
+            <span>поток <b>stream-json</b></span>
+            <span class="spacer"></span>
+            <span>по этому change параллельный запуск заблокирован</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Запуск агента — операция с бюджетом, а не свободный чат</h3>
+        <p>
+          Промпт не сочиняется IDE: его основа — вывод
+          <code>openspec instructions &lt;artifact&gt; --json</code>, то есть ровно те
+          инструкции, которые схема workflow предписывает для этого артефакта. К ним
+          добавляется текст пункта плана и его критерий приёмки. Итоговый текст показывается
+          и правится до запуска.
+        </p>
+        <p>
+          Предел по времени и по числу вызовов инструментов передаётся самому CLI, поэтому
+          превышение — это отдельный исход запуска, а не зависшая вкладка. Собранные до
+          обрыва показатели всё равно попадают в метрики задачи 2.3.
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Сборка промпта из инструкций OpenSpec <code>agent-bridge</code></li>
+          <li>Запуск агента и потоковый вывод <code>agent-bridge</code></li>
+          <li>Бюджеты запуска <code>agent-bridge</code></li>
+          <li>Режим подтверждения действий агента <code>agent-bridge</code></li>
+          <li>Журнал запусков и связь с метриками <code>agent-bridge</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 6 ================= -->
+  <section id="s6" class="screen" hidden>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">127.0.0.1:7410 — настройки · подключение к LLM</div>
+      </div>
+      <div class="app">
+        <nav class="rail">
+          <i>Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i class="on">Нс</i>
+        </nav>
+        <div class="stage">
+          <div class="toolbar">
+            <h2>Настройки</h2>
+            <span class="crumbs">.openspec-ide/config.json</span>
+            <span class="spacer"></span>
+            <button class="btn">Проверить подключение</button>
+            <button class="btn primary">Сохранить</button>
+          </div>
+
+          <div class="form">
+            <div class="notice ok">
+              <span class="ic">✓</span>
+              <span><b>GigaCode CLI 1.4.2</b> — найден, потоковый вывод <code style="font-family:var(--mono)">stream-json</code> поддерживается. Проверено 21.09 в 13:58.</span>
+            </div>
+
+            <div class="field">
+              <label for="bin">Исполняемый файл</label>
+              <div class="input" id="bin">/usr/local/bin/gigacode</div>
+              <p class="hint">Пусто — ищется в PATH. Проверка сообщает, какие пути были просмотрены.</p>
+            </div>
+
+            <div class="two-col">
+              <div class="field">
+                <label for="model">Модель</label>
+                <div class="input" id="model">GigaChat-2-Max</div>
+              </div>
+              <div class="field">
+                <label for="env">Переменная с учётными данными</label>
+                <div class="input" id="env">GIGACODE_API_KEY</div>
+              </div>
+            </div>
+
+            <div class="notice warn">
+              <span class="ic">⌾</span>
+              <span>Значение ключа IDE не хранит и не показывает: в конфигурацию попадает только <b>имя</b> переменной окружения. Если переменная не задана в среде сервера, запуск агента блокируется с указанием, чего не хватает.</span>
+            </div>
+
+            <div class="field">
+              <label>Режим подтверждения действий</label>
+              <div class="radios">
+                <div class="radio">
+                  <span class="mark"></span>
+                  <span><b>plan — только анализ</b><span>Файлы не изменяются, команды не запускаются. Результат — предложенный план.</span></span>
+                </div>
+                <div class="radio on">
+                  <span class="mark"></span>
+                  <span><b>default — подтверждать изменения</b><span>Значение по умолчанию. Правка файлов и команды требуют подтверждения.</span></span>
+                </div>
+                <div class="radio">
+                  <span class="mark"></span>
+                  <span><b>auto-edit — правки без вопросов</b><span>Файлы правятся автоматически, команды подтверждаются.</span></span>
+                </div>
+                <div class="radio risky">
+                  <span class="mark"></span>
+                  <span><b>yolo — подтверждать всё</b><span style="color:var(--modified)">⚠ Требует явного согласия: агент меняет файлы и запускает команды без остановки.</span></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="two-col">
+              <div class="field">
+                <label for="wall">Предел времени запуска</label>
+                <div class="input" id="wall">15m</div>
+                <p class="hint">Передаётся как <code style="font-family:var(--mono)">--max-wall-time</code>.</p>
+              </div>
+              <div class="field">
+                <label for="calls">Предел вызовов инструментов</label>
+                <div class="input" id="calls">120</div>
+                <p class="hint">Передаётся как <code style="font-family:var(--mono)">--max-tool-calls</code>.</p>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="root">Корень рабочего пространства</label>
+              <div class="input locked" id="root">~/work/openspec_idle <span class="ph">· определён поиском ближайшего openspec/</span></div>
+              <p class="hint">Чтение и запись за пределами этого каталога отклоняются, включая переходы через символические ссылки.</p>
+            </div>
+          </div>
+
+          <div class="statusbar">
+            <span>сервер <b>127.0.0.1</b> только loopback</span>
+            <span>токен сессии <b>обновлён при запуске</b></span>
+            <span class="spacer"></span>
+            <span>секреты в конфигурацию не пишутся</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Единственный канал к модели — GigaCode CLI</h3>
+        <p>
+          IDE сама никуда не ходит по сети: весь трафик к модели идёт через процесс
+          GigaCode CLI, авторизованный на машине разработчика. В конфигурацию попадают путь
+          к бинарю, модель, режим, бюджеты и <i>имя</i> переменной окружения — значение
+          ключа не сохраняется, не отображается и вырезается из сохраняемых промптов.
+        </p>
+        <p>
+          Проверка подключения выясняет версию CLI и поддержку потокового вывода. Если
+          установленная сборка потоковый режим не принимает, IDE переходит на одноразовый
+          вывод и честно предупреждает, что ход работы будет виден только по завершении.
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Настройка подключения к GigaCode CLI <code>agent-bridge</code></li>
+          <li>Проверка доступности агента <code>agent-bridge</code></li>
+          <li>Конфигурация IDE <code>ide-runtime</code></li>
+          <li>Доступ только с локальной машины <code>ide-runtime</code></li>
+          <li>Операции над файлами ограничены рабочим пространством <code>ide-runtime</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot-note">
+    <span>Макеты к change <code>add-openspec-ide</code></span>
+    <span>Схема workflow <code>spec-driven</code></span>
+    <span>Данные на экранах — примеры, не реальные замеры</span>
+  </p>
+
+</div>
+
+<div class="tip" id="tip" role="status"></div>
+
+<script>
+  (function () {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.switch button'));
+    var screens = Array.prototype.slice.call(document.querySelectorAll('.screen'));
+
+    function show(id) {
+      screens.forEach(function (s) { s.hidden = s.id !== id; });
+      tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.screen === id)); });
+      try { localStorage.setItem('osi-screen', id); } catch (e) { /* storage may be blocked */ }
+    }
+
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function () { show(t.dataset.screen); });
+    });
+
+    try {
+      var saved = localStorage.getItem('osi-screen');
+      if (saved && document.getElementById(saved)) show(saved);
+    } catch (e) { /* ignore */ }
+
+    // theme toggle: cycles система → светлая → тёмная
+    var order = ['', 'light', 'dark'];
+    var labels = { '': 'Тема: система', light: 'Тема: светлая', dark: 'Тема: тёмная' };
+    var idx = 0;
+    var btn = document.getElementById('theme');
+    btn.textContent = labels[''];
+    btn.addEventListener('click', function () {
+      idx = (idx + 1) % order.length;
+      var v = order[idx];
+      if (v) document.documentElement.setAttribute('data-theme', v);
+      else document.documentElement.removeAttribute('data-theme');
+      btn.textContent = labels[v];
+    });
+
+    // per-mark hover tooltip for the magnitude bars
+    var tip = document.getElementById('tip');
+    document.addEventListener('mouseover', function (e) {
+      var bar = e.target.closest ? e.target.closest('[data-tip]') : null;
+      if (!bar) return;
+      tip.textContent = bar.getAttribute('data-tip');
+      tip.classList.add('on');
+      var r = bar.getBoundingClientRect();
+      tip.style.left = Math.max(8, Math.min(r.left, window.innerWidth - tip.offsetWidth - 8)) + 'px';
+      tip.style.top = Math.max(8, r.top - tip.offsetHeight - 6) + 'px';
+    });
+    document.addEventListener('mouseout', function (e) {
+      if (e.target.closest && e.target.closest('[data-tip]')) tip.classList.remove('on');
+    });
+  })();
+</script>

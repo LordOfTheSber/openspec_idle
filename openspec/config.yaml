@@ -1,0 +1,57 @@
+schema: spec-driven
+
+context: |
+  Проект: OpenSpec IDE — локальная web-среда для работы по методологии OpenSpec.
+  Пользователь открывает IDE в каталоге проекта (`openspec-ide`), она поднимает
+  локальный HTTP-сервер и отдаёт SPA в браузер. Источник истины — файлы
+  `openspec/` на диске и CLI `@fission-ai/openspec`; IDE их читает, показывает
+  и редактирует, но не дублирует их состояние в своей БД.
+
+  Tech stack:
+  - Монорепозиторий npm workspaces, TypeScript (strict), Node.js >= 22, ESM.
+  - Бэкенд: Node + Fastify, SSE для стримов, spawn CLI-процессов.
+  - Фронтенд: React 19 + Vite, TanStack Query, CodeMirror 6 (markdown), Zustand.
+  - Тесты: Vitest (unit/integration), Playwright (e2e поверх фикстурного проекта).
+  - Локализация UI: русский по умолчанию, ключи вынесены в словарь.
+
+  Интеграция с LLM:
+  - Единственный поддерживаемый агент MVP — GigaCode CLI (форк Qwen Code,
+    который форк Gemini CLI). Взаимодействие headless: одноразовый запуск
+    процесса с позиционным промптом и `--output-format stream-json`.
+  - Ключи и токены никогда не попадают в код и в репозиторий: только env
+    и локальный файл конфигурации вне git.
+
+  Домен и терминология (совпадает с OpenSpec):
+  - change — предложение изменения, каталог в `openspec/changes/<name>/`.
+  - artifact — proposal.md, specs/**/*.md, design.md, tasks.md.
+  - spec / capability — файл `openspec/specs/<capability-path>/spec.md`.
+  - delta — секции ADDED/MODIFIED/REMOVED/RENAMED Requirements в спеке change.
+  - requirement / scenario — `### Requirement:` и `#### Scenario:`.
+
+  Конвенции:
+  - Conventional commits.
+  - Пользовательские строки — на русском, идентификаторы, пути и код — на английском.
+  - Любое обращение к openspec CLI идёт через один модуль-обёртку с JSON-выводом,
+    прямые вызовы `execSync` из UI-слоя запрещены.
+
+rules:
+  proposal:
+    - Пиши на русском языке
+    - Секция Capabilities обязана перечислять точные kebab-case пути спеков
+  specs:
+    - Пиши на русском языке, нормативные формулировки через ДОЛЖЕН/ДОЛЖНА (SHALL)
+    - Каждое требование имеет минимум один сценарий с WHEN/THEN
+  design:
+    - Пиши на русском языке
+    - Каждое решение сопровождается рассмотренной альтернативой
+  tasks:
+    - Пиши на русском языке
+    - Каждая задача содержит метрику приёмки — как проверить, что она сделана
+
+operations:
+  apply:
+    guidance:
+      - После каждой группы задач прогоняй `npm run verify` и фиксируй результат
+  archive:
+    guidance:
+      - Перед архивацией убедись, что `openspec validate --strict` проходит

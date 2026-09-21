@@ -1,0 +1,23 @@
+{
+  "name": "openspec_idle",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LordOfTheSber/openspec_idle.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LordOfTheSber/openspec_idle/issues"
+  },
+  "homepage": "https://github.com/LordOfTheSber/openspec_idle#readme",
+  "devDependencies": {
+    "@fission-ai/openspec": "^1.13.1"
+  }
+}
