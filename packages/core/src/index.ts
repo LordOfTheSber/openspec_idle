@@ -30,3 +30,25 @@ export {
   type SearchKind,
   type SearchNames,
 } from './search.js';
+
+export {
+  buildDeltaView,
+  compareRequirement,
+  sameHeader,
+  type DeltaGroup,
+  type DeltaRequirement,
+  type DeltaView,
+  type DiffLine,
+  type RequirementComparison,
+} from './delta.js';
+
+export {
+  buildCapabilityMap,
+  capabilitiesFor,
+  changesFor,
+  type CapabilityDelta,
+  type CapabilityLink,
+  type CapabilityMap,
+  type CapabilityMapInput,
+  type CapabilityNode,
+} from './capabilityMap.js';

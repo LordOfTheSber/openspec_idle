@@ -27,6 +27,14 @@ export interface ParsedRequirement {
   readonly scenarios: readonly ParsedScenario[];
   /** Текст описания требования между заголовком и первым сценарием. */
   readonly description: string;
+  /** Причина удаления — обязательна для операции REMOVED. */
+  readonly reason: string | null;
+  /** Указание по миграции — обязательно для операции REMOVED. */
+  readonly migration: string | null;
+  /** Прежнее имя — обязательно для операции RENAMED. */
+  readonly renamedFrom: string | null;
+  /** Новое имя — обязательно для операции RENAMED. */
+  readonly renamedTo: string | null;
 }
 
 /** Разобранный документ спека или дельты. */
@@ -53,6 +61,11 @@ const RE_SCENARIO = /^####\s+Scenario:\s*(.+?)\s*$/;
 // блок молча не распознаёт, поэтому его нужно ловить отдельно.
 const RE_SCENARIO_WRONG = /^###\s+Scenario:\s*(.+?)\s*$/;
 const RE_STEP = /^\s*-\s+\*\*(WHEN|THEN|AND|IF|GIVEN)\*\*/i;
+const RE_REASON = /^\*\*Reason\*\*:\s*(.*)$/i;
+const RE_MIGRATION = /^\*\*Migration\*\*:\s*(.*)$/i;
+// Прежнее и новое имя записываются как `FROM: \`### Requirement: Имя\``.
+const RE_RENAME_FROM = /^FROM:\s*`?(?:###\s*Requirement:\s*)?(.+?)`?\s*$/;
+const RE_RENAME_TO = /^TO:\s*`?(?:###\s*Requirement:\s*)?(.+?)`?\s*$/;
 const RE_DELTA_HEADER = /^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\s*$/;
 
 /** Разбирает markdown спека или дельты. */
@@ -74,6 +87,10 @@ export function parseSpecMarkdown(text: string): ParsedSpecDocument {
     operation: DeltaOperation | null;
     scenarios: ParsedScenario[];
     description: string[];
+    reason: string | null;
+    migration: string | null;
+    renamedFrom: string | null;
+    renamedTo: string | null;
   } | null = null;
   let currentScenario: { name: string; line: number; steps: string[] } | null = null;
 
@@ -91,7 +108,11 @@ export function parseSpecMarkdown(text: string): ParsedSpecDocument {
   const closeRequirement = (): void => {
     closeScenario();
     if (currentRequirement === null) return;
-    if (currentRequirement.scenarios.length === 0) {
+    // Удалённое и переименованное требование сценариев не несёт — они
+    // описывают поведение, которого больше нет или которое не менялось.
+    const needsScenarios =
+      currentRequirement.operation !== 'REMOVED' && currentRequirement.operation !== 'RENAMED';
+    if (needsScenarios && currentRequirement.scenarios.length === 0) {
       problems.push({
         line: currentRequirement.line,
         kind: 'requirement-without-scenario',
@@ -104,6 +125,10 @@ export function parseSpecMarkdown(text: string): ParsedSpecDocument {
       operation: currentRequirement.operation,
       scenarios: currentRequirement.scenarios,
       description: currentRequirement.description.join('\n').trim(),
+      reason: currentRequirement.reason,
+      migration: currentRequirement.migration,
+      renamedFrom: currentRequirement.renamedFrom,
+      renamedTo: currentRequirement.renamedTo,
     });
     currentRequirement = null;
   };
@@ -144,6 +169,10 @@ export function parseSpecMarkdown(text: string): ParsedSpecDocument {
         operation,
         scenarios: [],
         description: [],
+        reason: null,
+        migration: null,
+        renamedFrom: null,
+        renamedTo: null,
       };
       continue;
     }
@@ -173,6 +202,29 @@ export function parseSpecMarkdown(text: string): ParsedSpecDocument {
           'OpenSpec требует ровно четырёх, иначе блок молча не распознаётся',
       });
       continue;
+    }
+
+    if (currentRequirement !== null) {
+      const reason = RE_REASON.exec(raw);
+      if (reason?.[1] !== undefined) {
+        currentRequirement.reason = reason[1].trim() === '' ? null : reason[1].trim();
+        continue;
+      }
+      const migration = RE_MIGRATION.exec(raw);
+      if (migration?.[1] !== undefined) {
+        currentRequirement.migration = migration[1].trim() === '' ? null : migration[1].trim();
+        continue;
+      }
+      const from = RE_RENAME_FROM.exec(raw);
+      if (from?.[1] !== undefined) {
+        currentRequirement.renamedFrom = from[1].trim();
+        continue;
+      }
+      const to = RE_RENAME_TO.exec(raw);
+      if (to?.[1] !== undefined) {
+        currentRequirement.renamedTo = to[1].trim();
+        continue;
+      }
     }
 
     if (inPurpose) {

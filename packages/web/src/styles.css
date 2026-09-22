@@ -717,3 +717,333 @@ body {
     max-height: none;
   }
 }
+
+/* ---------- дельты и карта связей ---------- */
+
+.deltas {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.deltas .purpose {
+  margin: 0 0 12px;
+  color: var(--text-2);
+  font-size: 13px;
+  max-width: 62ch;
+}
+
+.dgroup {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.dgroup > header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.dgroup .glyph {
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.dgroup .n {
+  margin-left: auto;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.dgroup.added > header {
+  background: var(--added-soft);
+  color: var(--added);
+}
+.dgroup.added .glyph {
+  background: var(--added);
+  color: var(--added-soft);
+}
+.dgroup.modified > header {
+  background: var(--modified-soft);
+  color: var(--modified);
+}
+.dgroup.modified .glyph {
+  background: var(--modified);
+  color: var(--modified-soft);
+}
+.dgroup.removed > header {
+  background: var(--removed-soft);
+  color: var(--removed);
+}
+.dgroup.removed .glyph {
+  background: var(--removed);
+  color: var(--removed-soft);
+}
+.dgroup.renamed > header {
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+.dgroup.renamed .glyph {
+  background: var(--text-2);
+  color: var(--surface-3);
+}
+
+.dgroup ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dgroup li {
+  padding: 9px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.dgroup li:first-child {
+  border-top: 0;
+}
+
+.requirement-link {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--text);
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.requirement-link:hover {
+  color: var(--accent);
+}
+
+.dgroup .sc {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.dgroup .field {
+  font-size: 11.5px;
+  color: var(--muted);
+  flex-basis: 100%;
+}
+
+.dgroup .incomplete {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--removed-soft);
+  color: var(--removed);
+}
+
+.comparison {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.diff {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+
+.diff .row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  padding: 0 12px;
+}
+
+.diff .row > span:first-child {
+  color: var(--muted);
+  opacity: 0.6;
+  user-select: none;
+}
+
+.diff .row.plus {
+  background: var(--added-soft);
+  color: var(--added);
+}
+
+.diff .row.minus {
+  background: var(--removed-soft);
+  color: var(--removed);
+}
+
+.diff .row.ctx {
+  color: var(--text-2);
+}
+
+.scenario-diff {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px 16px;
+  font-size: 12.5px;
+  margin: 0 0 12px;
+}
+
+.scenario-diff dt {
+  color: var(--muted);
+}
+
+.scenario-diff dd {
+  margin: 0;
+}
+
+.capability-map {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.capability-map > li {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+}
+
+.cap-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.chip {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+.chip.bad {
+  background: var(--removed-soft);
+  color: var(--removed);
+}
+
+.cap-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12.5px;
+}
+
+.cap-links li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 0;
+  flex-wrap: wrap;
+}
+
+.cap-links .mono {
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+
+.conflict {
+  font-size: 11.5px;
+  color: var(--removed);
+}
+
+/* ---------- структурный просмотр спека ---------- */
+
+.spec-requirements {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.requirement-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  padding: 5px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.requirement-toggle:hover {
+  background: var(--surface-2);
+}
+
+.requirement-toggle .tw {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.requirement-toggle .tail {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.requirement-body {
+  padding: 0 6px 8px 22px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.requirement-body p {
+  margin: 0 0 6px;
+  max-width: 62ch;
+}
+
+.spec-scenarios {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.spec-scenarios li {
+  color: var(--muted);
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--border);
+}

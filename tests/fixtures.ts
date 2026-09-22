@@ -53,6 +53,16 @@ export const FIXTURES: readonly FixtureExpectation[] = [
     tasks: null,
   },
   {
+    dir: 'delta-ops',
+    // MODIFIED здесь намеренно теряет сценарий основного спека: именно этот
+    // случай показывает просмотрщик дельт, и CLI на нём ожидаемо ругается.
+    about: 'все виды операций дельт, потерянный при копировании сценарий и два change над одной capability',
+    schema: 'spec-driven',
+    change: 'rework-export',
+    validates: false,
+    tasks: { complete: 0, total: 1 },
+  },
+  {
     dir: 'custom-schema',
     about: 'собственная схема: свои артефакты, лишний этап, другой отслеживаемый артефакт',
     schema: 'team-flow',

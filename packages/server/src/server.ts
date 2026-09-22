@@ -10,6 +10,7 @@ import { OpenspecClient } from './openspec/client.js';
 import { locateOpenspecCli, missingCliNotice } from './openspec/locate.js';
 import { WorkspaceWatcher } from './watcher.js';
 import { WorkspaceReader } from './workspace.js';
+import { DeltaReader } from './deltas.js';
 import { ArtifactCreationError, SNIPPETS, createArtifact } from './artifacts.js';
 import { StaleWriteError, WriteFailedError, readArtifactFile, saveArtifactFile } from './files.js';
 import { ValidationRunner } from './validation.js';
@@ -74,6 +75,7 @@ export function createApp(options: ServerOptions): AppParts {
       ? new OpenspecClient({ root, bin: location.bin })
       : null;
   const reader = client === null ? null : new WorkspaceReader(client);
+  const deltas = client === null || reader === null ? null : new DeltaReader(client, reader);
   const validation =
     root !== null && location?.kind === 'found'
       ? new ValidationRunner({ bin: location.bin, cwd: root })
@@ -156,6 +158,39 @@ export function createApp(options: ServerOptions): AppParts {
     const { tree } = await reader.readTree();
     const index = await reader.buildSearchIndex(tree);
     return { hits: index.search(text, kinds as never[]) };
+  });
+
+  app.get('/api/deltas', async (request) => {
+    if (deltas === null) throw new Error('CLI OpenSpec недоступен');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const change = query['change'];
+    if (change === undefined || change === '') throw new Error('Не указано имя change');
+    return deltas.readChangeDeltas(change);
+  });
+
+  app.get('/api/spec', async (request) => {
+    if (deltas === null) throw new Error('CLI OpenSpec недоступен');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const capability = query['capability'];
+    if (capability === undefined || capability === '') {
+      throw new Error('Не указан путь capability');
+    }
+    return { spec: await deltas.readSpec(capability) };
+  });
+
+  app.get('/api/compare', async (request) => {
+    if (deltas === null) throw new Error('CLI OpenSpec недоступен');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const { change, capability, requirement } = query;
+    if (change === undefined || capability === undefined || requirement === undefined) {
+      throw new Error('Нужны change, capability и requirement');
+    }
+    return { comparison: await deltas.compare(change, capability, requirement) };
+  });
+
+  app.get('/api/capability-map', async () => {
+    if (deltas === null) throw new Error('CLI OpenSpec недоступен');
+    return deltas.buildMap();
   });
 
   app.get('/api/file', async (request) => {

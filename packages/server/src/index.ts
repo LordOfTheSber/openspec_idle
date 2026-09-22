@@ -74,3 +74,10 @@ export {
   type ValidationEntry,
   type ValidationRun,
 } from './validation.js';
+
+export {
+  DeltaReader,
+  capabilityFromPath,
+  type ChangeDeltas,
+  type SpecView,
+} from './deltas.js';

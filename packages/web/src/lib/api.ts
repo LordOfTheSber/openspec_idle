@@ -1,4 +1,10 @@
-import type { SearchHit, WorkspaceTree } from '@openspec-ide/core';
+import type {
+  CapabilityMap,
+  DeltaView,
+  RequirementComparison,
+  SearchHit,
+  WorkspaceTree,
+} from '@openspec-ide/core';
 
 /** Состояние рабочего пространства, отданное сервером. */
 export type WorkspaceResponse =
@@ -134,4 +140,49 @@ export function fetchValidation(change: string): Promise<ValidationRunResponse> 
 /** Заготовки для вставки в артефакт. */
 export function fetchSnippets(): Promise<Record<string, string>> {
   return get<Record<string, string>>('/api/snippets');
+}
+
+/** Дельты change, как их отдаёт сервер. */
+export interface ChangeDeltasResponse {
+  readonly change: string;
+  readonly views: readonly DeltaView[];
+}
+
+export function fetchDeltas(change: string): Promise<ChangeDeltasResponse> {
+  return get<ChangeDeltasResponse>(`/api/deltas?change=${encodeURIComponent(change)}`);
+}
+
+export function fetchComparison(
+  change: string,
+  capability: string,
+  requirement: string,
+): Promise<{ comparison: RequirementComparison | null }> {
+  const params = new URLSearchParams({ change, capability, requirement });
+  return get<{ comparison: RequirementComparison | null }>(
+    `/api/compare?${params.toString()}`,
+  );
+}
+
+export function fetchCapabilityMap(): Promise<CapabilityMap> {
+  return get<CapabilityMap>('/api/capability-map');
+}
+
+/** Структурный вид основного спека. */
+export interface SpecResponse {
+  readonly spec: {
+    readonly capability: string;
+    readonly purpose: string | null;
+    readonly purposeIsPlaceholder: boolean;
+    readonly requirements: readonly {
+      readonly name: string;
+      readonly line: number;
+      readonly description: string;
+      readonly scenarios: readonly { readonly name: string; readonly line: number }[];
+    }[];
+    readonly scenarioCount: number;
+  } | null;
+}
+
+export function fetchSpec(capability: string): Promise<SpecResponse> {
+  return get<SpecResponse>(`/api/spec?capability=${encodeURIComponent(capability)}`);
 }

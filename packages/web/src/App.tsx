@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Detail } from './components/Detail.js';
+import { CapabilityMapView } from './components/CapabilityMapView.js';
+import { Deltas } from './components/Deltas.js';
 import { EditorPane } from './components/EditorPane.js';
+import { SpecView } from './components/SpecView.js';
 import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
 import { eventsUrl, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
@@ -10,7 +13,13 @@ import {
   eventSourceTransport,
 } from './lib/connection.js';
 
-type Section = 'explorer' | 'search';
+type Section = 'explorer' | 'deltas' | 'search';
+
+const SECTION_TITLE: Record<Section, string> = {
+  explorer: 'Обозреватель',
+  deltas: 'Дельты',
+  search: 'Поиск',
+};
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
   connecting: 'подключение…',
@@ -73,6 +82,15 @@ export function App() {
         </button>
         <button
           type="button"
+          aria-current={section === 'deltas'}
+          aria-label="Дельты"
+          title="Дельты"
+          onClick={() => setSection('deltas')}
+        >
+          Дл
+        </button>
+        <button
+          type="button"
           aria-current={section === 'search'}
           aria-label="Поиск"
           title="Поиск"
@@ -84,7 +102,7 @@ export function App() {
 
       <div className="stage">
         <header className="toolbar">
-          <h1>{section === 'explorer' ? 'Обозреватель' : 'Поиск'}</h1>
+          <h1>{SECTION_TITLE[section]}</h1>
           <span className="crumbs">
             {workspace?.state === 'ready' ? workspace.root : 'рабочее пространство не определено'}
           </span>
@@ -129,6 +147,17 @@ export function App() {
 
             {section === 'search' ? (
               <Search />
+            ) : section === 'deltas' ? (
+              selection?.kind === 'change' || selection?.kind === 'artifact' ? (
+                <Deltas change={selection.parent ?? selection.id} />
+              ) : selection?.kind === 'capability' ? (
+                <SpecView capability={selection.id} />
+              ) : (
+                <>
+                  <p className="pane-title">Карта связей</p>
+                  <CapabilityMapView />
+                </>
+              )
             ) : tree === null ? null : selection?.kind === 'artifact' ? (
               (() => {
                 const change = tree.changes.find((item) => item.name === selection.parent);
