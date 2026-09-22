@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { canonicalize } from '@openspec-ide/core';
+import { canonicalize } from '../fs/workspace.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { locateOpenspecCli, missingCliNotice } from './locate.js';
 

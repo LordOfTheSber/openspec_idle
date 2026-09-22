@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
-import { resolveOpenspecRoot } from '@openspec-ide/core';
-import { PortInUseError, startServer } from '@openspec-ide/server';
+import { PortInUseError, resolveOpenspecRoot, startServer } from '@openspec-ide/server';
 import { ArgsError, helpText, parseArgs } from './args.js';
 
 /** Что CLI напечатал и с каким кодом завершился бы. */

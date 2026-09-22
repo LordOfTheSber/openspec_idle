@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { canonicalize } from '@openspec-ide/core';
+import { canonicalize } from './fs/workspace.js';
 import { describe, expect, it } from 'vitest';
 import { OpenspecClient } from './openspec/client.js';
 import { WorkspaceReader } from './workspace.js';

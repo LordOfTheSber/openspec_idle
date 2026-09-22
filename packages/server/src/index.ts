@@ -1,6 +1,13 @@
 export const SERVER_VERSION = '0.1.0';
 
 export {
+  canonicalize,
+  isInsideRoot,
+  resolveOpenspecRoot,
+  type RootResolution,
+} from './fs/workspace.js';
+
+export {
   LOOPBACK_HOST,
   PortInUseError,
   createApp,
@@ -44,3 +51,26 @@ export {
   type ConfigLoad,
   type IdeConfig,
 } from './config.js';
+
+export {
+  ArtifactCreationError,
+  SNIPPETS,
+  createArtifact,
+  resolveArtifactPath,
+  type CreateArtifactRequest,
+  type CreatedArtifact,
+} from './artifacts.js';
+export {
+  StaleWriteError,
+  WriteFailedError,
+  contentVersion,
+  readArtifactFile,
+  saveArtifactFile,
+  type ArtifactFile,
+  type FileSystemOps,
+} from './files.js';
+export {
+  ValidationRunner,
+  type ValidationEntry,
+  type ValidationRun,
+} from './validation.js';

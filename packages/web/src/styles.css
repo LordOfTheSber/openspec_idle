@@ -476,3 +476,244 @@ body {
     border-top: 1px solid var(--border);
   }
 }
+
+/* ---------- редактор ---------- */
+
+.editor-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.editor-toolbar .dirty {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--modified-soft);
+  color: var(--modified);
+}
+
+.btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  padding: 4px 11px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  gap: 12px;
+  min-height: 0;
+}
+
+.editor-host {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: auto;
+  max-height: 46vh;
+  background: var(--surface);
+}
+
+.editor-host .cm-editor {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.editor-host .cm-editor.cm-focused {
+  outline: none;
+}
+
+.editor-side {
+  min-width: 0;
+  overflow: auto;
+  max-height: 46vh;
+}
+
+.outline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12.5px;
+}
+
+.outline ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 14px;
+}
+
+.outline-item {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  text-align: left;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.outline-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.outline-item .op {
+  font-family: var(--mono);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.outline-item .nm {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-item.scenario {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.problems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12.5px;
+}
+
+.problems.stale {
+  opacity: 0.55;
+}
+
+.problems li {
+  display: flex;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  align-items: flex-start;
+}
+
+.problems li:last-child {
+  border-bottom: 0;
+}
+
+.problems .sev {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.problems .sev.e {
+  background: var(--removed-soft);
+  color: var(--removed);
+}
+
+.problems .sev.w {
+  background: var(--modified-soft);
+  color: var(--modified);
+}
+
+.problems .sev.i {
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+.problem-link {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--text-2);
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.problem-link:hover {
+  color: var(--text);
+}
+
+.problem-link .where {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.notice.ok {
+  background: var(--added-soft);
+  color: var(--added);
+}
+
+.diff-preview {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--text-2);
+}
+
+.conflict-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .editor-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editor-side {
+    max-height: none;
+  }
+}

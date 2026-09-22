@@ -1,4 +1,4 @@
-import { canonicalize, isInsideRoot } from '@openspec-ide/core';
+import { canonicalize, isInsideRoot } from '../fs/workspace.js';
 import { isAbsolute, resolve } from 'node:path';
 
 /** Путь отклонён, потому что ведёт за пределы рабочего пространства. */

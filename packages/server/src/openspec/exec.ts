@@ -12,7 +12,8 @@ export type CliFailureKind =
   | 'not-found' // исполняемый файл не найден
   | 'exit-code' // CLI завершился ненулевым кодом
   | 'parse' // вывод не разбирается как JSON
-  | 'timeout'; // CLI не уложился в отведённое время
+  | 'timeout' // CLI не уложился в отведённое время
+  | 'aborted'; // вызов отменён — например, его вытеснил более свежий
 
 /** Неуспешный вызов CLI. Текст сохраняется целиком, без интерпретации. */
 export interface CliFailure {
@@ -35,6 +36,8 @@ export interface CliRunOptions {
   readonly cwd: string;
   /** Предел времени на один вызов, мс. */
   readonly timeoutMs?: number;
+  /** Сигнал отмены: прерывает выполняющийся процесс. */
+  readonly signal?: AbortSignal;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -46,6 +49,7 @@ interface RawRun {
   readonly stderr: string;
   readonly spawnError: NodeJS.ErrnoException | null;
   readonly timedOut: boolean;
+  readonly aborted: boolean;
 }
 
 /** Запускает CLI и возвращает сырой результат, не интерпретируя его. */
@@ -59,10 +63,11 @@ export async function runCli(options: CliRunOptions, args: readonly string[]): P
         timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         maxBuffer: MAX_OUTPUT_BYTES,
         env: { ...process.env, NO_COLOR: '1' },
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
       (error, stdout, stderr) => {
         if (error === null) {
-          resolve({ code: 0, stdout, stderr, spawnError: null, timedOut: false });
+          resolve({ code: 0, stdout, stderr, spawnError: null, timedOut: false, aborted: false });
           return;
         }
         const err = error as NodeJS.ErrnoException & { code?: number | string; killed?: boolean };
@@ -73,6 +78,7 @@ export async function runCli(options: CliRunOptions, args: readonly string[]): P
           stderr,
           spawnError: spawnFailed ? err : null,
           timedOut: err.killed === true && typeof err.code !== 'number',
+          aborted: err.name === 'AbortError' || options.signal?.aborted === true,
         });
       },
     );
@@ -90,6 +96,17 @@ export async function runCliJson<T>(
   args: readonly string[],
 ): Promise<CliResult<T>> {
   const raw = await runCli(options, args);
+
+  if (raw.aborted) {
+    return {
+      ok: false,
+      kind: 'aborted',
+      code: null,
+      message: `Вызов «openspec ${args.join(' ')}» отменён`,
+      stdout: raw.stdout,
+      stderr: raw.stderr,
+    };
+  }
 
   if (raw.spawnError !== null) {
     return {

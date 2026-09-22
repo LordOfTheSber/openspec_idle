@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Detail } from './components/Detail.js';
+import { EditorPane } from './components/EditorPane.js';
 import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
 import { eventsUrl, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
@@ -128,7 +129,22 @@ export function App() {
 
             {section === 'search' ? (
               <Search />
-            ) : tree === null ? null : (
+            ) : tree === null ? null : selection?.kind === 'artifact' ? (
+              (() => {
+                const change = tree.changes.find((item) => item.name === selection.parent);
+                if (change === undefined) return <p className="empty">Изменение не найдено.</p>;
+                const artifact = change.artifacts.find((item) => item.id === selection.id);
+                return (
+                  <EditorPane
+                    key={`${change.name}/${selection.id}`}
+                    change={change}
+                    artifactId={selection.id}
+                    file={artifact?.files[0] ?? null}
+                    revealLine={null}
+                  />
+                );
+              })()
+            ) : (
               <Detail tree={tree} selection={selection} />
             )}
           </div>

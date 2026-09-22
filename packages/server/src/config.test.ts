@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { canonicalize } from '@openspec-ide/core';
+import { canonicalize } from './fs/workspace.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CONFIG_FILE, IDE_DIR, SecretInConfigError, loadConfig, saveConfig } from './config.js';
 

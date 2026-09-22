@@ -1,8 +1,6 @@
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
-
-/** Имя каталога, по которому опознаётся корень OpenSpec. */
-export const OPENSPEC_DIR = 'openspec';
+import { OPENSPEC_DIR } from '@openspec-ide/core';
 
 /** Результат поиска корня OpenSpec. */
 export type RootResolution =

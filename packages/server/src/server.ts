@@ -10,6 +10,9 @@ import { OpenspecClient } from './openspec/client.js';
 import { locateOpenspecCli, missingCliNotice } from './openspec/locate.js';
 import { WorkspaceWatcher } from './watcher.js';
 import { WorkspaceReader } from './workspace.js';
+import { ArtifactCreationError, SNIPPETS, createArtifact } from './artifacts.js';
+import { StaleWriteError, WriteFailedError, readArtifactFile, saveArtifactFile } from './files.js';
+import { ValidationRunner } from './validation.js';
 
 /** Адрес, на котором сервер принимает соединения. Только петлевой интерфейс. */
 export const LOOPBACK_HOST = '127.0.0.1';
@@ -71,6 +74,10 @@ export function createApp(options: ServerOptions): AppParts {
       ? new OpenspecClient({ root, bin: location.bin })
       : null;
   const reader = client === null ? null : new WorkspaceReader(client);
+  const validation =
+    root !== null && location?.kind === 'found'
+      ? new ValidationRunner({ bin: location.bin, cwd: root })
+      : null;
 
   // Проверка токена на каждом обращении к API. Loopback сам по себе не
   // защищает: обратиться к localhost может любой процесс на машине, включая
@@ -91,6 +98,18 @@ export function createApp(options: ServerOptions): AppParts {
   app.setErrorHandler(async (error, _request, reply) => {
     if (error instanceof OutsideWorkspaceError) {
       await reply.code(403).send({ error: error.message });
+      return;
+    }
+    if (error instanceof StaleWriteError) {
+      await reply.code(409).send({ error: error.message, path: error.path, disk: error.disk });
+      return;
+    }
+    if (error instanceof WriteFailedError) {
+      await reply.code(500).send({ error: error.message, path: error.path });
+      return;
+    }
+    if (error instanceof ArtifactCreationError) {
+      await reply.code(400).send({ error: error.message });
       return;
     }
     if (error instanceof SecretInConfigError) {
@@ -137,6 +156,54 @@ export function createApp(options: ServerOptions): AppParts {
     const { tree } = await reader.readTree();
     const index = await reader.buildSearchIndex(tree);
     return { hits: index.search(text, kinds as never[]) };
+  });
+
+  app.get('/api/file', async (request) => {
+    if (root === null) throw new Error('Рабочее пространство не определено');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const path = query['path'];
+    if (path === undefined || path === '') throw new Error('Не указан путь файла');
+    return readArtifactFile(root, path);
+  });
+
+  app.put('/api/file', async (request) => {
+    if (root === null) throw new Error('Рабочее пространство не определено');
+    const body = (request.body ?? {}) as {
+      path?: string;
+      content?: string;
+      baseVersion?: string | null;
+    };
+    if (typeof body.path !== 'string' || typeof body.content !== 'string') {
+      throw new Error('Нужны путь файла и его содержимое');
+    }
+    return saveArtifactFile(root, body.path, body.content, body.baseVersion ?? null);
+  });
+
+  app.post('/api/artifact', async (request) => {
+    if (client === null) throw new Error('CLI OpenSpec недоступен');
+    const body = (request.body ?? {}) as {
+      change?: string;
+      artifact?: string;
+      capabilityPath?: string;
+    };
+    if (typeof body.change !== 'string' || typeof body.artifact !== 'string') {
+      throw new ArtifactCreationError('Нужны имя change и идентификатор артефакта');
+    }
+    return createArtifact(client, {
+      change: body.change,
+      artifact: body.artifact,
+      capabilityPath: body.capabilityPath,
+    });
+  });
+
+  app.get('/api/snippets', async () => SNIPPETS);
+
+  app.get('/api/validate', async (request) => {
+    if (validation === null) throw new Error('CLI OpenSpec недоступен');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const change = query['change'];
+    if (change === undefined || change === '') throw new Error('Не указано имя change');
+    return validation.run(change);
   });
 
   app.get('/api/config', async () => {

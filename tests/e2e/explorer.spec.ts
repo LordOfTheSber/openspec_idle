@@ -40,11 +40,20 @@ test('прогресс показан у артефакта, объявленн�
   await expect(page.getByTestId('artifact-team-feature-research')).not.toContainText('1/3');
 });
 
-test('выбор артефакта показывает его состояние', async ({ page }) => {
+test('выбор артефакта открывает его в редакторе', async ({ page }) => {
   await page.goto(ide.url);
 
   await page.getByTestId('artifact-team-feature-spec-review').click();
-  await expect(page.getByTestId('artifact-state')).toHaveText('заполнен');
+
+  await expect(page.getByTestId('editor')).toBeVisible();
+  await expect(page.getByText('openspec/changes/team-feature/review.md')).toBeVisible();
+});
+
+test('состояние артефакта видно индикатором в дереве', async ({ page }) => {
+  await page.goto(ide.url);
+
+  const filled = page.getByTestId('artifact-team-feature-plan').locator('.dot');
+  await expect(filled).toHaveAttribute('data-state', 'done');
 });
 
 test('раздел процессов показывает схему проекта и её источник', async ({ page }) => {

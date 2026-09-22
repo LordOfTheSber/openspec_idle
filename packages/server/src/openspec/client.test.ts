@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { canonicalize } from '@openspec-ide/core';
+import { canonicalize } from '../fs/workspace.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { OpenspecClient } from './client.js';
 import { runCliJson } from './exec.js';

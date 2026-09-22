@@ -2,7 +2,7 @@ import { createServer } from 'node:net';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { canonicalize } from '@openspec-ide/core';
+import { canonicalize } from '@openspec-ide/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { run } from './run.js';
 
