@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.openspec-ide/
+*.log
