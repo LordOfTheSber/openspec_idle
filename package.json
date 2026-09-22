@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "tsc -b packages/core packages/server packages/cli && npm run build -w @openspec-ide/web",
-    "typecheck": "tsc -b --noEmit packages/core packages/server packages/cli && tsc -p packages/web --noEmit",
+    "typecheck": "tsc -b packages/core packages/server packages/cli && tsc -p packages/web --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
