@@ -1,23 +1,35 @@
 {
-  "name": "openspec_idle",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "openspec-ide-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Локальная web-среда для работы по методологии OpenSpec",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc -b packages/core packages/server packages/cli && npm run build -w @openspec-ide/web",
+    "typecheck": "tsc -b --noEmit packages/core packages/server packages/cli && tsc -p packages/web --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run typecheck && npm run lint && npm run test",
+    "dev": "node scripts/dev.mjs",
+    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/LordOfTheSber/openspec_idle.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/LordOfTheSber/openspec_idle/issues"
-  },
-  "homepage": "https://github.com/LordOfTheSber/openspec_idle#readme",
   "devDependencies": {
-    "@fission-ai/openspec": "^1.13.1"
+    "@eslint/js": "^9.18.0",
+    "@fission-ai/openspec": "1.13.1",
+    "@types/node": "^22.10.6",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "eslint": "^9.18.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8"
   }
 }
