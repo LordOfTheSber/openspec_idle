@@ -10,6 +10,10 @@ export interface RunOutcome {
   readonly stderr: readonly string[];
   /** Запущенный сервер — только когда запуск удался. */
   readonly close?: () => Promise<void>;
+  /** Адрес интерфейса — только когда запуск удался. */
+  readonly url?: string;
+  /** Токен сессии — только когда запуск удался. */
+  readonly token?: string;
 }
 
 const VERSION = '0.1.0';
@@ -72,7 +76,7 @@ export async function run(argv: readonly string[]): Promise<RunOutcome> {
     openBrowser(server.url);
   }
 
-  return { code: 0, stdout, stderr, close: server.close };
+  return { code: 0, stdout, stderr, close: server.close, url: server.url, token: server.token };
 }
 
 function openBrowser(url: string): void {

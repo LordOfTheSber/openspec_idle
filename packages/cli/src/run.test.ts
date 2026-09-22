@@ -94,15 +94,37 @@ describe('запуск openspec-ide', () => {
     expect(text).toMatch(/http:\/\/127\.0\.0\.1:\d+/);
   });
 
-  it('отвечает на проверку доступности и сообщает разрешённый корень', async () => {
+  it('отвечает на проверку доступности при предъявлении токена сессии', async () => {
     mkdirSync(join(dir, 'openspec'), { recursive: true });
     const outcome = await launch([dir, '--no-open']);
-    const url = outcome.stdout.join('\n').match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
-    expect(url).toBeDefined();
+    expect(outcome.url).toBeDefined();
+    expect(outcome.token).toBeDefined();
 
-    const response = await fetch(`${url}/api/health`);
+    const response = await fetch(`${outcome.url}/api/health`, {
+      headers: { 'x-openspec-ide-token': outcome.token ?? '' },
+    });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ status: 'ok', root: dir });
+  });
+
+  it('без токена сессии API отвечает 401 и не раскрывает корень', async () => {
+    mkdirSync(join(dir, 'openspec'), { recursive: true });
+    const outcome = await launch([dir, '--no-open']);
+
+    const response = await fetch(`${outcome.url}/api/health`);
+    expect(response.status).toBe(401);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(JSON.stringify(body)).not.toContain(dir);
+  });
+
+  it('токен сессии различается между запусками', async () => {
+    mkdirSync(join(dir, 'openspec'), { recursive: true });
+    const first = await launch([dir, '--no-open']);
+    const second = await launch([dir, '--no-open']);
+
+    expect(first.token).toBeDefined();
+    expect(second.token).toBeDefined();
+    expect(first.token).not.toBe(second.token);
   });
 
   it('печатает справку и версию без запуска сервера', async () => {
