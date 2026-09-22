@@ -2,3 +2,5 @@ node_modules/
 dist/
 .openspec-ide/
 *.log
+test-results/
+playwright-report/

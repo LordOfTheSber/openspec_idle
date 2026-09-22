@@ -1,11 +1,15 @@
+import { fileURLToPath } from 'node:url';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { loadConfig, saveConfig, SecretInConfigError } from './config.js';
 import { EventBus, encodeSse } from './events.js';
 import { SESSION_HEADER, SESSION_QUERY, SessionToken } from './http/session.js';
 import { OutsideWorkspaceError } from './http/paths.js';
+import { injectToken, placeholderPage, readBuiltPage } from './http/page.js';
 import { OpenspecClient } from './openspec/client.js';
 import { locateOpenspecCli, missingCliNotice } from './openspec/locate.js';
 import { WorkspaceWatcher } from './watcher.js';
+import { WorkspaceReader } from './workspace.js';
 
 /** Адрес, на котором сервер принимает соединения. Только петлевой интерфейс. */
 export const LOOPBACK_HOST = '127.0.0.1';
@@ -22,6 +26,8 @@ export interface ServerOptions {
   readonly watch?: boolean;
   /** Окно объединения событий наблюдателя, мс. */
   readonly debounceMs?: number;
+  /** Каталог собранной страницы SPA; по умолчанию — dist пакета web. */
+  readonly webDist?: string;
 }
 
 /** Запущенный сервер. */
@@ -64,6 +70,7 @@ export function createApp(options: ServerOptions): AppParts {
     root !== null && location?.kind === 'found'
       ? new OpenspecClient({ root, bin: location.bin })
       : null;
+  const reader = client === null ? null : new WorkspaceReader(client);
 
   // Проверка токена на каждом обращении к API. Loopback сам по себе не
   // защищает: обратиться к localhost может любой процесс на машине, включая
@@ -103,17 +110,33 @@ export function createApp(options: ServerOptions): AppParts {
 
   app.get('/api/workspace', async () => {
     if (root === null) {
-      return { state: 'not-initialized' as const, hint: 'openspec init' };
+      return {
+        state: 'not-initialized' as const,
+        hint: 'openspec init',
+        message:
+          'В этом каталоге и выше по дереву нет каталога openspec/. ' +
+          'Заведите проект командой openspec init.',
+      };
     }
     if (location?.kind === 'not-found') {
       return { state: 'cli-missing' as const, notice: missingCliNotice(location) };
     }
-    const [changes, specs, schemas] = await Promise.all([
-      client!.listChanges(),
-      client!.listSpecs(),
-      client!.listSchemas(),
-    ]);
-    return { state: 'ready' as const, root, changes, specs, schemas };
+    const { tree, errors } = await reader!.readTree();
+    return { state: 'ready' as const, root, tree, errors };
+  });
+
+  app.get('/api/search', async (request) => {
+    if (reader === null) return { hits: [] as const };
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const text = query['q'] ?? '';
+    const kinds = (query['kinds'] ?? '')
+      .split(',')
+      .map((kind) => kind.trim())
+      .filter((kind) => kind !== '');
+
+    const { tree } = await reader.readTree();
+    const index = await reader.buildSearchIndex(tree);
+    return { hits: index.search(text, kinds as never[]) };
   });
 
   app.get('/api/config', async () => {
@@ -146,6 +169,27 @@ export function createApp(options: ServerOptions): AppParts {
       unsubscribe();
     });
   });
+
+  // Страница отдаётся только в собранном виде: в режиме разработки её отдаёт
+  // Vite, а сервер занимается одним API.
+  if (!options.dev) {
+    const distDir =
+      options.webDist ??
+      fileURLToPath(new URL('../../web/dist/', import.meta.url));
+
+    void app.register(fastifyStatic, { root: distDir, wildcard: false, index: false });
+
+    app.get('/', async (_request, reply) => {
+      const html = await readBuiltPage(distDir);
+      await reply
+        .type('text/html; charset=utf-8')
+        .send(
+          html === null
+            ? placeholderPage('Собранная страница не найдена.')
+            : injectToken(html, token.value),
+        );
+    });
+  }
 
   const watcher =
     root !== null && options.watch !== false

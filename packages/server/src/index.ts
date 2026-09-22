@@ -30,7 +30,9 @@ export type {
 export { EventBus, encodeSse, type IdeEvent } from './events.js';
 export { SESSION_HEADER, SESSION_QUERY, SessionToken } from './http/session.js';
 export { OutsideWorkspaceError, resolveInsideWorkspace } from './http/paths.js';
+export { injectToken, placeholderPage, readBuiltPage } from './http/page.js';
 export { WorkspaceWatcher, type FileChangeBatch } from './watcher.js';
+export { WorkspaceReader } from './workspace.js';
 export {
   CONFIG_FILE,
   IDE_DIR,

@@ -19,11 +19,13 @@
     "test:watch": "vitest",
     "verify": "npm run typecheck && npm run lint && npm run test",
     "dev": "node scripts/dev.mjs",
-    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo"
+    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo",
+    "test:e2e": "npm run build && playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
     "@fission-ai/openspec": "1.13.1",
+    "@playwright/test": "^1.49.1",
     "@types/node": "^22.10.6",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",

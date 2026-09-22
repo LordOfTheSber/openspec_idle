@@ -33,6 +33,17 @@ describe('поиск CLI OpenSpec', () => {
     expect(found.kind === 'found' && found.bin).toBe(bin);
   });
 
+  it('находит CLI, установленный выше по дереву', () => {
+    const nested = join(dir, 'packages', 'server');
+    mkdirSync(nested, { recursive: true });
+    mkdirSync(join(dir, 'node_modules', '.bin'), { recursive: true });
+    makeExecutable(join(dir, 'node_modules', '.bin', 'openspec'));
+
+    const found = locateOpenspecCli(nested, { PATH: '' });
+    expect(found.kind === 'found' && found.source).toBe('project');
+    expect(found.kind === 'found' && found.bin).toBe(join(dir, 'node_modules', '.bin', 'openspec'));
+  });
+
   it('падает обратно на PATH, когда в проекте CLI нет', () => {
     const elsewhere = join(dir, 'bin');
     mkdirSync(elsewhere, { recursive: true });

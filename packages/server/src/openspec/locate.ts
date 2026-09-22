@@ -1,5 +1,5 @@
 import { accessSync, constants } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 
 /** Где искали исполняемый файл и что нашли. */
 export type CliLocation =
@@ -9,16 +9,27 @@ export type CliLocation =
 const BIN_NAME = 'openspec';
 
 /**
- * Ищет исполняемый файл CLI OpenSpec: сначала в `node_modules/.bin` проекта,
- * затем в PATH. Перечень просмотренных путей возвращается, чтобы сообщение об
- * ошибке могло его показать — иначе «не найден» ничего не объясняет.
+ * Ищет исполняемый файл CLI OpenSpec: сначала в `node_modules/.bin` проекта и
+ * выше по дереву, затем в PATH.
+ *
+ * Подъём по дереву обязателен: npm так же разрешает бинари, и в
+ * монорепозитории зависимость обычно стоит в корне, а не в каталоге пакета.
+ * Перечень просмотренных путей возвращается, чтобы сообщение об ошибке могло
+ * его показать — иначе «не найден» ничего не объясняет.
  */
 export function locateOpenspecCli(root: string, env: NodeJS.ProcessEnv = process.env): CliLocation {
   const searched: string[] = [];
 
-  const projectBin = join(root, 'node_modules', '.bin', BIN_NAME);
-  searched.push(projectBin);
-  if (isExecutable(projectBin)) return { kind: 'found', bin: projectBin, source: 'project' };
+  let current = root;
+  for (;;) {
+    const projectBin = join(current, 'node_modules', '.bin', BIN_NAME);
+    searched.push(projectBin);
+    if (isExecutable(projectBin)) return { kind: 'found', bin: projectBin, source: 'project' };
+
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
 
   for (const dir of (env.PATH ?? '').split(delimiter)) {
     if (dir === '') continue;
