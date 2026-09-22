@@ -52,3 +52,25 @@ export {
   type CapabilityMapInput,
   type CapabilityNode,
 } from './capabilityMap.js';
+
+export {
+  WORK_COLUMNS,
+  buildBoard,
+  mergeOrders,
+  topologicalOrder,
+  type Board,
+  type BoardCard,
+  type BoardChange,
+  type BoardColumn,
+  type BoardSchema,
+} from './board.js';
+
+export {
+  TrackedItemNotFoundError,
+  isDoneMarker,
+  parseTrackedDocument,
+  toggleTrackedItem,
+  type TrackedDocument,
+  type TrackedGroup,
+  type TrackedItem,
+} from './trackedItems.js';

@@ -81,3 +81,15 @@ export {
   type ChangeDeltas,
   type SpecView,
 } from './deltas.js';
+
+export {
+  BoardService,
+  ChangeOperationError,
+  type TrackedItemsView,
+} from './board.js';
+export {
+  SchemaReader,
+  parseSchemaYaml,
+  type SchemaArtifact,
+  type SchemaDefinition,
+} from './schemaDefinition.js';

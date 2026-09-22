@@ -63,6 +63,14 @@ export const FIXTURES: readonly FixtureExpectation[] = [
     tasks: { complete: 0, total: 1 },
   },
   {
+    dir: 'messy-tasks',
+    about: 'пункты с неровным форматированием: отступы, звёздочка, регистр, тильда, пустые скобки',
+    schema: 'spec-driven',
+    change: 'messy-change',
+    validates: true,
+    tasks: { complete: 2, total: 6 },
+  },
+  {
     dir: 'custom-schema',
     about: 'собственная схема: свои артефакты, лишний этап, другой отслеживаемый артефакт',
     schema: 'team-flow',

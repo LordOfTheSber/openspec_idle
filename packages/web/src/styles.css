@@ -1047,3 +1047,195 @@ body {
   padding: 2px 0 2px 12px;
   border-left: 2px solid var(--border);
 }
+
+/* ---------- доска ---------- */
+
+.board-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.board-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.new-change-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.new-change-form input,
+.new-change-form select {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface-2);
+  color: var(--text);
+  min-width: 0;
+}
+
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(190px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  align-items: start;
+  padding-bottom: 6px;
+}
+
+.col {
+  min-width: 0;
+}
+
+.col > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  padding-bottom: 7px;
+  border-bottom: 2px solid var(--border-strong);
+}
+
+.col > header h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col > header .n {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px;
+  margin-bottom: 9px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+}
+
+.card.lift {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.card h4 {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.chip.on {
+  background: var(--added-soft);
+  color: var(--added);
+}
+
+.chip.no {
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+.meter {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.meter > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--modified);
+}
+
+.card .foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.card .foot .ok {
+  margin-left: auto;
+  color: var(--added);
+}
+
+.card .foot .err {
+  margin-left: auto;
+  color: var(--removed);
+}
+
+.change-detail {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.change-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.items li {
+  padding: 4px 0;
+}
+
+.items label {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.items .num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  flex: 0 0 auto;
+}

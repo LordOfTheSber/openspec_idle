@@ -1,4 +1,5 @@
 import type {
+  Board,
   CapabilityMap,
   DeltaView,
   RequirementComparison,
@@ -185,4 +186,43 @@ export interface SpecResponse {
 
 export function fetchSpec(capability: string): Promise<SpecResponse> {
   return get<SpecResponse>(`/api/spec?capability=${encodeURIComponent(capability)}`);
+}
+
+export function fetchBoard(): Promise<Board> {
+  return get<Board>('/api/board');
+}
+
+export function createChange(name: string, schema?: string): Promise<{ created: string }> {
+  return send<{ created: string }>('/api/change', 'POST', { name, schema });
+}
+
+export function archiveChange(name: string): Promise<{ archived: string }> {
+  return send<{ archived: string }>('/api/archive', 'POST', { name });
+}
+
+/** Пункты отслеживаемого артефакта change. */
+export interface TrackedItemsResponse {
+  readonly change: string;
+  readonly path: string | null;
+  readonly items: readonly {
+    readonly line: number;
+    readonly text: string;
+    readonly declaredNumber: string | null;
+    readonly group: number;
+    readonly done: boolean;
+  }[];
+  readonly complete: number;
+  readonly total: number;
+}
+
+export function fetchItems(change: string): Promise<TrackedItemsResponse> {
+  return get<TrackedItemsResponse>(`/api/items?change=${encodeURIComponent(change)}`);
+}
+
+export function toggleItem(
+  change: string,
+  line: number,
+  done: boolean,
+): Promise<TrackedItemsResponse> {
+  return send<TrackedItemsResponse>('/api/items', 'PUT', { change, line, done });
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Detail } from './components/Detail.js';
+import { Board } from './components/Board.js';
 import { CapabilityMapView } from './components/CapabilityMapView.js';
 import { Deltas } from './components/Deltas.js';
 import { EditorPane } from './components/EditorPane.js';
@@ -13,11 +14,12 @@ import {
   eventSourceTransport,
 } from './lib/connection.js';
 
-type Section = 'explorer' | 'deltas' | 'search';
+type Section = 'explorer' | 'deltas' | 'board' | 'search';
 
 const SECTION_TITLE: Record<Section, string> = {
   explorer: 'Обозреватель',
   deltas: 'Дельты',
+  board: 'Доска',
   search: 'Поиск',
 };
 
@@ -91,6 +93,15 @@ export function App() {
         </button>
         <button
           type="button"
+          aria-current={section === 'board'}
+          aria-label="Доска"
+          title="Доска"
+          onClick={() => setSection('board')}
+        >
+          Дс
+        </button>
+        <button
+          type="button"
           aria-current={section === 'search'}
           aria-label="Поиск"
           title="Поиск"
@@ -147,6 +158,8 @@ export function App() {
 
             {section === 'search' ? (
               <Search />
+            ) : section === 'board' ? (
+              <Board schemas={tree?.schemas ?? []} onChanged={() => void reload()} />
             ) : section === 'deltas' ? (
               selection?.kind === 'change' || selection?.kind === 'artifact' ? (
                 <Deltas change={selection.parent ?? selection.id} />

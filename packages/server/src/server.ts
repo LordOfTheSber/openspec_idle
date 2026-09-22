@@ -11,6 +11,8 @@ import { locateOpenspecCli, missingCliNotice } from './openspec/locate.js';
 import { WorkspaceWatcher } from './watcher.js';
 import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
+import { BoardService, ChangeOperationError } from './board.js';
+import { SchemaReader } from './schemaDefinition.js';
 import { ArtifactCreationError, SNIPPETS, createArtifact } from './artifacts.js';
 import { StaleWriteError, WriteFailedError, readArtifactFile, saveArtifactFile } from './files.js';
 import { ValidationRunner } from './validation.js';
@@ -76,6 +78,11 @@ export function createApp(options: ServerOptions): AppParts {
       : null;
   const reader = client === null ? null : new WorkspaceReader(client);
   const deltas = client === null || reader === null ? null : new DeltaReader(client, reader);
+  const schemaReader = client === null ? null : new SchemaReader(client);
+  const board =
+    client === null || reader === null || schemaReader === null || location?.kind !== 'found'
+      ? null
+      : new BoardService(client, reader, schemaReader, location.bin);
   const validation =
     root !== null && location?.kind === 'found'
       ? new ValidationRunner({ bin: location.bin, cwd: root })
@@ -112,6 +119,10 @@ export function createApp(options: ServerOptions): AppParts {
     }
     if (error instanceof ArtifactCreationError) {
       await reply.code(400).send({ error: error.message });
+      return;
+    }
+    if (error instanceof ChangeOperationError) {
+      await reply.code(400).send({ error: error.message, output: error.output });
       return;
     }
     if (error instanceof SecretInConfigError) {
@@ -158,6 +169,48 @@ export function createApp(options: ServerOptions): AppParts {
     const { tree } = await reader.readTree();
     const index = await reader.buildSearchIndex(tree);
     return { hits: index.search(text, kinds as never[]) };
+  });
+
+  app.get('/api/board', async () => {
+    if (board === null) throw new Error('CLI OpenSpec недоступен');
+    return board.readBoard();
+  });
+
+  app.post('/api/change', async (request) => {
+    if (board === null) throw new Error('CLI OpenSpec недоступен');
+    const body = (request.body ?? {}) as { name?: string; schema?: string };
+    if (typeof body.name !== 'string' || body.name.trim() === '') {
+      throw new ChangeOperationError('Не указано имя изменения', '');
+    }
+    await board.createChange(body.name.trim(), body.schema);
+    return { created: body.name.trim() };
+  });
+
+  app.post('/api/archive', async (request) => {
+    if (board === null) throw new Error('CLI OpenSpec недоступен');
+    const body = (request.body ?? {}) as { name?: string };
+    if (typeof body.name !== 'string' || body.name.trim() === '') {
+      throw new ChangeOperationError('Не указано имя изменения', '');
+    }
+    await board.archiveChange(body.name.trim());
+    return { archived: body.name.trim() };
+  });
+
+  app.get('/api/items', async (request) => {
+    if (board === null) throw new Error('CLI OpenSpec недоступен');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const change = query['change'];
+    if (change === undefined || change === '') throw new Error('Не указано имя change');
+    return board.readTrackedItems(change);
+  });
+
+  app.put('/api/items', async (request) => {
+    if (board === null) throw new Error('CLI OpenSpec недоступен');
+    const body = (request.body ?? {}) as { change?: string; line?: number; done?: boolean };
+    if (typeof body.change !== 'string' || typeof body.line !== 'number') {
+      throw new Error('Нужны имя change и номер строки пункта');
+    }
+    return board.toggleItem(body.change, body.line, body.done === true);
   });
 
   app.get('/api/deltas', async (request) => {
@@ -301,6 +354,7 @@ export function createApp(options: ServerOptions): AppParts {
             : { root, debounceMs: options.debounceMs },
           (batch) => {
             client?.invalidate();
+            schemaReader?.invalidate();
             events.emit({ type: 'workspace-changed', payload: batch });
           },
         )
