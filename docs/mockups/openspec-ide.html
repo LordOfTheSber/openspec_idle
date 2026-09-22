@@ -1012,6 +1012,115 @@
     display: block;
   }
 
+
+  /* ---------- конструктор процессов ---------- */
+
+  .graph { width: 100%; height: auto; display: block; }
+  .graph .node-box { fill: var(--surface-2); stroke: var(--border-strong); stroke-width: 1.5; }
+  .graph .node-box.contract { stroke: var(--accent); stroke-width: 2.5; fill: var(--accent-soft); }
+  .graph .node-box.tracked { stroke: var(--added); stroke-width: 2.5; fill: var(--added-soft); }
+  .graph .node-box.sel { stroke: var(--accent); stroke-width: 2.5; }
+  .graph .node-id { fill: var(--text); font-family: var(--mono); font-size: 12px; font-weight: 600; }
+  .graph .node-sub { fill: var(--muted); font-family: var(--mono); font-size: 9.5px; }
+  .graph .edge { stroke: var(--border-strong); stroke-width: 2; fill: none; }
+  .graph .edge-head { fill: var(--border-strong); }
+  .graph .badge-t { font-family: var(--mono); font-size: 9px; letter-spacing: .04em; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i {
+    width: 11px; height: 11px; border-radius: 3px;
+    border: 2px solid var(--border-strong);
+    background: var(--surface-2);
+  }
+  .legend i.contract { border-color: var(--accent); background: var(--accent-soft); }
+  .legend i.tracked { border-color: var(--added); background: var(--added-soft); }
+
+  .rules { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .rules li {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+  .rules li:last-child { border-bottom: 0; }
+  .rules .m { font-family: var(--mono); font-size: 11px; text-align: center; line-height: 1.5; }
+  .rules .m.pass { color: var(--added); }
+  .rules .m.warn { color: var(--modified); }
+  .rules .m.err { color: var(--removed); }
+  .rules .m.off { color: var(--muted); }
+  .rules .body { min-width: 0; color: var(--text-2); }
+  .rules .rid {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .rules .fix {
+    display: block;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 3px;
+    padding-left: 9px;
+    border-left: 2px solid var(--border);
+  }
+  .rules li.done .body { color: var(--muted); }
+
+  .yaml {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.65;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 12px;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+  }
+  .yaml .k { color: var(--accent); }
+  .yaml .v { color: var(--text-2); }
+  .yaml .c { color: var(--muted); }
+  .yaml .hl { background: var(--accent-soft); }
+  .preview-cols {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .pcol {
+    flex: 1 0 96px;
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--border-strong);
+    border-radius: 0 0 var(--r) var(--r);
+    padding: 8px 9px;
+    min-width: 0;
+  }
+  .pcol b {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pcol span { font-size: 10.5px; color: var(--muted); }
+  .pcol.contract { border-top-color: var(--accent); }
+  .pcol.tracked { border-top-color: var(--added); }
+  .pcol.work { border-top-color: var(--modified); }
+
+
   .tip {
     position: fixed;
     z-index: 60;
@@ -1068,13 +1177,15 @@
     Локальная среда для работы по OpenSpec: артефакты change редактируются с живой
     валидацией, дельты читаются как требования, а не как markdown, процесс виден на доске,
     каждый пункт плана несёт метрики, и агент запускается через GigaCode CLI с бюджетом.
-    Шесть экранов ниже — макеты к 35 требованиям спецификации этого change.
+    Сам процесс при этом собирается под команду — но только такой, который остаётся
+    спек-ориентированным. Семь экранов ниже — макеты к 47 требованиям спецификации
+    этого change.
   </p>
 
   <dl class="facts">
-    <div class="fact"><dt>Capability</dt><dd>7</dd></div>
-    <div class="fact"><dt>Требований</dt><dd>35</dd></div>
-    <div class="fact"><dt>Сценариев</dt><dd>116</dd></div>
+    <div class="fact"><dt>Capability</dt><dd>9</dd></div>
+    <div class="fact"><dt>Требований</dt><dd>47</dd></div>
+    <div class="fact"><dt>Сценариев</dt><dd>170</dd></div>
     <div class="fact"><dt>Канал к LLM</dt><dd style="font-size:15px">GigaCode CLI</dd></div>
     <div class="fact"><dt>Источник истины</dt><dd style="font-size:15px">файлы <code style="font-family:var(--mono)">openspec/</code></dd></div>
   </dl>
@@ -1087,6 +1198,7 @@
       <button role="tab" aria-selected="false" data-screen="s4"><span class="num">04</span> Метрики</button>
       <button role="tab" aria-selected="false" data-screen="s5"><span class="num">05</span> Агент</button>
       <button role="tab" aria-selected="false" data-screen="s6"><span class="num">06</span> Настройки</button>
+      <button role="tab" aria-selected="false" data-screen="s7"><span class="num">07</span> Процессы</button>
     </div>
     <button class="theme-btn" id="theme">Тема</button>
   </div>
@@ -1100,7 +1212,7 @@
       </div>
       <div class="app">
         <nav class="rail">
-          <i class="on">Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i>
+          <i class="on">Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i><i>Пр</i>
         </nav>
         <div class="stage">
           <div class="toolbar">
@@ -1233,7 +1345,7 @@
       </div>
       <div class="app">
         <nav class="rail">
-          <i>Об</i><i class="on">Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i>
+          <i>Об</i><i class="on">Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i><i>Пр</i>
         </nav>
         <div class="stage">
           <div class="toolbar">
@@ -1355,7 +1467,7 @@
       </div>
       <div class="app">
         <nav class="rail">
-          <i>Об</i><i>Дл</i><i class="on">Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i>
+          <i>Об</i><i>Дл</i><i class="on">Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i><i>Пр</i>
         </nav>
         <div class="stage">
           <div class="toolbar">
@@ -1481,7 +1593,7 @@
       </div>
       <div class="app">
         <nav class="rail">
-          <i>Об</i><i>Дл</i><i>Дс</i><hr><i class="on">Мт</i><i>Аг</i><i>Нс</i>
+          <i>Об</i><i>Дл</i><i>Дс</i><hr><i class="on">Мт</i><i>Аг</i><i>Нс</i><i>Пр</i>
         </nav>
         <div class="stage">
           <div class="toolbar">
@@ -1661,7 +1773,7 @@
       </div>
       <div class="app">
         <nav class="rail">
-          <i>Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i class="on">Аг</i><i>Нс</i>
+          <i>Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i class="on">Аг</i><i>Нс</i><i>Пр</i>
         </nav>
         <div class="stage">
           <div class="toolbar">
@@ -1779,7 +1891,7 @@
       </div>
       <div class="app">
         <nav class="rail">
-          <i>Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i class="on">Нс</i>
+          <i>Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i class="on">Нс</i><i>Пр</i>
         </nav>
         <div class="stage">
           <div class="toolbar">
@@ -1898,10 +2010,261 @@
     </div>
   </section>
 
+
+  <!-- ================= SCREEN 7 ================= -->
+  <section id="s7" class="screen" hidden>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">127.0.0.1:7410 — конструктор процессов · схема team-flow</div>
+      </div>
+      <div class="app">
+        <nav class="rail">
+          <i>Об</i><i>Дл</i><i>Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i><i class="on">Пр</i>
+        </nav>
+        <div class="stage">
+          <div class="toolbar">
+            <h2>Процессы</h2>
+            <span class="crumbs">openspec/schemas/team-flow/schema.yaml</span>
+            <span class="spacer"></span>
+            <button class="btn">Предпросмотр</button>
+            <button class="btn primary">Назначить проекту</button>
+          </div>
+
+          <div class="panes explorer" style="grid-template-columns: 216px minmax(0, 1fr) 300px">
+            <div class="pane">
+              <p class="pane-title">Схемы <span class="count">4</span></p>
+              <ul class="tree">
+                <li>
+                  <div class="grp">Проектные · 2</div>
+                  <div class="node sel"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">team-flow</span><span class="tail">6</span></div>
+                  <div class="node"><span class="tw"></span><span class="dot err"></span><span class="nm mono">quick-fix</span><span class="tail">не назн.</span></div>
+
+                  <div class="grp">Встроенные · 2</div>
+                  <div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">spec-driven</span><span class="tail">умолч.</span></div>
+                  <div class="node"><span class="tw"></span><span class="dot ok"></span><span class="nm mono">spec-driven-lite</span><span class="tail">3</span></div>
+                </li>
+              </ul>
+
+              <p class="pane-title" style="margin-top:20px">Разрешение</p>
+              <ul class="kv">
+                <li><span class="k">Источник</span><span class="v">проект</span></li>
+                <li><span class="k">Затеняет</span><span class="v">—</span></li>
+                <li><span class="k">Артефактов</span><span class="v">6</span></li>
+              </ul>
+
+              <p class="pane-title" style="margin-top:20px">Действия</p>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <button class="btn">Создать с нуля</button>
+                <button class="btn">Форк spec-driven</button>
+              </div>
+            </div>
+
+            <div class="pane">
+              <p class="pane-title">Граф артефактов <span class="count">team-flow</span></p>
+              <svg class="graph" viewBox="0 0 760 290" role="img" aria-label="Граф артефактов схемы team-flow: research → proposal → specs, далее ветвление на spec-review и design, обе ветви сходятся в plan">
+                <defs>
+                  <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+                    <path d="M0,0 L8,4 L0,8 z" class="edge-head"></path>
+                  </marker>
+                </defs>
+
+                <path class="edge" marker-end="url(#ah)" d="M138,145 L166,145"></path>
+                <path class="edge" marker-end="url(#ah)" d="M282,145 L310,145"></path>
+                <path class="edge" marker-end="url(#ah)" d="M426,131 C450,131 452,80 462,80"></path>
+                <path class="edge" marker-end="url(#ah)" d="M426,159 C450,159 452,210 462,210"></path>
+                <path class="edge" marker-end="url(#ah)" d="M578,80 C602,80 604,131 614,131"></path>
+                <path class="edge" marker-end="url(#ah)" d="M578,210 C602,210 604,159 614,159"></path>
+
+                <g>
+                  <rect class="node-box" x="14" y="120" width="124" height="50" rx="7"></rect>
+                  <text class="node-id" x="26" y="142">research</text>
+                  <text class="node-sub" x="26" y="158">research.md</text>
+                </g>
+                <g>
+                  <rect class="node-box" x="166" y="120" width="116" height="50" rx="7"></rect>
+                  <text class="node-id" x="178" y="142">proposal</text>
+                  <text class="node-sub" x="178" y="158">proposal.md</text>
+                </g>
+                <g>
+                  <rect class="node-box contract" x="310" y="120" width="116" height="50" rx="7"></rect>
+                  <text class="node-id" x="322" y="142">specs</text>
+                  <text class="node-sub" x="322" y="158">specs/**/*.md</text>
+                </g>
+                <g>
+                  <rect class="node-box sel" x="462" y="55" width="116" height="50" rx="7"></rect>
+                  <text class="node-id" x="474" y="77">spec-review</text>
+                  <text class="node-sub" x="474" y="93">review.md</text>
+                </g>
+                <g>
+                  <rect class="node-box" x="462" y="185" width="116" height="50" rx="7"></rect>
+                  <text class="node-id" x="474" y="207">design</text>
+                  <text class="node-sub" x="474" y="223">design.md</text>
+                </g>
+                <g>
+                  <rect class="node-box tracked" x="614" y="120" width="132" height="50" rx="7"></rect>
+                  <text class="node-id" x="626" y="142">plan</text>
+                  <text class="node-sub" x="626" y="158">plan.md</text>
+                </g>
+
+                <text class="badge-t" x="322" y="112" fill="var(--accent)">КОНТРАКТ ПОВЕДЕНИЯ</text>
+                <text class="badge-t" x="626" y="112" fill="var(--added)">ОТСЛЕЖИВАЕТСЯ APPLY</text>
+                <text class="badge-t" x="474" y="47" fill="var(--muted)">ВЫБРАН</text>
+              </svg>
+
+              <div class="legend">
+                <span><i class="contract"></i> порождает дельты спеков</span>
+                <span><i class="tracked"></i> apply.tracks — по нему считается прогресс</span>
+                <span><i></i> обычный артефакт</span>
+              </div>
+
+              <p class="pane-title" style="margin-top:18px">YAML схемы <span class="count">синхронен с графом</span></p>
+              <pre class="yaml"><span class="k">name</span>: <span class="v">team-flow</span>
+<span class="k">description</span>: <span class="v">Цикл команды: исследование и ревью спека перед дизайном</span>
+<span class="k">artifacts</span>:
+  - <span class="k">id</span>: <span class="v">specs</span>
+    <span class="k">generates</span>: <span class="v">specs/**/*.md</span>      <span class="c"># → контракт поведения</span>
+    <span class="k">requires</span>: [<span class="v">proposal</span>]
+<span class="hl">  - <span class="k">id</span>: <span class="v">spec-review</span></span>
+<span class="hl">    <span class="k">generates</span>: <span class="v">review.md</span></span>
+<span class="hl">    <span class="k">requires</span>: [<span class="v">specs</span>]</span>
+<span class="hl">    <span class="k">instruction</span>: <span class="c">           # ← не заполнена</span></span>
+<span class="k">apply</span>:
+  <span class="k">requires</span>: [<span class="v">plan</span>]
+  <span class="k">tracks</span>: <span class="v">plan.md</span></pre>
+
+              <p class="pane-title" style="margin-top:18px">Предпросмотр процесса <span class="count">колонки доски</span></p>
+              <div class="preview-cols">
+                <div class="pcol"><b>research</b><span>исследование</span></div>
+                <div class="pcol"><b>proposal</b><span>предложение</span></div>
+                <div class="pcol contract"><b>specs</b><span>контракт</span></div>
+                <div class="pcol"><b>spec-review</b><span>ревью спека</span></div>
+                <div class="pcol"><b>design</b><span>дизайн</span></div>
+                <div class="pcol tracked"><b>plan</b><span>план работ</span></div>
+                <div class="pcol work"><b>В работе</b><span>прогресс по plan.md</span></div>
+                <div class="pcol"><b>К архивации</b><span>все пункты готовы</span></div>
+              </div>
+              <p style="font-size:11.5px;color:var(--muted);margin:10px 0 0">
+                Порядок колонок выведен из зависимостей артефактов. Ветвление
+                <code style="font-family:var(--mono)">spec-review</code> и
+                <code style="font-family:var(--mono)">design</code> разворачивается в
+                последовательность: обе ветви должны сойтись до
+                <code style="font-family:var(--mono)">plan</code>.
+              </p>
+            </div>
+
+            <div class="pane">
+              <p class="pane-title">Свойства артефакта <span class="count">spec-review</span></p>
+              <div class="field" style="margin-bottom:12px">
+                <label for="a-id">Идентификатор</label>
+                <div class="input" id="a-id">spec-review</div>
+              </div>
+              <div class="field" style="margin-bottom:12px">
+                <label for="a-gen">Порождает</label>
+                <div class="input" id="a-gen">review.md</div>
+              </div>
+              <div class="field" style="margin-bottom:12px">
+                <label for="a-req">Зависит от</label>
+                <div class="input" id="a-req">specs</div>
+              </div>
+              <div class="field" style="margin-bottom:16px">
+                <label for="a-ins">Инструкция для агента</label>
+                <div class="input" id="a-ins" style="border-color:var(--modified)"><span class="ph">не заполнена</span></div>
+                <p class="hint">Без неё агент не сможет работать по этому артефакту.</p>
+              </div>
+
+              <p class="pane-title">Соответствие SDD <span class="count">1 предупреждение</span></p>
+              <ul class="rules">
+                <li>
+                  <span class="m warn">⚠</span>
+                  <span class="body">У артефакта <b>spec-review</b> не заполнена инструкция
+                    <span class="rid">sdd/artifact-instruction · предупреждение</span>
+                    <span class="fix">Заполните инструкцию в свойствах артефакта — она попадёт в промпт агента</span>
+                  </span>
+                </li>
+                <li class="done"><span class="m pass">✓</span><span class="body">Есть артефакт-контракт поведения<span class="rid">sdd/behaviour-contract</span></span></li>
+                <li class="done"><span class="m pass">✓</span><span class="body">Работа по коду зависит от контракта<span class="rid">sdd/code-after-contract</span></span></li>
+                <li class="done"><span class="m pass">✓</span><span class="body">Отслеживаемый артефакт объявлен и существует<span class="rid">sdd/tracked-artifact</span></span></li>
+                <li class="done"><span class="m pass">✓</span><span class="body">Все артефакты достижимы<span class="rid">sdd/reachable</span></span></li>
+                <li class="done"><span class="m pass">✓</span><span class="body">Спекам предшествует мотивация<span class="rid">sdd/motivation-first</span></span></li>
+              </ul>
+
+              <div class="notice ok" style="margin-top:14px">
+                <span class="ic">✓</span>
+                <span>Структурная проверка <code style="font-family:var(--mono)">openspec schema validate</code> пройдена. Предупреждения назначению не мешают.</span>
+              </div>
+
+              <p class="pane-title" style="margin-top:18px">Схема quick-fix <span class="count">заблокирована</span></p>
+              <ul class="rules">
+                <li>
+                  <span class="m err">✕</span>
+                  <span class="body">Ни один артефакт не порождает дельт спеков
+                    <span class="rid">sdd/behaviour-contract · ошибка</span>
+                    <span class="fix">Добавьте артефакт с <code style="font-family:var(--mono)">generates: specs/**/*.md</code> — или объявите адресный отказ от правила с причиной</span>
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="statusbar">
+            <span>схема <b>team-flow</b></span>
+            <span>артефактов <b>6</b></span>
+            <span class="warn">⚠ 1 предупреждение</span>
+            <span class="spacer"></span>
+            <span>формат — <b>schema.yaml</b> OpenSpec, работает и без IDE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Свой процесс — но всё ещё спек-ориентированный</h3>
+        <p>
+          Схема собирается графом, формой свойств и YAML одновременно: правка в любом из
+          трёх сразу видна в остальных. Здесь у команды свой цикл — исследование перед
+          предложением и обязательное ревью спека перед дизайном, — и IDE ничего про эти
+          этапы не знает заранее: доска, метрики и редактор читают их из схемы.
+        </p>
+        <p>
+          Сохраняется всё в <code>openspec/schemas/&lt;name&gt;/schema.yaml</code> — тот
+          самый файл, который понимает CLI. Никакого параллельного формата: коллега из
+          терминала и агент по слэш-командам работают по этому же процессу.
+        </p>
+        <p>
+          Правая колонка — то, чего у CLI нет. <code>openspec schema validate</code>
+          проверяет структуру и спокойно пропускает процесс, где спеков нет вообще; правила
+          SDD отвечают на другой вопрос — остался ли процесс спек-ориентированным. Ошибка
+          блокирует назначение схемы, но не сохранение: черновик дорабатывают постепенно.
+          Отказаться от правила можно, но адресно и с причиной, записанной в самой схеме —
+          чтобы отказ от SDD попал в код-ревью вместе с процессом, а не растворился в
+          локальных настройках.
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Реестр схем проекта <code>workflow-designer</code></li>
+          <li>Создание схемы <code>workflow-designer</code></li>
+          <li>Конструктор схемы <code>workflow-designer</code></li>
+          <li>Проверка схемы <code>workflow-designer</code></li>
+          <li>Назначение схемы <code>workflow-designer</code></li>
+          <li>Правила спек-ориентированности <code>sdd-conformance</code></li>
+          <li>Отчёт о соответствии <code>sdd-conformance</code></li>
+          <li>Последствия нарушений <code>sdd-conformance</code></li>
+          <li>Явный отказ от правила <code>sdd-conformance</code></li>
+          <li>Разрешение схемы процесса <code>ide-runtime</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <p class="foot-note">
     <span>Макеты к change <code>add-openspec-ide</code></span>
     <span>Схема workflow <code>spec-driven</code></span>
     <span>Данные на экранах — примеры, не реальные замеры</span>
+    <span>Схема <code>team-flow</code> — иллюстрация собственного процесса</span>
   </p>
 
 </div>
