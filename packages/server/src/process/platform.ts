@@ -16,7 +16,16 @@ export interface ResolvedCommand {
   readonly command: string;
   /** Аргументы перед пользовательскими: путь к скрипту для `node`. */
   readonly prefix: readonly string[];
+  /**
+   * Переменные окружения для запуска. Внутри Electron «текущий Node» — это
+   * исполняемый файл приложения, и Node-скрипт он выполнит только с
+   * `ELECTRON_RUN_AS_NODE`.
+   */
+  readonly env: Readonly<Record<string, string>>;
 }
+
+const NODE_ENV: Readonly<Record<string, string>> =
+  process.versions['electron'] === undefined ? {} : { ELECTRON_RUN_AS_NODE: '1' };
 
 const SCRIPT = /\.(?:c|m)?js$/i;
 const WINDOWS_SHIM = /\.(?:cmd|bat)$/i;
@@ -35,13 +44,13 @@ export function resolveCommand(bin: string, platform: NodeJS.Platform = process.
   const cached = cache.get(bin);
   if (cached !== undefined) return cached;
 
-  let resolved: ResolvedCommand = { command: bin, prefix: [] };
+  let resolved: ResolvedCommand = { command: bin, prefix: [], env: {} };
   if (SCRIPT.test(bin)) {
-    resolved = { command: process.execPath, prefix: [bin] };
+    resolved = { command: process.execPath, prefix: [bin], env: NODE_ENV };
   } else if (platform === 'win32' && WINDOWS_SHIM.test(bin)) {
     try {
       const target = shimTarget(bin, readFileSync(bin, 'utf8'));
-      if (target !== null) resolved = { command: process.execPath, prefix: [target] };
+      if (target !== null) resolved = { command: process.execPath, prefix: [target], env: NODE_ENV };
     } catch {
       // Обёртка не читается — ошибку покажет сам запуск.
     }
@@ -82,10 +91,10 @@ export function spawnTree(
   args: readonly string[],
   options: { cwd: string; env: NodeJS.ProcessEnv },
 ): ChildProcess {
-  const { command, prefix } = resolveCommand(bin);
+  const { command, prefix, env } = resolveCommand(bin);
   return spawn(command, [...prefix, ...args], {
     cwd: options.cwd,
-    env: options.env,
+    env: { ...options.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
     // POSIX: своя группа, чтобы остановка сняла и дочерние процессы. На
     // Windows группа не нужна (дерево снимает taskkill), а detached открыл бы

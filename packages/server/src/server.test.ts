@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { canonicalize } from './fs/workspace.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SESSION_HEADER } from './http/session.js';
@@ -206,5 +207,49 @@ describe('сервер: схемы', () => {
 
     expect(response.status).toBe(400);
     expect(((await response.json()) as { details: string[] }).details[0]).toMatch(/строка/);
+  });
+});
+
+describe('сервер: какой CLI OpenSpec используется', () => {
+  const BUNDLED = fileURLToPath(new URL('../../../node_modules/@fission-ai/openspec/bin/openspec.js', import.meta.url));
+  let savedPath: string | undefined;
+
+  beforeEach(() => {
+    // В PATH машины может стоять свой openspec — здесь его быть не должно.
+    savedPath = process.env['PATH'];
+    process.env['PATH'] = '';
+  });
+
+  afterEach(() => {
+    process.env['PATH'] = savedPath;
+  });
+
+  async function health(running: RunningServer) {
+    const response = await fetch(`${running.url}/api/health`, authorized(running));
+    return (await response.json()) as { cli: { source: string; bin: string; version: string | null } | null };
+  }
+
+  it('без CLI в репозитории берёт встроенный и сообщает его версию', async () => {
+    server = await startServer({ root, port: null, dev: false, watch: false, openspecFallback: BUNDLED });
+    const { cli } = await health(server);
+    expect(cli).toMatchObject({ source: 'bundled', bin: BUNDLED });
+    expect(cli?.version).toMatch(/^\d+\.\d+\.\d+/);
+    const workspace = await fetch(`${server.url}/api/workspace`, authorized(server));
+    expect(((await workspace.json()) as { state: string }).state).toBe('ready');
+  });
+
+  it.skipIf(process.platform === 'win32')('версия из репозитория важнее встроенной', async () => {
+    const bin = join(root, 'node_modules', '.bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'openspec'), '#!/bin/sh\necho 9.9.9-repo\n');
+    chmodSync(join(bin, 'openspec'), 0o755);
+    server = await startServer({ root, port: null, dev: false, watch: false, openspecFallback: BUNDLED });
+    const { cli } = await health(server);
+    expect(cli).toMatchObject({ source: 'project', bin: join(bin, 'openspec'), version: '9.9.9-repo' });
+  });
+
+  it('без CLI и без встроенного — CLI не указан', async () => {
+    server = await startServer({ root, port: null, dev: false, watch: false });
+    expect((await health(server)).cli).toBeNull();
   });
 });

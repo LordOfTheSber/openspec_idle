@@ -59,6 +59,17 @@ async function get<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** Какой CLI OpenSpec работает на сервере. */
+export interface CliInfo {
+  readonly source: 'project' | 'path' | 'bundled';
+  readonly bin: string;
+  readonly version: string | null;
+}
+
+export function fetchHealth(): Promise<{ readonly cli: CliInfo | null }> {
+  return get<{ cli: CliInfo | null }>('/api/health');
+}
+
 export function fetchWorkspace(): Promise<WorkspaceResponse> {
   return get<WorkspaceResponse>('/api/workspace');
 }

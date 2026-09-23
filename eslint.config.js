@@ -28,7 +28,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'packages/*/scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs'],
     languageOptions: {
       globals: {
         console: 'readonly',
@@ -40,7 +40,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['packages/cli/**/*.ts', 'scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs'],
+    files: ['packages/cli/**/*.ts', 'scripts/**/*.mjs', 'packages/*/scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs'],
     rules: { 'no-console': 'off' },
   },
   {

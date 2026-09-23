@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -7,7 +8,9 @@ import { SESSION_HEADER, SESSION_QUERY, SessionToken } from './http/session.js';
 import { OutsideWorkspaceError } from './http/paths.js';
 import { injectToken, placeholderPage, readBuiltPage } from './http/page.js';
 import { OpenspecClient } from './openspec/client.js';
-import { locateOpenspecCli, missingCliNotice } from './openspec/locate.js';
+import { type CliLocation, locateOpenspecCli, missingCliNotice } from './openspec/locate.js';
+import { runCli } from './openspec/exec.js';
+import type { AgentRunRecord } from './agent/store.js';
 import { WorkspaceWatcher } from './watcher.js';
 import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
@@ -46,6 +49,11 @@ export interface ServerOptions {
   readonly debounceMs?: number;
   /** Каталог собранной страницы SPA; по умолчанию — dist пакета web. */
   readonly webDist?: string;
+  /**
+   * Встроенный CLI OpenSpec: используется, если ни в репозитории, ни в PATH
+   * своего нет. Десктопное приложение передаёт CLI из своей поставки.
+   */
+  readonly openspecFallback?: string | null;
 }
 
 /** Запущенный сервер. */
@@ -55,6 +63,10 @@ export interface RunningServer {
   readonly root: string | null;
   readonly token: string;
   readonly events: EventBus;
+  /** Выполняющиеся запуски агента — чтобы спросить перед закрытием окна. */
+  activeAgentRuns(): AgentRunRecord[];
+  /** Останавливает все запуски агента и ждёт их завершения. */
+  stopAgentRuns(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -74,6 +86,7 @@ interface AppParts {
   readonly token: SessionToken;
   readonly events: EventBus;
   readonly watcher: WorkspaceWatcher | null;
+  readonly agent: AgentService | null;
 }
 
 /** Собирает приложение, не открывая сокет. */
@@ -83,7 +96,21 @@ export function createApp(options: ServerOptions): AppParts {
   const events = new EventBus();
   const { root } = options;
 
-  const location = root === null ? null : locateOpenspecCli(root);
+  const found = root === null ? null : locateOpenspecCli(root);
+  const location: CliLocation | null =
+    found?.kind === 'not-found' &&
+    typeof options.openspecFallback === 'string' &&
+    existsSync(options.openspecFallback)
+      ? { kind: 'found', bin: options.openspecFallback, source: 'bundled' }
+      : found;
+  let cliVersion: Promise<string | null> | null = null;
+  const readCliVersion = (): Promise<string | null> => {
+    if (location?.kind !== 'found' || root === null) return Promise.resolve(null);
+    cliVersion ??= runCli({ bin: location.bin, cwd: root }, ['--version']).then((result) =>
+      result.code === 0 ? result.stdout.trim().split('\n')[0] ?? null : null,
+    );
+    return cliVersion;
+  };
   const client =
     root !== null && location?.kind === 'found'
       ? new OpenspecClient({ root, bin: location.bin })
@@ -193,6 +220,11 @@ export function createApp(options: ServerOptions): AppParts {
     status: 'ok' as const,
     root,
     dev: options.dev,
+    // Какой CLI OpenSpec работает: из репозитория, из PATH или встроенный.
+    cli:
+      location?.kind === 'found'
+        ? { source: location.source, bin: location.bin, version: await readCliVersion() }
+        : null,
   }));
 
   app.get('/api/workspace', async () => {
@@ -628,12 +660,12 @@ export function createApp(options: ServerOptions): AppParts {
         )
       : null;
 
-  return { app, token, events, watcher };
+  return { app, token, events, watcher, agent };
 }
 
 /** Поднимает сервер на петлевом интерфейсе. */
 export async function startServer(options: ServerOptions): Promise<RunningServer> {
-  const { app, token, events, watcher } = createApp(options);
+  const { app, token, events, watcher, agent } = createApp(options);
 
   try {
     await app.listen({ host: LOOPBACK_HOST, port: options.port ?? 0 });
@@ -659,6 +691,16 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     root: options.root,
     token: token.value,
     events,
+    activeAgentRuns: () => agent?.activeRuns() ?? [],
+    stopAgentRuns: async () => {
+      if (agent === null) return;
+      await Promise.all(
+        agent.activeRuns().map(async (run) => {
+          agent.stop(run.runId);
+          await agent.waitFor(run.runId);
+        }),
+      );
+    },
     close: async () => {
       await watcher?.stop();
       await app.close();

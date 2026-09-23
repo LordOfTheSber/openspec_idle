@@ -1,0 +1,54 @@
+# Сборка установщиков: npm run desktop:dist (из корня репозитория).
+appId: io.github.openspec-ide.desktop
+productName: OpenSpec IDE
+copyright: OpenSpec IDE
+directories:
+  output: release
+  buildResources: resources
+# Главный процесс собран в один файл вместе с сервером — node_modules не нужны.
+files:
+  - dist/**/*
+  - "!dist/**/*.map"
+  - package.json
+extraResources:
+  - from: ../web/dist
+    to: web
+  - from: staging/openspec
+    to: openspec
+asar: true
+# Имя пакета в метаданных поставки: имя рабочего пакета со слэшем не годится для файлов.
+extraMetadata:
+  name: openspec-ide
+npmRebuild: false
+# Автообновления нет: версия ставится установщиком.
+publish: []
+
+win:
+  target:
+    - nsis
+    - portable
+  artifactName: ${productName}-${version}-setup.${ext}
+
+# Установка в профиль пользователя (%LOCALAPPDATA%\Programs) без прав
+# администратора, с ярлыками в «Пуске» и на рабочем столе.
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: OpenSpec IDE
+  runAfterFinish: true
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
+
+linux:
+  target: AppImage
+  executableName: openspec-ide
+  syncDesktopName: true
+  category: Development
+  artifactName: ${productName}-${version}.${ext}

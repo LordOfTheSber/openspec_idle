@@ -4,7 +4,7 @@ import { executableCandidates } from '../process/platform.js';
 
 /** Где искали исполняемый файл и что нашли. */
 export type CliLocation =
-  | { readonly kind: 'found'; readonly bin: string; readonly source: 'project' | 'path' }
+  | { readonly kind: 'found'; readonly bin: string; readonly source: 'project' | 'path' | 'bundled' }
   | { readonly kind: 'not-found'; readonly searched: readonly string[] };
 
 const BIN_NAME = 'openspec';

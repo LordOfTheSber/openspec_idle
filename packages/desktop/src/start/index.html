@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+<title>OpenSpec IDE</title>
+<link rel="stylesheet" href="start.css">
+</head>
+<body>
+<main class="start">
+  <aside>
+    <div class="brand">
+      <span class="logo" aria-hidden="true">OS</span>
+      <div><b>OpenSpec IDE</b><span id="version">&nbsp;</span></div>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="open">Открыть репозиторий… <kbd id="open-key">Ctrl+O</kbd></button>
+    </div>
+    <div class="notice warn" id="offer" role="alert" hidden>
+      <b id="offer-title"></b>
+      <p>Ни в ней, ни выше по дереву нет каталога <code>openspec/</code>. Завести OpenSpec здесь?</p>
+      <div class="row">
+        <button type="button" class="btn primary" id="offer-init">Выполнить openspec init</button>
+        <button type="button" class="btn" id="offer-other">Выбрать другую папку</button>
+      </div>
+    </div>
+    <div class="notice bad" id="error" role="alert" hidden></div>
+    <p class="aside-note">Недавние и положение окон хранятся в профиле пользователя. В репозиторий ничего не пишется.</p>
+  </aside>
+  <section class="recent" aria-labelledby="recent-label">
+    <span class="label" id="recent-label">Недавние репозитории</span>
+    <ul id="recent"></ul>
+    <p class="empty" id="recent-empty" hidden>Здесь появятся открытые репозитории.</p>
+  </section>
+</main>
+<script src="start.js"></script>
+</body>
+</html>

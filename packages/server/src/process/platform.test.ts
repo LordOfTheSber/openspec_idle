@@ -73,7 +73,7 @@ describe('запуск на Windows', () => {
 
 describe('запуск на любой платформе', () => {
   it('js-файл запускается текущим Node', () => {
-    expect(resolveCommand('/opt/tool/cli.mjs')).toEqual({ command: process.execPath, prefix: ['/opt/tool/cli.mjs'] });
+    expect(resolveCommand('/opt/tool/cli.mjs')).toEqual({ command: process.execPath, prefix: ['/opt/tool/cli.mjs'], env: {} });
   });
 
   it('многострочный аргумент доходит до скрипта целиком', async () => {

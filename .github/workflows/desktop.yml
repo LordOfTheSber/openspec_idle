@@ -1,0 +1,47 @@
+# Десктопное приложение на Windows: e2e-тесты и сборка установщика.
+# Установщик и переносимая сборка — в артефакте запуска (Actions → запуск →
+# Artifacts → OpenSpec-IDE-windows).
+name: desktop
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'packages/**'
+      - 'tests/desktop/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.desktop.config.ts'
+      - '.github/workflows/desktop.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Проверки
+        run: npm run verify
+      - name: E2E приложения
+        run: npm run test:desktop
+      - name: Установщик и переносимая сборка
+        run: npm run dist -w @openspec-ide/desktop -- --win nsis portable --x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenSpec-IDE-windows
+          path: packages/desktop/release/*.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: desktop-test-results
+          path: test-results/
+          if-no-files-found: ignore

@@ -190,6 +190,11 @@ export class AgentService {
     };
   }
 
+  /** Все выполняющиеся запуски. */
+  activeRuns(): AgentRunRecord[] {
+    return [...this.#active.values()].map((run) => run.record);
+  }
+
   running(change: string): AgentRunRecord | null {
     return this.#active.get(change)?.record ?? null;
   }

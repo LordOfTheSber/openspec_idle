@@ -12,7 +12,8 @@ import { AGENT_EVENT_TYPES, publishAgentEvent } from './lib/agentFeed.js';
 import { SpecView } from './components/SpecView.js';
 import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
-import { eventsUrl, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
+import { type CliInfo, eventsUrl, fetchHealth, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
+import { desktopBridge } from './lib/desktop.js';
 import {
   type ConnectionState,
   WorkspaceConnection,
@@ -32,6 +33,16 @@ const SECTION_TITLE: Record<Section, string> = {
   search: 'Поиск',
 };
 
+const CLI_SOURCE: Record<CliInfo['source'], string> = {
+  project: 'из репозитория',
+  path: 'из PATH',
+  bundled: 'встроенный',
+};
+
+function isSection(value: string): value is Section {
+  return Object.hasOwn(SECTION_TITLE, value);
+}
+
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
   connecting: 'подключение…',
   connected: 'наблюдение за файлами',
@@ -49,6 +60,24 @@ export function App() {
   // Пункт плана, с которым открыта панель агента из метрик.
   const [agentItem, setAgentItem] = useState<string | null>(null);
   const connectionRef = useRef<WorkspaceConnection | null>(null);
+  const [cli, setCli] = useState<CliInfo | null>(null);
+
+  // Меню «Вид» десктопного приложения переключает разделы.
+  useEffect(
+    () =>
+      desktopBridge()?.onSection((next) => {
+        if (!isSection(next)) return;
+        if (next === 'agent') setAgentItem(null);
+        setSection(next);
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    fetchHealth()
+      .then((health) => setCli(health.cli))
+      .catch(() => setCli(null));
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -296,6 +325,11 @@ export function App() {
             </span>
           )}
           <span className="spacer" />
+          {cli !== null && (
+            <span data-testid="cli-source" title={cli.bin}>
+              CLI openspec <b>{cli.version ?? '?'}</b> · {CLI_SOURCE[cli.source]}
+            </span>
+          )}
           <span
             className={connection === 'connected' ? 'ok' : connection === 'connecting' ? 'warn' : 'err'}
             data-testid="connection-state"

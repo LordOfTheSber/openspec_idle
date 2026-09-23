@@ -56,7 +56,7 @@ interface RawRun {
 /** Запускает CLI и возвращает сырой результат, не интерпретируя его. */
 export async function runCli(options: CliRunOptions, args: readonly string[]): Promise<RawRun> {
   // На Windows `openspec` из npm — обёртка `.cmd`: запускается её скрипт.
-  const { command, prefix } = resolveCommand(options.bin);
+  const { command, prefix, env } = resolveCommand(options.bin);
   return new Promise<RawRun>((resolve) => {
     execFile(
       command,
@@ -66,7 +66,7 @@ export async function runCli(options: CliRunOptions, args: readonly string[]): P
         cwd: options.cwd,
         timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         maxBuffer: MAX_OUTPUT_BYTES,
-        env: { ...process.env, NO_COLOR: '1' },
+        env: { ...process.env, NO_COLOR: '1', ...env },
         windowsHide: true,
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },

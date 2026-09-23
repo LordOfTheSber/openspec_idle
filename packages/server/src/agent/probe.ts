@@ -67,7 +67,7 @@ function capture(
     const resolved = resolveCommand(bin);
     const child = spawn(resolved.command, [...resolved.prefix, ...args], {
       cwd,
-      env,
+      env: { ...env, ...resolved.env },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });

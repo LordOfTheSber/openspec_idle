@@ -13,14 +13,18 @@
   ],
   "scripts": {
     "build": "tsc -b packages/core packages/server packages/cli && npm run build -w @openspec-ide/web",
-    "typecheck": "tsc -b packages/core packages/server packages/cli && tsc -p packages/web --noEmit",
+    "typecheck": "tsc -b packages/core packages/server packages/cli && tsc -p packages/web --noEmit && tsc -p packages/desktop",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run typecheck && npm run lint && npm run test",
     "dev": "node scripts/dev.mjs",
-    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo",
-    "test:e2e": "npm run build && playwright test"
+    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo packages/desktop/staging packages/desktop/release",
+    "test:e2e": "npm run build && playwright test",
+    "desktop:build": "npm run build && npm run build -w @openspec-ide/desktop",
+    "desktop:dev": "npm run desktop:build && electron packages/desktop",
+    "desktop:dist": "npm run build && npm run dist -w @openspec-ide/desktop",
+    "test:desktop": "npm run desktop:build && playwright test -c playwright.desktop.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
