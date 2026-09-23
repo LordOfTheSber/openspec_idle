@@ -286,6 +286,74 @@
   .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .bar .sp { flex: 1; }
 
+
+  /* ── спека модуля ───────────────────────────── */
+  .specview { display: grid; grid-template-columns: 44px 260px minmax(0, 1fr); min-height: 560px; }
+  .toc { border-right: 1px solid var(--border); padding: 12px 10px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+  .searchbox { font: 12.5px var(--sans); border: 1px solid var(--border); border-radius: var(--r); padding: 5px 9px; background: var(--surface); color: var(--muted); }
+  .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .toc li > span { display: flex; justify-content: space-between; gap: 8px; padding: 3px 6px; border-radius: 4px; }
+  .toc li > span.sel { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .toc li li > span { padding-left: 20px; font-size: 12.5px; color: var(--text-2); }
+  .toc .n { font: 11px var(--mono); color: var(--muted); font-weight: 400; }
+  .toc .fmt { font-size: 12px; }
+  .doc { padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .overview { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 16px; }
+  .overview h2 { margin: 0 0 4px; font: 600 17px var(--mono); }
+  .overview p { margin: 0; color: var(--text-2); max-width: 70ch; }
+  .facts { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+  .facts b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .cov { display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+  .covbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-3); }
+  .covbar i { display: block; height: 100%; }
+  .covbar .c1 { background: var(--ok); }
+  .covbar .c2 { background: var(--accent); }
+  .covbar .c3 { background: var(--warn); opacity: 0.8; }
+  .covlegend { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; color: var(--text-2); }
+  .covlegend span:nth-child(even) { font-family: var(--mono); color: var(--muted); text-align: right; }
+  .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+  .section-h { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .section-h h3 { margin: 0; font-size: 15px; }
+  .section-h span { font: 11px var(--mono); color: var(--muted); }
+  .req { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .req.proposed { border-style: dashed; border-color: var(--accent-line); }
+  .req-h { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .req-h b { font-size: 14px; }
+  .req-h .path { font: 11px var(--mono); color: var(--muted); }
+  .req-h .badges { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .req p { margin: 0; color: var(--text-2); max-width: 78ch; }
+  .xlink { font-family: var(--mono); font-size: 12px; color: var(--accent); border-bottom: 1px dotted var(--accent-line); }
+  .scn { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 2px 10px; font-size: 12.5px; border-left: 2px solid var(--surface-3); padding-left: 10px; }
+  .scn .st { font: 600 10.5px var(--mono); color: var(--muted); letter-spacing: 0.05em; }
+  .scn .title { grid-column: 1 / -1; font-weight: 600; font-size: 12.5px; color: var(--text); display: flex; gap: 8px; align-items: baseline; }
+  mark { background: var(--warn-soft); color: inherit; padding: 0 2px; border-radius: 2px; }
+  /* ── трассировка ─────────────────────────────── */
+  .trace { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 520px; }
+  .trace-main { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .subtabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .subtabs span { padding: 6px 12px; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; }
+  .subtabs span.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .place { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
+  .place-h { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface-2); font-size: 12.5px; }
+  .place-h code { font: 12px var(--mono); overflow-wrap: anywhere; }
+  .place-h .sp { flex: 1; }
+  .place-h .btn { font-size: 12px; padding: 3px 9px; }
+  .code { margin: 0; font: 12px/1.6 var(--mono); overflow-x: auto; padding: 6px 0; }
+  .code div { display: grid; grid-template-columns: 44px minmax(0, 1fr); white-space: pre; }
+  .code div span:first-child { color: var(--muted); text-align: right; padding-right: 12px; user-select: none; }
+  .code div.hl { background: var(--accent-soft); }
+  .code .cm { color: var(--ok); }
+  .code .kw { color: var(--accent); }
+  .compact { display: flex; flex-direction: column; gap: 6px; }
+  .row-item { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); padding: 7px 10px; font-size: 12.5px; }
+  .row-item code { font: 12px var(--mono); }
+  .row-item .sp { flex: 1; }
+  @media (max-width: 900px) {
+    .specview { grid-template-columns: 44px minmax(0, 1fr); }
+    .specview .toc { display: none; }
+    .overview, .trace { grid-template-columns: minmax(0, 1fr); }
+  }
+
   @media (max-width: 900px) {
     .caption, .two-col { grid-template-columns: minmax(0, 1fr); }
     .start { grid-template-columns: minmax(0, 1fr); }
@@ -300,7 +368,7 @@
 
 <div class="wrap">
   <header class="intro">
-    <span class="eyebrow">макеты · add-desktop-shell + add-monorepo-modules</span>
+    <span class="eyebrow">макеты · add-desktop-shell · add-monorepo-modules · add-module-specs</span>
     <h1>OpenSpec IDE как приложение для монорепозитория</h1>
     <p class="lede">
       Окно приложения вместо вкладки браузера и модули поверх одного корневого
@@ -314,6 +382,8 @@
     <button role="tab" id="tab-board" aria-selected="false" aria-controls="board"><span class="n">02</span>Доска по модулям</button>
     <button role="tab" id="tab-graph" aria-selected="false" aria-controls="graph"><span class="n">03</span>Граф модулей</button>
     <button role="tab" id="tab-discover" aria-selected="false" aria-controls="discover"><span class="n">04</span>Обнаружение модулей</button>
+    <button role="tab" id="tab-spec" aria-selected="false" aria-controls="spec"><span class="n">05</span>Спека модуля</button>
+    <button role="tab" id="tab-trace" aria-selected="false" aria-controls="trace"><span class="n">06</span>Связи и код</button>
   </nav>
 
   <!-- 01 стартовый экран -->
@@ -569,6 +639,161 @@
       </div>
       <div class="reqs"><span class="cap">monorepo-modules</span>
         <ul><li>Карта модулей</li><li>Обнаружение модулей</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 спека модуля -->
+  <section class="screen" id="spec" role="tabpanel" aria-labelledby="tab-spec" hidden>
+    <div class="window">
+      <div class="titlebar"><span class="appicon">OS</span><span class="t">platform — OpenSpec IDE</span><span class="winctl"><span>—</span><span>▢</span><span>✕</span></span></div>
+      <div class="menubar"><span>Файл</span><span>Правка</span><span>Вид</span><span>Модули</span><span>Справка</span></div>
+      <div class="specview">
+        <div class="rail"><i class="on">Об</i><i>Дл</i><i>Дс</i><i>Мт</i><i>Мд</i><i>Аг</i><i>Пр</i><i>По</i></div>
+        <div class="toc">
+          <span class="searchbox">Найти в спеке billing…</span>
+          <span class="label">Разделы · 47 требований</span>
+          <ol>
+            <li><span class="sel">Счета <span class="n">14</span></span>
+              <ol><li><span>НДС <span class="n">4</span></span></li></ol>
+            </li>
+            <li><span>Оплаты <span class="n">11</span></span></li>
+            <li><span>Возвраты <span class="n">7</span></span></li>
+            <li><span>Тарифы <span class="n">6</span></span></li>
+            <li><span>Интеграции <span class="n">5</span></span></li>
+            <li><span>Общее <span class="n">4</span></span></li>
+          </ol>
+          <span class="label">Покрытие</span>
+          <div class="filters"><span class="chip">все</span><span class="chip on">без покрытия · 8</span><span class="chip">только код · 6</span></div>
+          <div class="notice warn fmt">Строка 412: заголовок <code>## Интеграции с банком</code> внутри требований. CLI не видит 3 требования ниже него. Перенести раздел в имена требований?</div>
+        </div>
+        <div class="doc">
+          <div class="overview">
+            <div>
+              <span class="label">сервис · services/billing</span>
+              <h2>billing</h2>
+              <p>Сервис биллинга: выставление и нумерация счетов, приём оплат, возвраты, тарифы и выгрузка в банк.</p>
+              <div class="facts"><span><b>6</b> разделов</span><span><b>47</b> требований</span><span><b>183</b> сценария</span><span><b>2</b> активных change</span><span>ссылки <b>→ 9</b> · <b>← 12</b></span></div>
+            </div>
+            <div class="cov">
+              <span class="label">Покрытие требований</span>
+              <div class="covbar" role="img" aria-label="Код и тесты 58 процентов, только код 13 процентов, по имени 12 процентов, без покрытия 17 процентов"><i class="c1" style="width:58%"></i><i class="c2" style="width:13%"></i><i class="c3" style="width:12%"></i></div>
+              <div class="covlegend">
+                <span><i class="sw" style="background:var(--ok)"></i>код и тесты</span><span>27 · 58 %</span>
+                <span><i class="sw" style="background:var(--accent)"></i>только код</span><span>6 · 13 %</span>
+                <span><i class="sw" style="background:var(--warn)"></i>тесты по имени</span><span>6 · 12 %</span>
+                <span><i class="sw" style="background:var(--surface-3)"></i>без покрытия</span><span>8 · 17 %</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-h"><h3>Счета</h3><span>14 требований · 58 сценариев</span></div>
+
+          <div class="req">
+            <div class="req-h"><b>Выставление счёта</b><span class="path">Счета / Выставление счёта</span>
+              <span class="badges"><span class="pill ok">код и тесты</span><span class="pill">→ 1 · ← 2</span></span></div>
+            <p>Система ДОЛЖНА выставлять счёт по подтверждённому заказу, беря тариф из кэша через <span class="xlink">km/core: Кэш ответов</span>.</p>
+            <div class="scn"><span class="title">Счёт по заказу</span><span class="st">WHEN</span><span>заказ подтверждён</span><span class="st">THEN</span><span>выставляется счёт со статусом «к оплате»</span></div>
+          </div>
+
+          <div class="req">
+            <div class="req-h"><b>Нумерация счетов</b><span class="path">Счета / Нумерация счетов</span>
+              <span class="badges"><span class="pill warn">MODIFIED в fix-invoice-numbering</span><span class="pill ok">код и тесты</span></span></div>
+            <p>Система ДОЛЖНА нумеровать счета сквозной нумерацией в пределах года.</p>
+            <div class="scn"><span class="title">Номер нового счёта</span><span class="st">WHEN</span><span>создаётся первый счёт года</span><span class="st">THEN</span><span>номер имеет вид <mark>2026-000001</mark></span></div>
+            <div class="filters"><span class="chip">сравнить с предлагаемым</span><span class="chip">история · 3</span></div>
+          </div>
+
+          <div class="req">
+            <div class="req-h"><b>Отмена счёта</b><span class="path">Счета / Отмена счёта</span>
+              <span class="badges"><span class="pill bad">без покрытия</span></span></div>
+            <p>Система ДОЛЖНА отменять неоплаченный счёт при отмене заказа.</p>
+            <div class="scn"><span class="title">Отмена до оплаты</span><span class="st">WHEN</span><span>заказ отменён, счёт не оплачен</span><span class="st">THEN</span><span>счёт получает статус «отменён»</span></div>
+          </div>
+
+          <div class="req proposed">
+            <div class="req-h"><b>Счёт в валюте</b><span class="path">Счета / Счёт в валюте</span>
+              <span class="badges"><span class="pill acc">ADDED в add-multicurrency</span></span></div>
+            <p>Система ДОЛЖНА выставлять счёт в валюте договора.</p>
+          </div>
+        </div>
+      </div>
+      <div class="statusbar"><span>спека <b>openspec/specs/billing/spec.md</b></span><span>индекс кода <b>12 480 файлов</b> · обновлён 09:41</span><span class="sp"></span><span>CLI <b>openspec 1.13.1</b></span></div>
+    </div>
+    <div class="caption">
+      <div>
+        <h3>Одна спека на сервис — и читается как документ</h3>
+        <p>Разделы берутся из имени требования: <code>Счета / Нумерация счетов</code>. Такой формат CLI принимает, включая дельты и архивацию. А вот заголовки <code>##</code> внутри требований CLI молча обрывает. IDE находит их и называет, какие требования потерялись.</p>
+        <p>В обзоре — назначение модуля, счётчики и покрытие. На карточке требования — сценарии по шагам, изменение в активном change, покрытие и связи. Фильтр «без покрытия» оставляет в спеке только то, что не реализовано и не проверено.</p>
+      </div>
+      <div class="reqs"><span class="cap">module-spec-view</span>
+        <ul><li>Разделы спеки</li><li>Навигация по спеке</li><li>Обзор модуля</li><li>Карточка требования</li><li>Проверка формата спеки модуля</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 связи и код -->
+  <section class="screen" id="trace" role="tabpanel" aria-labelledby="tab-trace" hidden>
+    <div class="window">
+      <div class="titlebar"><span class="appicon">OS</span><span class="t">platform — OpenSpec IDE</span><span class="winctl"><span>—</span><span>▢</span><span>✕</span></span></div>
+      <div class="menubar"><span>Файл</span><span>Правка</span><span>Вид</span><span>Модули</span><span>Справка</span></div>
+      <div class="trace">
+        <div class="trace-main">
+          <div><span class="label">km/core · Кэш</span><h2 style="margin:2px 0 0;font-size:16px">Кэш ответов</h2></div>
+          <div class="subtabs"><span class="on">Реализация · 3</span><span>Тесты · 3</span><span>Ссылки · ← 4</span><span>История · 2</span></div>
+
+          <div class="place">
+            <div class="place-h"><span class="pill ok">метка</span><code>km/core/src/cache/ResponseCache.ts:12</code><span class="sp"></span><span class="btn">IntelliJ IDEA</span><span class="btn">VS Code</span></div>
+            <div class="code" role="img" aria-label="Фрагмент кода с меткой @spec km/core: Кэш ответов на строке 12">
+              <div><span>10</span><span><span class="kw">import</span> { Clock } <span class="kw">from</span> './clock';</span></div>
+              <div><span>11</span><span> </span></div>
+              <div class="hl"><span>12</span><span><span class="cm">// @spec km/core: Кэш ответов</span></span></div>
+              <div><span>13</span><span><span class="kw">export class</span> ResponseCache&lt;T&gt; {</span></div>
+              <div><span>14</span><span>  <span class="kw">constructor</span>(<span class="kw">private readonly</span> ttlMs: number, <span class="kw">private readonly</span> clock: Clock) {}</span></div>
+            </div>
+          </div>
+          <div class="compact">
+            <div class="row-item"><span class="pill ok">метка</span><code>services/billing/src/main/kotlin/tariffs/TariffCache.kt:37</code><span class="sp"></span><span class="pill">использование в billing</span></div>
+            <div class="row-item"><span class="pill ok">метка</span><code>services/orders/src/main/java/pricing/PriceLookup.java:58</code><span class="sp"></span><span class="pill">использование в orders</span></div>
+          </div>
+
+          <span class="label">Тесты</span>
+          <div class="compact">
+            <div class="row-item"><span class="pill ok">метка</span><code>km/core/src/cache/ResponseCache.test.ts:44</code><span class="sp"></span><span>сценарии «Попадание», «Истечение срока»</span></div>
+            <div class="row-item"><span class="pill warn">по имени</span><code>km/core/src/cache/__tests__/eviction.test.ts:9</code><span class="sp"></span><span>it("вытеснение при переполнении")</span></div>
+          </div>
+
+          <span class="label">Битые метки в модуле billing · 1</span>
+          <div class="row-item"><span class="pill bad">битая</span><code>services/billing/src/main/kotlin/LegacyNumbers.kt:12</code><span>@spec billing: Счета / Нумерация</span><span class="sp"></span><span>требование переименовано → <b>Счета / Нумерация счетов</b></span></div>
+        </div>
+        <aside class="side">
+          <div><span class="label">Ссылаются на требование · 4</span></div>
+          <ul class="impact">
+            <li><span class="d one">billing</span><span>Счета / Выставление счёта</span></li>
+            <li><span class="d one">billing</span><span>Тарифы / Актуальность тарифа</span></li>
+            <li><span class="d one">orders</span><span>Заказы / Расчёт стоимости</span></li>
+            <li><span class="d one">web-ui</span><span>Каталог / Цены на витрине</span></li>
+          </ul>
+          <div class="notice">Change <b>add-cache-ttl</b> меняет это требование. Затронуты эти 4 требования — точнее, чем 6 модулей-потребителей по карте.</div>
+          <div><span class="label">Связи требований и карта модулей</span></div>
+          <ul class="impact">
+            <li><span class="d two">!</span><span><code>web-ui → billing</code>: 2 ссылки, в карте зависимости нет</span></li>
+            <li><span class="d two">?</span><span><code>notifications → km/events</code>: зависимость есть, ссылок в спеках нет — контракт не описан</span></li>
+          </ul>
+          <span class="btn">Вставить ссылку на требование… <kbd>Ctrl+K</kbd></span>
+        </aside>
+      </div>
+    </div>
+    <div class="caption">
+      <div>
+        <h3>Где требование живёт в коде и кто на него опирается</h3>
+        <p>Метка <code>// @spec km/core: Кэш ответов</code> в любом комментарии на любом языке связывает место с требованием. Метка в тесте — это тест требования. Тест, названный по сценарию, засчитывается как «по имени» — отдельно, чтобы не завышать покрытие. Фрагмент кода виден прямо здесь, а кнопками место открывается в IntelliJ IDEA или VS Code на нужной строке.</p>
+        <p>Ссылки между требованиями — обычные markdown-ссылки, их понимает и GitHub. Обратные ссылки точнее показывают, что заденет change. Расхождения со связями из карты модулей видны сразу.</p>
+      </div>
+      <div class="reqs"><span class="cap">code-traceability</span>
+        <ul><li>Метки требований в коде</li><li>Вероятное покрытие по именам сценариев</li><li>Переход к коду</li><li>Битые метки</li></ul>
+        <span class="cap">spec-cross-links</span>
+        <ul><li>Обратные ссылки</li><li>Вставка ссылки</li><li>Связи требований на графе модулей</li></ul>
       </div>
     </div>
   </section>
