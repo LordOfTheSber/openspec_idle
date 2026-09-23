@@ -112,3 +112,17 @@ export {
   type StructuralIssue,
   type YamlProblem,
 } from './schemaRegistry.js';
+export { buildArgs, displayCommand, parseDuration, templateFlags, type AgentConfig } from './agent/launch.js';
+export { locateExecutable, probeAgent, type ProbeResult } from './agent/probe.js';
+export { PromptBuilder, PromptError, type BuiltPrompt, type RunTarget, type RunTargets } from './agent/prompt.js';
+export {
+  APPROVAL_MODES,
+  AgentBlockedError,
+  AgentBusyError,
+  AgentConsentError,
+  AgentService,
+  type AgentStatus,
+  type ApprovalMode,
+  type RunRequest,
+} from './agent/runner.js';
+export { AgentRunStore, Redactor, type AgentRunRecord, type StoredAgentEvent } from './agent/store.js';

@@ -89,10 +89,38 @@ describe('конфигурация IDE', () => {
   });
 
   it('имя переменной окружения сохраняется, значение — нет', async () => {
-    await saveConfig(root, { agent: { credentialsEnv: 'МОЙ_КЛЮЧ' } });
+    await saveConfig(root, { agent: { credentialsEnv: 'MY_GIGACODE_KEY' } });
 
     const written = JSON.stringify(readConfig());
-    expect(written).toContain('МОЙ_КЛЮЧ');
+    expect(written).toContain('MY_GIGACODE_KEY');
     expect(written).not.toContain('apiKey');
+  });
+
+  it('значение ключа, вставленное вместо имени переменной, отклоняется', async () => {
+    await expect(
+      saveConfig(root, { agent: { credentialsEnv: 'sk-live-1234567890abcdef' } }),
+    ).rejects.toThrow(/значение ключа[\s\S]*переменной окружения/);
+  });
+
+  it('секрет в дополнительных аргументах CLI отклоняется', async () => {
+    await expect(
+      saveConfig(root, { agent: { extraArgs: ['--openai-api-key', 'sk-live-1'] } }),
+    ).rejects.toBeInstanceOf(SecretInConfigError);
+    await expect(
+      saveConfig(root, { agent: { extraArgs: ['--auth-type', 'openai'] } }),
+    ).resolves.toBeDefined();
+  });
+
+  it('переменная учётных данных может быть не нужна', async () => {
+    const config = await saveConfig(root, { agent: { credentialsEnv: null } });
+    expect(config.agent.credentialsEnv).toBeNull();
+  });
+
+  it('значения по умолчанию безопасны: режим с подтверждением и заданные бюджеты', async () => {
+    const { config } = await loadConfig(root);
+    expect(config.agent.approvalMode).toBe('default');
+    expect(config.agent.maxWallTime).toBe('15m');
+    expect(config.agent.maxToolCalls).toBe(120);
+    expect(config.agent.launch.streamFormat).toBe('stream-json');
   });
 });

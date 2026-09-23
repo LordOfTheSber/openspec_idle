@@ -19,6 +19,15 @@ import { MetricsStore } from './metricsStore.js';
 import { ArtifactCreationError, SNIPPETS, createArtifact } from './artifacts.js';
 import { StaleWriteError, WriteFailedError, readArtifactFile, saveArtifactFile } from './files.js';
 import { ValidationRunner } from './validation.js';
+import { PromptBuilder, PromptError, type RunTarget } from './agent/prompt.js';
+import {
+  APPROVAL_MODES,
+  AgentBlockedError,
+  AgentBusyError,
+  AgentConsentError,
+  AgentService,
+  type ApprovalMode,
+} from './agent/runner.js';
 
 /** Адрес, на котором сервер принимает соединения. Только петлевой интерфейс. */
 export const LOOPBACK_HOST = '127.0.0.1';
@@ -97,6 +106,14 @@ export function createApp(options: ServerOptions): AppParts {
           workspace: reader,
           store: new MetricsStore(root, (message) => console.error(`[метрики] ${message}`)),
         });
+  const agent =
+    root === null ? null : new AgentService({ root, events, metrics });
+  const prompts =
+    root === null || client === null || schemaReader === null || metrics === null
+      ? null
+      : new PromptBuilder(root, client, schemaReader, metrics);
+  app.addHook('onClose', async () => agent?.shutdown());
+
   const validation =
     root !== null && location?.kind === 'found'
       ? new ValidationRunner({ bin: location.bin, cwd: root })
@@ -141,6 +158,22 @@ export function createApp(options: ServerOptions): AppParts {
     }
     if (error instanceof ChangeOperationError) {
       await reply.code(400).send({ error: error.message, output: error.output });
+      return;
+    }
+    if (error instanceof PromptError) {
+      await reply.code(400).send({ error: error.message, output: error.output });
+      return;
+    }
+    if (error instanceof AgentBusyError) {
+      await reply.code(409).send({ error: error.message, runningRunId: error.runningRunId });
+      return;
+    }
+    if (error instanceof AgentConsentError) {
+      await reply.code(400).send({ error: error.message, consentRequired: true });
+      return;
+    }
+    if (error instanceof AgentBlockedError) {
+      await reply.code(400).send({ error: error.message, details: error.details });
       return;
     }
     if (error instanceof SchemaOperationError) {
@@ -445,6 +478,93 @@ export function createApp(options: ServerOptions): AppParts {
   app.put('/api/config', async (request) => {
     if (root === null) throw new Error('Рабочее пространство не определено');
     return { config: await saveConfig(root, request.body) };
+  });
+
+  const needAgent = (): { agent: AgentService; prompts: PromptBuilder } => {
+    if (agent === null || prompts === null) throw new Error('CLI OpenSpec недоступен');
+    return { agent, prompts };
+  };
+  const readTarget = (value: unknown): RunTarget => {
+    const target = (value ?? {}) as { kind?: string; artifact?: string; key?: string };
+    if (target.kind === 'artifact' && typeof target.artifact === 'string') {
+      return { kind: 'artifact', artifact: target.artifact };
+    }
+    if (target.kind === 'item' && typeof target.key === 'string') return { kind: 'item', key: target.key };
+    throw new PromptError('Не указана цель запуска: артефакт или пункт плана');
+  };
+  const readChange = (value: unknown): string => {
+    if (typeof value !== 'string' || value.trim() === '') throw new PromptError('Не указано имя change');
+    return value.trim();
+  };
+
+  app.get('/api/agent/status', async () => {
+    const { agent: service } = needAgent();
+    return { ...(await service.status()), effective: await service.effective() };
+  });
+
+  app.post('/api/agent/probe', async () => {
+    const { agent: service } = needAgent();
+    await service.probe();
+    return { ...(await service.status()), effective: await service.effective() };
+  });
+
+  app.get('/api/agent/targets', async (request) => {
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const change = readChange(query['change']);
+    const { agent: service, prompts: builder } = needAgent();
+    return { ...(await builder.targets(change)), running: service.running(change) };
+  });
+
+  app.post('/api/agent/prompt', async (request) => {
+    const body = (request.body ?? {}) as { change?: string; target?: unknown };
+    const { agent: service, prompts: builder } = needAgent();
+    const built = await builder.build(readChange(body.change), readTarget(body.target));
+    return { ...built, effective: await service.effective() };
+  });
+
+  app.post('/api/agent/run', async (request) => {
+    const body = (request.body ?? {}) as {
+      change?: string;
+      target?: unknown;
+      prompt?: string;
+      approvalMode?: string;
+      confirmYolo?: boolean;
+    };
+    const { agent: service, prompts: builder } = needAgent();
+    const built = await builder.build(readChange(body.change), readTarget(body.target));
+    const mode = body.approvalMode;
+    if (mode !== undefined && !(APPROVAL_MODES as readonly string[]).includes(mode)) {
+      throw new AgentBlockedError(`Неизвестный режим подтверждения «${mode}»`);
+    }
+    return service.start({
+      built,
+      prompt: typeof body.prompt === 'string' ? body.prompt : built.prompt,
+      ...(mode === undefined ? {} : { approvalMode: mode as ApprovalMode }),
+      confirmYolo: body.confirmYolo === true,
+    });
+  });
+
+  app.post('/api/agent/stop', async (request) => {
+    const body = (request.body ?? {}) as { runId?: string };
+    const { agent: service } = needAgent();
+    return { stopped: typeof body.runId === 'string' && service.stop(body.runId) };
+  });
+
+  app.get('/api/agent/runs', async (request) => {
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const { agent: service } = needAgent();
+    return { runs: await service.history(readChange(query['change'])) };
+  });
+
+  app.get('/api/agent/run', async (request, reply) => {
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const { agent: service } = needAgent();
+    const found = await service.run(query['id'] ?? '');
+    if (found === null) {
+      await reply.code(404).send({ error: `Запуск «${query['id'] ?? ''}» не найден` });
+      return;
+    }
+    return found;
   });
 
   app.get('/api/events', (request, reply) => {

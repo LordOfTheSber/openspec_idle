@@ -1,5 +1,7 @@
 import type {
+  AgentEvent,
   Board,
+  RunOutcome,
   ConformanceReport,
   SchemaDocument,
   CapabilityMap,
@@ -45,12 +47,13 @@ async function get<T>(path: string): Promise<T> {
   });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as
-      | { error?: string; details?: string[]; output?: string }
+      | ({ error?: string; details?: string[]; output?: string } & Record<string, unknown>)
       | null;
     throw new ApiError(
       payload?.error ?? `Запрос ${path} завершился с кодом ${response.status}`,
       payload?.details ?? [],
       payload?.output ?? '',
+      payload ?? {},
     );
   }
   return (await response.json()) as T;
@@ -97,18 +100,23 @@ async function send<T>(path: string, method: string, body: unknown): Promise<T> 
     body: JSON.stringify(body),
   });
 
-  if (response.status === 409) {
-    const payload = (await response.json()) as { error: string; path: string; disk: ArtifactFile };
-    throw new StaleWriteConflict(payload.path, payload.disk, payload.error);
-  }
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as
-      | { error?: string; details?: string[]; output?: string }
+      | ({ error?: string; details?: string[]; output?: string; path?: string; disk?: ArtifactFile } & Record<
+          string,
+          unknown
+        >)
       | null;
+    // 409 с версией с диска — конфликт записи файла; прочие 409 (например,
+    // занятый запуском change) — обычный отказ с пояснением.
+    if (response.status === 409 && payload?.disk !== undefined && payload.path !== undefined) {
+      throw new StaleWriteConflict(payload.path, payload.disk, payload.error ?? '');
+    }
     throw new ApiError(
       payload?.error ?? `Запрос ${path} завершился с кодом ${response.status}`,
       payload?.details ?? [],
       payload?.output ?? '',
+      payload ?? {},
     );
   }
   return (await response.json()) as T;
@@ -121,6 +129,8 @@ export class ApiError extends Error {
     readonly details: readonly string[],
     /** Вывод CLI, приложенный к отказу. */
     readonly output: string = '',
+    /** Тело ответа целиком — для полей, специфичных для отказа. */
+    readonly payload: Readonly<Record<string, unknown>> = {},
   ) {
     super(message);
     this.name = 'ApiError';
@@ -386,4 +396,161 @@ export function fetchSchemaTemplate(
 
 export function saveSchemaTemplate(name: string, template: string, content: string): Promise<unknown> {
   return send('/api/schema/template', 'PUT', { name, template, content });
+}
+
+/** Настройки агента, как они хранятся в конфигурации. */
+export interface AgentSettings {
+  command: string;
+  model: string | null;
+  approvalMode: ApprovalMode;
+  maxWallTime: string;
+  maxToolCalls: number;
+  credentialsEnv: string | null;
+  secretEnvs: string[];
+  extraArgs: string[];
+  launch: Record<string, unknown>;
+}
+
+export type ApprovalMode = 'plan' | 'default' | 'auto-edit' | 'auto' | 'yolo';
+
+export interface IdeConfigResponse {
+  readonly config: { version: 1; agent: AgentSettings } & Record<string, unknown>;
+  readonly unknownFields: readonly string[];
+  readonly usedDefaults: boolean;
+  readonly parseError: string | null;
+}
+
+export interface ProbeResult {
+  readonly ok: boolean;
+  readonly bin: string | null;
+  readonly searched: readonly string[];
+  readonly version: string | null;
+  readonly format: string | null;
+  readonly streaming: boolean;
+  readonly notice: string | null;
+  readonly error: string | null;
+  readonly checkedAt: string;
+}
+
+export interface EffectiveLaunch {
+  readonly approvalMode: string;
+  readonly maxWallTime: string;
+  readonly maxToolCalls: number;
+  readonly model: string | null;
+  readonly command: string;
+  readonly format: string | null;
+  readonly streaming: boolean;
+  readonly notice: string | null;
+}
+
+export interface AgentStatus {
+  readonly config: AgentSettings;
+  readonly configError: string | null;
+  readonly credentials: { readonly env: string | null; readonly set: boolean };
+  readonly probe: ProbeResult | null;
+  readonly blockers: readonly string[];
+  readonly effective: EffectiveLaunch;
+}
+
+export type RunTarget = { readonly kind: 'artifact'; readonly artifact: string } | { readonly kind: 'item'; readonly key: string };
+
+export interface AgentRunRecord {
+  readonly runId: string;
+  readonly change: string;
+  readonly target: RunTarget;
+  readonly label: string;
+  readonly prompt: string;
+  readonly approvalMode: string;
+  readonly model: string | null;
+  readonly format: string;
+  readonly streaming: boolean;
+  readonly command: string;
+  readonly limits: { readonly maxWallTime: string; readonly maxToolCalls: number };
+  readonly startedAt: string;
+  readonly state: 'running' | 'finished';
+  readonly finishedAt: string | null;
+  readonly durationMs: number | null;
+  readonly outcome: RunOutcome | null;
+  readonly exitCode: number | null;
+  readonly signal: string | null;
+  readonly tokensIn: number | null;
+  readonly tokensOut: number | null;
+  readonly toolCalls: number;
+  readonly files: readonly string[];
+  readonly finalText: string | null;
+  readonly error: string | null;
+  readonly stderr: string;
+  readonly sessionId: string | null;
+  readonly unknownEvents: number;
+}
+
+export interface AgentTargets {
+  readonly change: string;
+  readonly schema: string | null;
+  readonly artifacts: readonly { readonly id: string; readonly available: boolean; readonly reason: string | null }[];
+  readonly items: readonly { readonly key: string; readonly text: string; readonly done: boolean }[];
+  readonly running: AgentRunRecord | null;
+}
+
+export interface StoredAgentEvent {
+  readonly at: string;
+  readonly event: AgentEvent;
+}
+
+/** Событие запуска, пришедшее по потоку. */
+export interface AgentStreamEvent {
+  readonly runId: string;
+  readonly change: string;
+  readonly at: string;
+  readonly event: AgentEvent;
+  readonly tally: { readonly toolCalls: number; readonly tokensIn: number | null; readonly tokensOut: number | null };
+}
+
+export function fetchConfig(): Promise<IdeConfigResponse> {
+  return get('/api/config');
+}
+
+export function saveConfig(config: IdeConfigResponse['config']): Promise<{ config: IdeConfigResponse['config'] }> {
+  return send('/api/config', 'PUT', config);
+}
+
+export function fetchAgentStatus(): Promise<AgentStatus> {
+  return get('/api/agent/status');
+}
+
+export function probeAgent(): Promise<AgentStatus> {
+  return send('/api/agent/probe', 'POST', {});
+}
+
+export function fetchAgentTargets(change: string): Promise<AgentTargets> {
+  return get(`/api/agent/targets?change=${encodeURIComponent(change)}`);
+}
+
+export function buildAgentPrompt(
+  change: string,
+  target: RunTarget,
+): Promise<{ change: string; target: RunTarget; label: string; prompt: string; effective: EffectiveLaunch }> {
+  return send('/api/agent/prompt', 'POST', { change, target });
+}
+
+export function startAgentRun(request: {
+  change: string;
+  target: RunTarget;
+  prompt: string;
+  approvalMode: ApprovalMode;
+  confirmYolo: boolean;
+}): Promise<AgentRunRecord> {
+  return send('/api/agent/run', 'POST', request);
+}
+
+export function stopAgentRun(runId: string): Promise<{ stopped: boolean }> {
+  return send('/api/agent/stop', 'POST', { runId });
+}
+
+export function fetchAgentRuns(change: string): Promise<{ runs: AgentRunRecord[] }> {
+  return get(`/api/agent/runs?change=${encodeURIComponent(change)}`);
+}
+
+export function fetchAgentRun(runId: string): Promise<{ record: AgentRunRecord; events: StoredAgentEvent[] }> {
+  return get(`/api/agent/run?id=${encodeURIComponent(runId)}`);
 }

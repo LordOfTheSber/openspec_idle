@@ -136,3 +136,18 @@ export {
 } from './sdd.js';
 
 export { previewSchema, type SchemaPreview } from './schemaPreview.js';
+
+export {
+  NdjsonSplitter,
+  classifyOutcome,
+  emptyTally,
+  parseAgentJsonOutput,
+  parseAgentLine,
+  parseAgentMessage,
+  tallyMessage,
+  type AgentEvent,
+  type AgentUsage,
+  type ParsedMessage,
+  type RunEnding,
+  type RunTally,
+} from './agentStream.js';

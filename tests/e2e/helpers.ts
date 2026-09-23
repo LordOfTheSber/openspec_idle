@@ -17,7 +17,13 @@ export interface LaunchedIde {
 /** Поднимает IDE на фикстурном проекте и дожидается адреса из вывода. */
 export async function launchIde(
   fixture: string,
-  options: { writable?: boolean } = {},
+  options: {
+    writable?: boolean;
+    /** Переменные окружения процесса IDE поверх текущих. */
+    env?: Record<string, string | undefined>;
+    /** Подготовка копии проекта до запуска IDE. */
+    prepare?: (root: string) => void;
+  } = {},
 ): Promise<LaunchedIde> {
   // Тесты, которые пишут в файлы, работают на копии: фикстура в репозитории
   // должна оставаться неизменной.
@@ -26,8 +32,10 @@ export async function launchIde(
     options.writable === true ? mkdtempSync(join(tmpdir(), 'osi-e2e-')) : null;
   if (temporary !== null) cpSync(source, temporary, { recursive: true });
   const root = temporary ?? source;
+  if (temporary !== null) options.prepare?.(temporary);
   const child: ChildProcess = spawn(process.execPath, [CLI, root, '--no-open'], {
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, ...options.env },
   });
 
   const url = await new Promise<string>((resolve, reject) => {

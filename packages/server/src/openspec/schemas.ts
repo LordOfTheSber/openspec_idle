@@ -128,6 +128,18 @@ export const instructionsSchema = z.object({
   root: rootRefSchema.nullable().optional(),
 });
 
+export const applyInstructionsSchema = z.object({
+  changeName: z.string().optional(),
+  changeDir: z.string().optional(),
+  schemaName: z.string().optional(),
+  contextFiles: z.record(z.array(z.string())).optional(),
+  progress: z
+    .object({ total: z.number(), complete: z.number(), remaining: z.number().optional() })
+    .optional(),
+  state: z.string().optional(),
+  instruction: z.string().optional(),
+});
+
 export const templatesSchema = z.record(
   z.object({ path: z.string(), source: z.string().optional() }),
 );
@@ -170,6 +182,7 @@ export type ValidationItem = z.infer<typeof validationItemSchema>;
 export type ValidateResult = z.infer<typeof validateSchema>;
 export type ArtifactInstructions = z.infer<typeof instructionsSchema>;
 export type TemplatesMap = z.infer<typeof templatesSchema>;
+export type ApplyInstructions = z.infer<typeof applyInstructionsSchema>;
 export type SchemaListEntry = z.infer<typeof schemaListEntrySchema>;
 export type SchemaWhich = z.infer<typeof schemaWhichSchema>;
 export type SchemaValidate = z.infer<typeof schemaValidateSchema>;

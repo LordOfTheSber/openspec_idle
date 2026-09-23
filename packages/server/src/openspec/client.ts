@@ -5,6 +5,7 @@ import { OPENSPEC_DIR } from '@openspec-ide/core';
 import type { z } from 'zod';
 import { type CliFailure, type CliResult, runCliJson } from './exec.js';
 import {
+  type ApplyInstructions,
   type ArtifactInstructions,
   type ChangeStatus,
   type ListChanges,
@@ -13,6 +14,7 @@ import {
   type SchemaWhich,
   type TemplatesMap,
   type ValidateResult,
+  applyInstructionsSchema,
   instructionsSchema,
   listChangesSchema,
   listSpecsSchema,
@@ -104,6 +106,15 @@ export class OpenspecClient {
       `instructions:${change}:${artifact}`,
       ['instructions', artifact, '--change', change, '--json'],
       instructionsSchema,
+    );
+  }
+
+  /** Инструкции начала работ по change: контекстные файлы и указание схемы. */
+  applyInstructions(change: string): Promise<CliResult<ApplyInstructions>> {
+    return this.#cached(
+      `instructions:${change}:apply`,
+      ['instructions', 'apply', '--change', change, '--json'],
+      applyInstructionsSchema,
     );
   }
 

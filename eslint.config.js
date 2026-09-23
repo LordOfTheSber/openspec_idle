@@ -28,13 +28,19 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'packages/cli/bin/*.js'],
+    files: ['scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs'],
     languageOptions: {
-      globals: { console: 'readonly', process: 'readonly', URL: 'readonly' },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly',
+        setInterval: 'readonly',
+      },
     },
   },
   {
-    files: ['packages/cli/**/*.ts', 'scripts/**/*.mjs', 'packages/cli/bin/*.js'],
+    files: ['packages/cli/**/*.ts', 'scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs'],
     rules: { 'no-console': 'off' },
   },
   {
