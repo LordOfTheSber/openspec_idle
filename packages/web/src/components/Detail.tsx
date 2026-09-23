@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { ModuleDef, TreeChange, WorkspaceTree } from '@openspec-ide/core';
-import { createArtifactFile, fetchImpact, type ChangeImpact, type ModulesView } from '../lib/api.js';
+import {
+  createArtifactFile,
+  fetchChangeTraces,
+  fetchImpact,
+  type ChangeImpact,
+  type ChangeTraces,
+  type ModulesView,
+} from '../lib/api.js';
 import { ModuleGraph, type ModuleMark } from './ModuleGraph.js';
 import type { Selection } from './Tree.js';
 
@@ -130,6 +137,7 @@ function ChangeModules({
   readonly onShowImpact: (() => void) | undefined;
 }) {
   const [impact, setImpact] = useState<ChangeImpact | null>(null);
+  const [traces, setTraces] = useState<ChangeTraces | null>(null);
   const hasMap = modules !== null && modules.map.modules.length > 0;
   const deltaKey = change.deltaCapabilities.join(',') + '|' + change.declaredModules.join(',');
 
@@ -143,6 +151,18 @@ function ChangeModules({
       current = false;
     };
   }, [change.name, hasMap, deltaKey, modules]);
+
+  useEffect(() => {
+    let current = true;
+    void fetchChangeTraces(change.name)
+      .then((result) => {
+        if (current) setTraces(result);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [change.name, deltaKey]);
 
   const specs = change.artifacts.find((artifact) => artifact.outputPath.includes('*'));
   const own = modules?.map.modules.filter((module) => impact?.modules.includes(module.id)) ?? [];
@@ -194,6 +214,55 @@ function ChangeModules({
             <button type="button" className="btn" onClick={onShowImpact} data-testid="show-impact">
               Показать на графе модулей
             </button>
+          )}
+        </section>
+      )}
+      {traces !== null && (traces.affectedLinks.length > 0 || traces.brokenLinks.length > 0 || traces.tagsToUpdate.length > 0) && (
+        <section className="change-traces" data-testid="change-traces">
+          {traces.affectedLinks.length > 0 && (
+            <>
+              <p className="grp">Ссылающиеся требования других модулей · {traces.affectedLinks.length}</p>
+              <ul className="link-list" data-testid="affected-links">
+                {traces.affectedLinks.map((link) => (
+                  <li key={`${link.file}:${link.line}`}>
+                    <span className="chip module">{link.fromModule ?? link.fromCapability}</span> {link.fromRequirement ?? 'спека'} →{' '}
+                    {link.toRequirement}
+                    {link.changing !== null && <span className="chip bad">требование {link.changing.operation === 'REMOVED' ? 'удаляется' : 'переименовывается'}</span>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {traces.brokenLinks.length > 0 && (
+            <>
+              <p className="grp">Битые ссылки в дельтах · {traces.brokenLinks.length}</p>
+              <ul className="link-list" data-testid="broken-links">
+                {traces.brokenLinks.map((link) => (
+                  <li key={`${link.file}:${link.line}`}>
+                    <code>
+                      {link.file}:{link.line}
+                    </code>{' '}
+                    {link.href}
+                    {link.suggestion !== null && <> → замените на «{link.suggestion}»</>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {traces.tagsToUpdate.length > 0 && (
+            <>
+              <p className="grp">Метки в коде, которые нужно обновить · {traces.tagsToUpdate.length}</p>
+              <ul className="link-list" data-testid="tags-to-update">
+                {traces.tagsToUpdate.map((tag) => (
+                  <li key={`${tag.path}:${tag.line}`}>
+                    <code>
+                      {tag.path}:{tag.line}
+                    </code>{' '}
+                    «{tag.from}» → «{tag.to}»
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </section>
       )}

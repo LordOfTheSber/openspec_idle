@@ -6,7 +6,14 @@ import {
   moduleNeighbours,
   type WorkspaceTree,
 } from '@openspec-ide/core';
-import type { ModulesView } from '../lib/api.js';
+import {
+  fetchBrokenTags,
+  fetchLinks,
+  saveModules,
+  type BrokenTag,
+  type LinkGraph,
+  type ModulesView,
+} from '../lib/api.js';
 import { Discovery } from './Discovery.js';
 import { ModuleGraph, type ExtraEdge, type ModuleMark } from './ModuleGraph.js';
 
@@ -18,7 +25,7 @@ export function Modules({
   view,
   tree,
   focusChange,
-  extraEdges,
+  revision = 0,
   onOpenChange,
   onOpenSpec,
   onChanged,
@@ -27,7 +34,8 @@ export function Modules({
   readonly tree: WorkspaceTree;
   /** Change, чьи затронутые потребители подсвечиваются на графе. */
   readonly focusChange: string | null;
-  readonly extraEdges?: readonly ExtraEdge[];
+  /** Счётчик изменений на диске: связи перечитываются. */
+  readonly revision?: number;
   readonly onOpenChange: (change: string) => void;
   readonly onOpenSpec: (capability: string) => void;
   readonly onChanged: () => void;
@@ -35,6 +43,45 @@ export function Modules({
   const { map, overlay } = view;
   const [selected, setSelected] = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(!map.exists);
+  const [links, setLinks] = useState<LinkGraph | null>(null);
+  const [broken, setBroken] = useState<readonly BrokenTag[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let current = true;
+    void Promise.all([fetchLinks(), fetchBrokenTags()]).then(([graph, tags]) => {
+      if (!current) return;
+      setLinks(graph);
+      setBroken(tags.tags);
+    });
+    return () => {
+      current = false;
+    };
+  }, [revision, map]);
+
+  const extraEdges: ExtraEdge[] = (links?.edges ?? []).map((edge) => ({
+    from: edge.from,
+    to: edge.to,
+    label: `${edge.count} ссыл.`,
+    kind: edge.mismatch ? 'mismatch' : 'link',
+  }));
+  const mismatches = (links?.edges ?? []).filter((edge) => edge.mismatch);
+
+  async function addDependency(from: string, to: string): Promise<void> {
+    setSaveError(null);
+    try {
+      await saveModules(
+        map.modules.map((module) => ({
+          ...module,
+          path: module.path ?? '',
+          dependsOn: module.id === from ? [...module.dependsOn, to] : module.dependsOn,
+        })),
+      );
+      onChanged();
+    } catch (problem) {
+      setSaveError(problem instanceof Error ? problem.message : String(problem));
+    }
+  }
 
   useEffect(() => {
     if (!map.exists) setDiscovering(true);
@@ -122,6 +169,45 @@ export function Modules({
         </p>
       )}
 
+      {mismatches.length > 0 && (
+        <div className="notice info" data-testid="link-mismatches">
+          <p>Требования ссылаются на модули, от которых модуль не зависит по карте:</p>
+          <ul className="failure-details">
+            {mismatches.map((edge) => (
+              <li key={`${edge.from}->${edge.to}`} data-testid={`mismatch-${edge.from}-${edge.to}`}>
+                <code>{edge.from}</code> → <code>{edge.to}</code> · ссылок {edge.count}{' '}
+                <button type="button" className="link" onClick={() => void addDependency(edge.from, edge.to)} data-testid="add-dependency">
+                  добавить зависимость в карту
+                </button>
+              </li>
+            ))}
+          </ul>
+          {saveError !== null && <p className="small">{saveError}</p>}
+        </div>
+      )}
+
+      {broken.length > 0 && (
+        <div className="notice error" data-testid="broken-tags">
+          <p>Метки в коде, которые не разрешаются до требования:</p>
+          <ul className="failure-details">
+            {broken.map((tag) => (
+              <li key={`${tag.path}:${tag.line}`}>
+                <code>
+                  {tag.path}:{tag.line}
+                </code>{' '}
+                @spec {tag.module}: {tag.requirement} —{' '}
+                {tag.reason === 'unknown-module' ? 'нет такого модуля' : 'нет такого требования'}
+                {tag.suggestion !== null && (
+                  <>
+                    ; теперь оно называется <b>{tag.suggestion}</b>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="modules-body">
         <nav className="module-list" aria-label="Модули">
           {groupModules(map.modules).map((group) => (
@@ -165,7 +251,7 @@ export function Modules({
             selected={selected}
             marks={marks}
             counts={counts}
-            extraEdges={extraEdges ?? []}
+            extraEdges={extraEdges}
             onSelect={setSelected}
           />
         </div>
@@ -206,6 +292,18 @@ export function Modules({
                   </li>
                 ))}
               </ul>
+              {(links?.undocumented ?? []).some((entry) => entry.from === module.id) && (
+                <>
+                  <p className="grp">Зависимости без ссылок в спеках</p>
+                  <p className="muted small" data-testid="module-undocumented">
+                    {(links?.undocumented ?? [])
+                      .filter((entry) => entry.from === module.id)
+                      .map((entry) => entry.to)
+                      .join(', ')}{' '}
+                    — контракт между модулями не зафиксирован ни одним требованием.
+                  </p>
+                </>
+              )}
               <p className="grp">Активные changes · {changesOf[module.id]?.length ?? 0}</p>
               <ul className="link-list" data-testid="module-changes">
                 {(changesOf[module.id] ?? []).map((change) => (

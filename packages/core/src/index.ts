@@ -34,6 +34,7 @@ export {
 export {
   buildDeltaView,
   compareRequirement,
+  diffLines,
   sameHeader,
   type DeltaGroup,
   type DeltaRequirement,
@@ -175,3 +176,43 @@ export {
   type RunEnding,
   type RunTally,
 } from './agentStream.js';
+
+export {
+  GENERAL_SECTION,
+  SECTION_SEPARATOR,
+  buildSections,
+  checkModuleSpec,
+  sectionLabel,
+  splitSections,
+  type ModuleSpecWarning,
+  type SectionNode,
+  type SectionedName,
+} from './moduleSpec.js';
+
+export {
+  findByAnchor,
+  headingSlug,
+  parseSpecLinks,
+  relativePath,
+  requirementAnchor,
+  requirementHref,
+  requirementLink,
+  resolvePath,
+  type SpecLink,
+} from './specLinks.js';
+
+export {
+  COVERAGE_LABEL,
+  DEFAULT_TEST_PATTERNS,
+  coverageState,
+  extractNameMentions,
+  globToRegExp,
+  isTestPath,
+  normalizeRequirement,
+  normalizeScenarioName,
+  parseSpecTag,
+  sameRequirement,
+  type CoverageState,
+  type NameMention,
+  type SpecTag,
+} from './codeTrace.js';

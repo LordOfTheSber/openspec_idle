@@ -134,3 +134,22 @@ describe('разбор структуры спека', () => {
     expect(parsed.problems).toHaveLength(0);
   });
 });
+
+describe('RENAMED в формате шаблона OpenSpec', () => {
+  it('пары FROM/TO без заголовка требования, с маркером списка', () => {
+    const parsed = parseSpecMarkdown(
+      [
+        '## RENAMED Requirements',
+        '- FROM: `### Requirement: Нумерация счетов`',
+        '- TO: `### Requirement: Счета / Нумерация счетов`',
+        'FROM: `### Requirement: Возврат`',
+        'TO: `### Requirement: Возвраты / Полный возврат`',
+      ].join('\n'),
+    );
+    expect(parsed.requirements.map((item) => [item.operation, item.renamedFrom, item.renamedTo, item.line])).toEqual([
+      ['RENAMED', 'Нумерация счетов', 'Счета / Нумерация счетов', 2],
+      ['RENAMED', 'Возврат', 'Возвраты / Полный возврат', 4],
+    ]);
+    expect(parsed.problems).toEqual([]);
+  });
+});

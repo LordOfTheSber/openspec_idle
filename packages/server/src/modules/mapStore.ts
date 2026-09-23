@@ -99,6 +99,15 @@ export class ModuleMapStore {
    * порядок сохраняются: карту правят и руками в пулл-реквестах.
    */
   async write(modules: readonly ModuleInput[]): Promise<ModuleMapView> {
+    return this.#edit((document) => applyModules(document, modules));
+  }
+
+  /** Записывает шаблоны тестовых путей, не трогая модули. */
+  async writeTests(patterns: readonly string[] | null): Promise<ModuleMapView> {
+    return this.#edit((document) => applyTests(document, patterns));
+  }
+
+  async #edit(apply: (document: Document) => void): Promise<ModuleMapView> {
     const text = existsSync(this.path) ? await readFile(this.path, 'utf8') : null;
     const document = text === null ? parseDocument('version: 1\nmodules: []\n') : parseDocument(text);
     if (document.errors.length > 0) {
@@ -106,11 +115,18 @@ export class ModuleMapStore {
         `Файл ${OPENSPEC_DIR}/${MODULES_FILE} не разбирается как YAML — исправьте его вручную: ${document.errors[0]?.message ?? ''}`,
       );
     }
-    applyModules(document, modules);
+    apply(document);
     await writeAtomically(this.path, document.toString({ lineWidth: 0, flowCollectionPadding: false }));
     this.#cache = null;
     return this.read();
   }
+}
+
+/** Шаблоны тестовых путей на уровне карты; `null` — по умолчанию. */
+function applyTests(document: Document, patterns: readonly string[] | null): void {
+  if (!isMap(document.contents)) document.contents = document.createNode({}) as YAMLMap;
+  if (patterns === null || patterns.length === 0) document.delete('tests');
+  else document.set('tests', document.createNode([...patterns]));
 }
 
 function applyModules(document: Document, modules: readonly ModuleInput[]): void {

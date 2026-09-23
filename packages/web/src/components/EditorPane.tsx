@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { TreeChange } from '@openspec-ide/core';
+import { requirementLink, type TreeChange } from '@openspec-ide/core';
 import {
   StaleWriteConflict,
   createArtifactFile,
@@ -8,7 +8,8 @@ import {
   saveFile,
   type ArtifactFile,
 } from '../lib/api.js';
-import { Editor } from './Editor.js';
+import { Editor, type EditorCommands } from './Editor.js';
+import { LinkPicker } from './LinkPicker.js';
 import { Outline, StructureProblems } from './Outline.js';
 import { Problems, type ValidationState } from './Problems.js';
 
@@ -39,6 +40,8 @@ export function EditorPane({ change, artifactId, file, revealLine }: EditorPaneP
   /** Увеличивается, когда содержимое приходит извне, а не из редактора. */
   const [documentKey, setDocumentKey] = useState(0);
   const requestId = useRef(0);
+  const commands = useRef<EditorCommands | null>(null);
+  const [picking, setPicking] = useState(false);
 
   const artifact = change.artifacts.find((item) => item.id === artifactId);
   const dirty = loaded !== null && draft !== loaded.content;
@@ -51,6 +54,9 @@ export function EditorPane({ change, artifactId, file, revealLine }: EditorPaneP
   );
 
   const path = file === null ? null : `openspec/changes/${change.name}/${file}`;
+  // Дельта спеки: ссылка строится от итогового места спеки, specs/<capability>/,
+  // чтобы остаться верной после архивации change.
+  const deltaCapability = file === null ? null : (/^specs\/(.+)\/spec\.md$/.exec(file)?.[1] ?? null);
 
   useEffect(() => {
     setReveal(revealLine);
@@ -166,6 +172,11 @@ export function EditorPane({ change, artifactId, file, revealLine }: EditorPaneP
           </span>
         )}
         <span className="spacer" />
+        {deltaCapability !== null && (
+          <button type="button" className="btn" onClick={() => setPicking(true)} data-testid="insert-link">
+            Ссылка на требование
+          </button>
+        )}
         <button type="button" className="btn" onClick={() => void runValidation()}>
           Проверить
         </button>
@@ -224,8 +235,20 @@ export function EditorPane({ change, artifactId, file, revealLine }: EditorPaneP
         </p>
       )}
 
+      {picking && deltaCapability !== null && (
+        <LinkPicker
+          exclude={deltaCapability}
+          onClose={() => setPicking(false)}
+          onPick={(target) => {
+            commands.current?.insert(requirementLink(deltaCapability, target.capability, target.name));
+            setPicking(false);
+          }}
+        />
+      )}
+
       <div className="editor-body">
         <Editor
+          commands={commands}
           content={draft}
           documentKey={documentKey}
           onChange={setDraft}

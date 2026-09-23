@@ -15,6 +15,11 @@ import { WorkspaceWatcher } from './watcher.js';
 import { ModuleService } from './modules/service.js';
 import { ModuleMapError, type ModuleInput } from './modules/mapStore.js';
 import { writeChangeModules } from './modules/changeMeta.js';
+import { CodeIndex } from './specs/codeIndex.js';
+import { ModuleSpecService } from './specs/moduleSpecs.js';
+import { EditorNotFoundError, openInEditor } from './specs/editor.js';
+import { resolveInsideWorkspace } from './http/paths.js';
+import { toPosixPath } from './process/platform.js';
 import { MODULE_KINDS, type ModuleKind, type ModuleOverlay } from '@openspec-ide/core';
 import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
@@ -185,7 +190,25 @@ export function createApp(options: ServerOptions): AppParts {
     root === null || client === null || schemaReader === null || metrics === null
       ? null
       : new PromptBuilder(root, client, schemaReader, metrics);
-  app.addHook('onClose', async () => agent?.shutdown());
+  const codeIndex =
+    root === null
+      ? null
+      : new CodeIndex({
+          root,
+          watch: options.watch !== false,
+          onChange: () => events.emit({ type: 'code-index-changed', payload: null }),
+        });
+  const specs =
+    root === null || reader === null || modules === null || codeIndex === null
+      ? null
+      : new ModuleSpecService({ root, workspace: reader, modules, index: codeIndex });
+  // Индекс кода строится в фоне с первого запуска: спеки доступны сразу,
+  // покрытие — по мере готовности.
+  void specs?.refreshIndex().catch((error: unknown) => console.error(`[индекс кода] ${String(error)}`));
+  app.addHook('onClose', async () => {
+    await codeIndex?.close();
+    await agent?.shutdown();
+  });
 
   const validation =
     root !== null && location?.kind === 'found'
@@ -255,6 +278,10 @@ export function createApp(options: ServerOptions): AppParts {
     }
     if (error instanceof ModuleMapError) {
       await reply.code(400).send({ error: error.message });
+      return;
+    }
+    if (error instanceof EditorNotFoundError) {
+      await reply.code(400).send({ error: error.message, searched: error.searched, editorNotFound: true });
       return;
     }
     if (error instanceof SecretInConfigError) {
@@ -338,6 +365,75 @@ export function createApp(options: ServerOptions): AppParts {
     const change = ((request.query as Record<string, string | undefined>) ?? {})['change'];
     if (change === undefined || change === '') throw new Error('Не указано имя change');
     return needModules().impact(change);
+  });
+
+  const needSpecs = (): ModuleSpecService => {
+    if (specs === null) throw new Error('CLI OpenSpec недоступен');
+    return specs;
+  };
+  const query = (request: FastifyRequest): Record<string, string | undefined> =>
+    (request.query as Record<string, string | undefined>) ?? {};
+  const required = (value: string | undefined, what: string): string => {
+    if (value === undefined || value === '') throw new Error(`Не указан параметр ${what}`);
+    return value;
+  };
+  /** Путь файла кода от корня, через `/`, с проверкой выхода за пределы. */
+  const codePath = (value: string | undefined): string => {
+    const absolute = resolveInsideWorkspace(root!, required(value, 'path'));
+    return toPosixPath(absolute.slice(canonicalRoot!.length + 1));
+  };
+  const canonicalRoot = root === null ? null : resolveInsideWorkspace(root, '.');
+
+  app.get('/api/module-spec', async (request, reply) => {
+    const view = await needSpecs().spec(required(query(request)['capability'], 'capability'));
+    if (view === null) return reply.code(404).send({ error: 'Спека не найдена' });
+    return view;
+  });
+
+  app.get('/api/module-spec/history', async (request) => {
+    const params = query(request);
+    return { entries: await needSpecs().history(required(params['capability'], 'capability'), required(params['name'], 'name')) };
+  });
+
+  app.get('/api/links', async () => needSpecs().links());
+
+  app.get('/api/requirements', async () => ({ requirements: await needSpecs().requirementIndex() }));
+
+  app.get('/api/code/coverage', async (request) => needSpecs().coverage(required(query(request)['capability'], 'capability')));
+
+  app.get('/api/code/broken', async () => ({ tags: await needSpecs().brokenTags() }));
+
+  app.get('/api/code/status', async () => {
+    await needSpecs().refreshIndex();
+    return codeIndex!.status;
+  });
+
+  app.get('/api/code/change', async (request) => needSpecs().changeTraces(required(query(request)['change'], 'change')));
+
+  app.get('/api/code/snippet', async (request) => {
+    const params = query(request);
+    return needSpecs().snippet(codePath(params['path']), Number(params['line'] ?? '1') || 1);
+  });
+
+  app.post('/api/code/open', async (request) => {
+    const body = (request.body ?? {}) as { path?: string; line?: number };
+    const path = codePath(body.path);
+    const { config } = await loadConfig(root!);
+    return openInEditor({
+      kind: config.editor.kind,
+      command: config.editor.command,
+      root: canonicalRoot!,
+      path,
+      line: typeof body.line === 'number' && body.line > 0 ? body.line : 1,
+    });
+  });
+
+  app.put('/api/modules/tests', async (request) => {
+    const body = (request.body ?? {}) as { patterns?: unknown };
+    const patterns = Array.isArray(body.patterns)
+      ? body.patterns.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim())
+      : null;
+    return needModules().store.writeTests(patterns);
   });
 
   app.get('/api/modules/metrics', async (request) => {

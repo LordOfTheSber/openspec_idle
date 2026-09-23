@@ -8,7 +8,7 @@ import {
   lineNumbers,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import { openspecDecorations, openspecTheme } from '../lib/openspecHighlight.js';
 
 interface EditorProps {
@@ -34,6 +34,12 @@ interface EditorProps {
   readonly plain?: boolean;
   /** Подпись для тестов и вспомогательных технологий. */
   readonly label?: string;
+  /** Команды редактора для родителя: вставка текста в позицию курсора. */
+  readonly commands?: MutableRefObject<EditorCommands | null>;
+}
+
+export interface EditorCommands {
+  insert(text: string): void;
 }
 
 export function Editor({
@@ -45,6 +51,7 @@ export function Editor({
   revealLine,
   plain = false,
   label = 'editor',
+  commands,
 }: EditorProps) {
   const host = useRef<HTMLDivElement | null>(null);
   const view = useRef<EditorView | null>(null);
@@ -90,10 +97,20 @@ export function Editor({
       parent: host.current,
     });
     view.current = instance;
+    if (commands !== undefined) {
+      commands.current = {
+        insert: (text) => {
+          const { from, to } = instance.state.selection.main;
+          instance.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } });
+          instance.focus();
+        },
+      };
+    }
 
     return () => {
       instance.destroy();
       view.current = null;
+      if (commands !== undefined) commands.current = null;
     };
     // Пересоздание только при смене режима подсветки: набор расширений
     // фиксируется при создании состояния, а содержимое читается через ref.

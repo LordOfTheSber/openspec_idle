@@ -17,6 +17,7 @@ import { desktopBridge } from './lib/desktop.js';
 import { ModuleFilter } from './components/ModuleFilter.js';
 import { ModuleMetricsView } from './components/ModuleMetricsView.js';
 import { Modules } from './components/Modules.js';
+import { ModuleSpecView, parseRequirementHash } from './components/ModuleSpecView.js';
 import {
   type ConnectionState,
   WorkspaceConnection,
@@ -84,7 +85,24 @@ const CONNECTION_LABEL: Record<ConnectionState, string> = {
 export function App() {
   const [section, setSection] = useState<Section>('explorer');
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
-  const [selection, setSelection] = useState<Selection | null>(null);
+  // Адрес требования (`#spec=…&req=…`) открывает спеку сразу.
+  const [selection, setSelection] = useState<Selection | null>(() => {
+    const target = parseRequirementHash(window.location.hash);
+    return target === null ? null : { kind: 'capability', id: target.capability, anchor: target.anchor };
+  });
+  const [codeRevision, setCodeRevision] = useState(0);
+
+  // Адрес требования, вставленный в уже открытое окно, тоже открывает спеку.
+  useEffect(() => {
+    const onHash = (): void => {
+      const target = parseRequirementHash(window.location.hash);
+      if (target === null) return;
+      setSelection({ kind: 'capability', id: target.capability, anchor: target.anchor });
+      setSection('explorer');
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [loadError, setLoadError] = useState<string | null>(null);
   // Счётчик изменений на диске — разделам, которые читают данные сами.
@@ -128,9 +146,10 @@ export function App() {
 
     const instance = new WorkspaceConnection({
       connect: () =>
-        eventSourceTransport(eventsUrl(), ['connected', 'workspace-changed', ...AGENT_EVENT_TYPES]),
+        eventSourceTransport(eventsUrl(), ['connected', 'workspace-changed', 'code-index-changed', ...AGENT_EVENT_TYPES]),
       onState: setConnection,
       onEvent: (event) => {
+        if (event.type === 'code-index-changed') setCodeRevision((current) => current + 1);
         if (event.type === 'workspace-changed') {
           setRevision((current) => current + 1);
           void reload();
@@ -280,13 +299,14 @@ export function App() {
                   view={modulesView}
                   tree={tree}
                   focusChange={selectedChange}
+                  revision={revision + codeRevision}
                   onOpenChange={(change) => {
                     setSelection({ kind: 'change', id: change });
                     setSection('explorer');
                   }}
                   onOpenSpec={(capability) => {
                     setSelection({ kind: 'capability', id: capability });
-                    setSection('deltas');
+                    setSection('explorer');
                   }}
                   onChanged={() => void reload()}
                 />
@@ -348,6 +368,16 @@ export function App() {
                   />
                 );
               })()
+            ) : selection?.kind === 'capability' ? (
+              <ModuleSpecView
+                key={selection.id}
+                capability={selection.id}
+                initialAnchor={selection.anchor ?? null}
+                revision={revision + codeRevision}
+                onOpenChange={(change) => setSelection({ kind: 'change', id: change })}
+                onOpenSpec={(capability, anchor) => setSelection({ kind: 'capability', id: capability, anchor })}
+                onOpenSettings={() => setSection('settings')}
+              />
             ) : (
               <Detail
                 tree={tree}

@@ -64,8 +64,9 @@ const RE_STEP = /^\s*-\s+\*\*(WHEN|THEN|AND|IF|GIVEN)\*\*/i;
 const RE_REASON = /^\*\*Reason\*\*:\s*(.*)$/i;
 const RE_MIGRATION = /^\*\*Migration\*\*:\s*(.*)$/i;
 // Прежнее и новое имя записываются как `FROM: \`### Requirement: Имя\``.
-const RE_RENAME_FROM = /^FROM:\s*`?(?:###\s*Requirement:\s*)?(.+?)`?\s*$/;
-const RE_RENAME_TO = /^TO:\s*`?(?:###\s*Requirement:\s*)?(.+?)`?\s*$/;
+// Как у CLI: строка может начинаться маркером списка — `- FROM: …`.
+const RE_RENAME_FROM = /^\s*[-*+]?\s*FROM:\s*`?(?:###\s*Requirement:\s*)?(.+?)`?\s*$/;
+const RE_RENAME_TO = /^\s*[-*+]?\s*TO:\s*`?(?:###\s*Requirement:\s*)?(.+?)`?\s*$/;
 const RE_DELTA_HEADER = /^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\s*$/;
 
 /** Разбирает markdown спека или дельты. */
@@ -93,6 +94,8 @@ export function parseSpecMarkdown(text: string): ParsedSpecDocument {
     renamedTo: string | null;
   } | null = null;
   let currentScenario: { name: string; line: number; steps: string[] } | null = null;
+  /** `FROM:` без заголовка требования ждёт своего `TO:` — формат шаблона OpenSpec. */
+  let pendingFrom: { name: string; line: number } | null = null;
 
   const closeScenario = (): void => {
     if (currentScenario !== null && currentRequirement !== null) {
@@ -202,6 +205,31 @@ export function parseSpecMarkdown(text: string): ParsedSpecDocument {
           'OpenSpec требует ровно четырёх, иначе блок молча не распознаётся',
       });
       continue;
+    }
+
+    if (operation === 'RENAMED') {
+      const from = RE_RENAME_FROM.exec(raw);
+      if (from?.[1] !== undefined && (currentRequirement === null || currentRequirement.renamedFrom !== null)) {
+        closeRequirement();
+        pendingFrom = { name: from[1].trim(), line: lineNumber };
+        continue;
+      }
+      const to = RE_RENAME_TO.exec(raw);
+      if (to?.[1] !== undefined && pendingFrom !== null) {
+        requirements.push({
+          name: to[1].trim(),
+          line: pendingFrom.line,
+          operation: 'RENAMED',
+          scenarios: [],
+          description: '',
+          reason: null,
+          migration: null,
+          renamedFrom: pendingFrom.name,
+          renamedTo: to[1].trim(),
+        });
+        pendingFrom = null;
+        continue;
+      }
     }
 
     if (currentRequirement !== null) {

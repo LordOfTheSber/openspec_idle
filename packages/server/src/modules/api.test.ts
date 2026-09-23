@@ -53,6 +53,7 @@ describe('API модулей на фикстуре монорепо', () => {
       billing: 'billing',
       'km/core': 'km/core',
       'ops/runbooks': null,
+      'web-ui': 'web-ui',
     });
     const exportChange = workspace.tree.changes.find((change) => change.name === 'add-invoice-export');
     expect(exportChange?.deltaCapabilities).toEqual(['billing', 'km/core']);

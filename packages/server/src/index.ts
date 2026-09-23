@@ -130,3 +130,19 @@ export { ModuleService, type ChangeImpact, type DiscoveryResult, type ModuleMetr
 export { MODULES_FILE, ModuleMapError, ModuleMapStore, type ModuleInput, type ModuleMapView } from './modules/mapStore.js';
 export { diffWithMap, discoverModules, type DiscoveredModule, type DiscoveryDiff } from './modules/discovery.js';
 export { withModules, writeChangeModules } from './modules/changeMeta.js';
+export { CODE_INDEX_FILE, CodeIndex, type CodeIndexStatus, type IndexedFile, type IndexedTag } from './specs/codeIndex.js';
+export { DeltaArchive, renamedTo, requirementHistory, type DeltaEntry, type HistoryEntry } from './specs/archive.js';
+export { EditorNotFoundError, editorArgs, locateEditor, openInEditor, type EditorKind } from './specs/editor.js';
+export {
+  ModuleSpecService,
+  type BrokenTag,
+  type ChangeTraces,
+  type CodePlace,
+  type CoverageView,
+  type LinkGraph,
+  type ModuleLinkEdge,
+  type ModuleSpecView,
+  type RequirementTrace,
+  type RequirementView,
+  type ResolvedLink,
+} from './specs/moduleSpecs.js';

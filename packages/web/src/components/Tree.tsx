@@ -9,6 +9,8 @@ export interface Selection {
   readonly parent?: string;
   /** Конкретный файл артефакта, порождающего несколько файлов (дельты спеков). */
   readonly file?: string;
+  /** Якорь требования в спеке capability. */
+  readonly anchor?: string | null;
 }
 
 interface TreeProps {

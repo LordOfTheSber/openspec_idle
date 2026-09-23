@@ -28,6 +28,7 @@ export interface ModulesView {
     readonly modules: readonly ModuleDef[];
     readonly problems: readonly ModuleProblem[];
     readonly cycles: readonly (readonly string[])[];
+    readonly testPatterns: readonly string[] | null;
   };
   readonly overlay: ModuleOverlay;
 }
@@ -653,4 +654,174 @@ export function fetchAgentRuns(change: string): Promise<{ runs: AgentRunRecord[]
 
 export function fetchAgentRun(runId: string): Promise<{ record: AgentRunRecord; events: StoredAgentEvent[] }> {
   return get(`/api/agent/run?id=${encodeURIComponent(runId)}`);
+}
+
+// ── спека модуля, ссылки и код ────────────────────────────────
+
+export interface RequirementChange {
+  readonly change: string;
+  readonly operation: 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED';
+  readonly renamedTo: string | null;
+}
+
+export interface RequirementView {
+  readonly name: string;
+  readonly short: string;
+  readonly sections: readonly string[];
+  readonly anchor: string;
+  readonly line: number;
+  readonly description: string;
+  readonly scenarios: readonly { readonly name: string; readonly line: number; readonly steps: readonly string[] }[];
+  readonly changes: readonly RequirementChange[];
+  readonly proposedBy: string | null;
+  readonly outgoing: number;
+  readonly incoming: number;
+}
+
+export interface SpecSection {
+  readonly title: string;
+  readonly path: readonly string[];
+  readonly requirements: readonly RequirementView[];
+  readonly children: readonly SpecSection[];
+  readonly requirementCount: number;
+  readonly scenarioCount: number;
+}
+
+export interface ModuleSpecView {
+  readonly capability: string;
+  readonly file: string;
+  readonly module: ModuleDef | null;
+  readonly purpose: string | null;
+  readonly sections: readonly SpecSection[];
+  readonly counts: { readonly sections: number; readonly requirements: number; readonly scenarios: number };
+  readonly warnings: readonly { readonly kind: string; readonly line: number; readonly message: string }[];
+  readonly activeChanges: readonly string[];
+  readonly links: { readonly outgoing: number; readonly incoming: number };
+}
+
+export interface HistoryEntry {
+  readonly change: string;
+  readonly date: string | null;
+  readonly operation: string;
+  readonly name: string;
+  readonly renamedFrom: string | null;
+  readonly before: string | null;
+  readonly after: string | null;
+  readonly diff: readonly { readonly kind: 'added' | 'removed' | 'context'; readonly text: string }[];
+}
+
+export interface ResolvedLink {
+  readonly fromCapability: string;
+  readonly fromRequirement: string | null;
+  readonly fromModule: string | null;
+  readonly file: string;
+  readonly line: number;
+  readonly label: string;
+  readonly href: string;
+  readonly toCapability: string;
+  readonly toModule: string | null;
+  readonly toRequirement: string | null;
+  readonly anchor: string | null;
+  readonly change: string | null;
+  readonly status: 'ok' | 'missing-spec' | 'missing-requirement' | 'changing';
+  readonly suggestion: string | null;
+  readonly changing: RequirementChange | null;
+}
+
+export interface LinkGraph {
+  readonly links: readonly ResolvedLink[];
+  readonly edges: readonly { readonly from: string; readonly to: string; readonly count: number; readonly mismatch: boolean }[];
+  readonly undocumented: readonly { readonly from: string; readonly to: string }[];
+}
+
+export interface CodePlace {
+  readonly path: string;
+  readonly line: number;
+  readonly module: string | null;
+  readonly kind: 'code' | 'test' | 'usage' | 'probable';
+  readonly scenario?: string;
+}
+
+export type CoverageState = 'full' | 'code' | 'tests' | 'probable' | 'none';
+
+export interface RequirementTrace {
+  readonly requirement: string;
+  readonly state: CoverageState;
+  readonly code: readonly CodePlace[];
+  readonly tests: readonly CodePlace[];
+  readonly usages: readonly CodePlace[];
+  readonly probable: readonly CodePlace[];
+}
+
+export interface CodeIndexStatus {
+  readonly state: 'idle' | 'indexing' | 'ready';
+  readonly files: number;
+  readonly processed: number;
+  readonly indexedAt: string | null;
+  readonly error: string | null;
+}
+
+export interface CoverageView {
+  readonly capability: string;
+  readonly index: CodeIndexStatus;
+  readonly requirements: readonly RequirementTrace[];
+  readonly summary: Readonly<Record<CoverageState, number>>;
+}
+
+export interface ChangeTraces {
+  readonly change: string;
+  readonly affectedLinks: readonly ResolvedLink[];
+  readonly brokenLinks: readonly ResolvedLink[];
+  readonly tagsToUpdate: readonly (CodePlace & { readonly from: string; readonly to: string })[];
+}
+
+export interface BrokenTag {
+  readonly path: string;
+  readonly line: number;
+  readonly module: string;
+  readonly requirement: string;
+  readonly reason: 'unknown-module' | 'unknown-requirement';
+  readonly suggestion: string | null;
+}
+
+export function fetchModuleSpec(capability: string): Promise<ModuleSpecView> {
+  return get(`/api/module-spec?capability=${encodeURIComponent(capability)}`);
+}
+
+export function fetchHistory(capability: string, name: string): Promise<{ entries: HistoryEntry[] }> {
+  return get(`/api/module-spec/history?capability=${encodeURIComponent(capability)}&name=${encodeURIComponent(name)}`);
+}
+
+export function fetchLinks(): Promise<LinkGraph> {
+  return get('/api/links');
+}
+
+export function fetchRequirementIndex(): Promise<{
+  requirements: { capability: string; module: string | null; name: string; anchor: string }[];
+}> {
+  return get('/api/requirements');
+}
+
+export function fetchCoverage(capability: string): Promise<CoverageView> {
+  return get(`/api/code/coverage?capability=${encodeURIComponent(capability)}`);
+}
+
+export function fetchBrokenTags(): Promise<{ tags: BrokenTag[] }> {
+  return get('/api/code/broken');
+}
+
+export function fetchChangeTraces(change: string): Promise<ChangeTraces> {
+  return get(`/api/code/change?change=${encodeURIComponent(change)}`);
+}
+
+export function fetchSnippet(path: string, line: number): Promise<{ path: string; start: number; line: number; lines: string[] }> {
+  return get(`/api/code/snippet?path=${encodeURIComponent(path)}&line=${line}`);
+}
+
+export function openInEditor(path: string, line: number): Promise<{ command: string; args: string[] }> {
+  return send('/api/code/open', 'POST', { path, line });
+}
+
+export function saveTestPatterns(patterns: readonly string[] | null): Promise<ModulesView['map']> {
+  return send('/api/modules/tests', 'PUT', { patterns });
 }

@@ -7,9 +7,17 @@ import {
   type IdeConfigResponse,
   fetchAgentStatus,
   fetchConfig,
+  fetchModules,
   probeAgent,
   saveConfig,
+  saveTestPatterns,
 } from '../lib/api.js';
+import { DEFAULT_TEST_PATTERNS } from '@openspec-ide/core';
+
+interface EditorSettings {
+  readonly kind: 'idea' | 'vscode';
+  readonly command: string | null;
+}
 
 interface Mode {
   readonly id: ApprovalMode;
@@ -46,11 +54,21 @@ export function Settings() {
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [probing, setProbing] = useState(false);
+  const [editor, setEditor] = useState<EditorSettings>({ kind: 'vscode', command: null });
+  const [patterns, setPatterns] = useState('');
+  const [savedPatterns, setSavedPatterns] = useState('');
+  const [hasMap, setHasMap] = useState(false);
 
   const load = useCallback(async () => {
     const [config, agent] = await Promise.all([fetchConfig(), fetchAgentStatus()]);
     setLoaded(config);
     setDraft(config.config.agent);
+    setEditor((config.config['editor'] as EditorSettings | undefined) ?? { kind: 'vscode', command: null });
+    const modules = await fetchModules().catch(() => null);
+    const text = (modules?.map.testPatterns ?? []).join('\n');
+    setPatterns(text);
+    setSavedPatterns(text);
+    setHasMap(modules?.map.exists === true);
     setExtraArgs(config.config.agent.extraArgs.join('\n'));
     setStatus(agent);
   }, []);
@@ -70,6 +88,7 @@ export function Settings() {
     try {
       const next = {
         ...loaded.config,
+        editor: { kind: editor.kind, command: editor.command === null || editor.command.trim() === '' ? null : editor.command.trim() },
         agent: {
           ...draft,
           extraArgs: extraArgs
@@ -79,7 +98,16 @@ export function Settings() {
         },
       };
       const result = await saveConfig(next);
+      setLoaded({ ...loaded, config: result.config });
       setDraft(result.config.agent);
+      if (patterns !== savedPatterns) {
+        const list = patterns
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line !== '');
+        await saveTestPatterns(list.length === 0 ? null : list);
+        setSavedPatterns(patterns);
+      }
       setMessage({ ok: true, text: 'Настройки сохранены в .openspec-ide/config.json.' });
       setStatus(await fetchAgentStatus());
     } catch (error) {
@@ -266,6 +294,55 @@ export function Settings() {
               </pre>
             </div>
           )}
+        </section>
+      </div>
+
+      <div className="settings-grid">
+        <section className="settings-card" data-testid="editor-settings">
+          <p className="pane-title">Внешний редактор</p>
+          <div className="field">
+            <label htmlFor="editor-kind">Редактор</label>
+            <select
+              id="editor-kind"
+              value={editor.kind}
+              onChange={(event) => setEditor({ ...editor, kind: event.target.value as EditorSettings['kind'] })}
+            >
+              <option value="idea">IntelliJ IDEA</option>
+              <option value="vscode">VS Code</option>
+            </select>
+            <p className="hint">
+              Открытие места метки: {editor.kind === 'idea' ? <code>idea --line &lt;строка&gt; &lt;файл&gt;</code> : <code>code -g &lt;файл&gt;:&lt;строка&gt;</code>}.
+            </p>
+          </div>
+          <div className="field">
+            <label htmlFor="editor-command">Команда или путь</label>
+            <input
+              id="editor-command"
+              value={editor.command ?? ''}
+              placeholder={editor.kind === 'idea' ? 'idea (или путь к idea64.exe)' : 'code'}
+              onChange={(event) => setEditor({ ...editor, command: event.target.value })}
+            />
+            <p className="hint">Пусто — ищется в PATH. Хранится в .openspec-ide/config.json, у каждого разработчика свой.</p>
+          </div>
+        </section>
+        <section className="settings-card" data-testid="test-patterns">
+          <p className="pane-title">Шаблоны тестовых путей</p>
+          <div className="field">
+            <label htmlFor="test-patterns">По одному на строку</label>
+            <textarea
+              id="test-patterns"
+              rows={6}
+              value={patterns}
+              disabled={!hasMap}
+              placeholder={DEFAULT_TEST_PATTERNS.join('\n')}
+              onChange={(event) => setPatterns(event.target.value)}
+            />
+            <p className="hint">
+              {hasMap
+                ? 'Пусто — шаблоны по умолчанию (Maven, Gradle, Jest, Vitest, Go, Python). Хранятся в openspec/modules.yaml, общие для команды.'
+                : 'Шаблоны хранятся в карте модулей — сначала заведите её в разделе «Модули».'}
+            </p>
+          </div>
         </section>
       </div>
     </div>

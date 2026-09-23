@@ -200,7 +200,7 @@ function similarTo(name: string, candidates: readonly string[]): string[] {
 }
 
 /** Построчное сравнение двух текстов. */
-function diffLines(before: string, after: string): DiffLine[] {
+export function diffLines(before: string, after: string): DiffLine[] {
   const beforeLines = before.split('\n').filter((line) => line.trim() !== '');
   const afterLines = after.split('\n').filter((line) => line.trim() !== '');
   const afterSet = new Set(afterLines);

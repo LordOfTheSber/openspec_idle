@@ -81,10 +81,20 @@ const agentSchema = z
   })
   .default({});
 
+/** Внешний редактор для перехода к коду. */
+const editorSchema = z
+  .object({
+    kind: z.enum(['idea', 'vscode']).default('vscode'),
+    /** Команда или путь к исполняемому файлу; `null` — `idea` или `code` из PATH. */
+    command: z.string().nullable().default(null),
+  })
+  .default({});
+
 const configSchema = z
   .object({
     version: z.literal(1).default(1),
     agent: agentSchema,
+    editor: editorSchema,
   })
   .default({});
 
