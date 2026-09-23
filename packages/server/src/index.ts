@@ -93,3 +93,11 @@ export {
   type SchemaArtifact,
   type SchemaDefinition,
 } from './schemaDefinition.js';
+
+export {
+  MetricsService,
+  UnknownItemError,
+  type AcceptanceRunResult,
+  type ChangeMetricsView,
+} from './metrics.js';
+export { JOURNAL_FILE, MetricsStore, SNAPSHOT_FILE, type StoreLoad } from './metricsStore.js';

@@ -1,6 +1,9 @@
 import type {
   Board,
   CapabilityMap,
+  ChangeSummary,
+  ItemMetrics,
+  MetricsExport,
   DeltaView,
   RequirementComparison,
   SearchHit,
@@ -225,4 +228,49 @@ export function toggleItem(
   done: boolean,
 ): Promise<TrackedItemsResponse> {
   return send<TrackedItemsResponse>('/api/items', 'PUT', { change, line, done });
+}
+
+/** Метрики change, как их отдаёт сервер. */
+export type MetricsResponse =
+  | {
+      readonly change: string;
+      readonly tracked: true;
+      readonly trackedPath: string;
+      readonly summary: ChangeSummary;
+      readonly items: readonly ItemMetrics[];
+      readonly removed: readonly ItemMetrics[];
+      readonly recovered: boolean;
+    }
+  | { readonly change: string; readonly tracked: false; readonly reason: string };
+
+export function fetchMetrics(change: string): Promise<MetricsResponse> {
+  return get<MetricsResponse>(`/api/metrics?change=${encodeURIComponent(change)}`);
+}
+
+export function startItem(change: string, key: string): Promise<MetricsResponse> {
+  return send<MetricsResponse>('/api/metrics/start', 'POST', { change, key });
+}
+
+export function bindAcceptance(
+  change: string,
+  key: string,
+  command: string,
+): Promise<MetricsResponse> {
+  return send<MetricsResponse>('/api/metrics/acceptance', 'PUT', { change, key, command });
+}
+
+export function runAcceptance(
+  change: string,
+  key: string,
+): Promise<{
+  result: { exitCode: number; durationMs: number; output: string; timedOut: boolean };
+  view: MetricsResponse;
+}> {
+  return send('/api/metrics/acceptance/run', 'POST', { change, key });
+}
+
+export function fetchMetricsExport(change?: string): Promise<MetricsExport> {
+  return get<MetricsExport>(
+    change === undefined ? '/api/metrics/export' : `/api/metrics/export?change=${encodeURIComponent(change)}`,
+  );
 }

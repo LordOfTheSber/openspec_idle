@@ -1239,3 +1239,226 @@ body {
   color: var(--accent);
   flex: 0 0 auto;
 }
+
+/* ---------- метрики ---------- */
+
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.tile {
+  padding: 12px 14px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.tile .k {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+.tile .v {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+
+.tile .v.flag {
+  color: var(--modified);
+}
+
+.tile .sub {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.metrics-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.metrics-toolbar .pane-title {
+  margin: 0;
+}
+
+.tbl-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+table.m {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 640px;
+}
+
+table.m th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+
+table.m th.num {
+  text-align: right;
+}
+
+table.m td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+table.m tbody tr {
+  cursor: pointer;
+}
+
+table.m tbody tr:hover,
+table.m tbody tr.selected {
+  background: var(--accent-soft);
+}
+
+table.m tr:last-child td {
+  border-bottom: 0;
+}
+
+table.m td.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+table.m td.id {
+  font-family: var(--mono);
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+table.m td.task {
+  color: var(--text-2);
+  min-width: 200px;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Одноцветные полосы расхода: значение подписано всегда, «нет данных» — не ноль. */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.bar .track {
+  flex: 1;
+  height: 9px;
+  background: var(--surface-3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar .fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 0 4px 4px 0;
+}
+
+.bar .val {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  width: 72px;
+  text-align: right;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.bar .val.nd {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.item-detail {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.item-detail .work {
+  margin: 0 0 10px;
+  font-size: 13px;
+  max-width: 62ch;
+}
+
+.item-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.acceptance-form label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.acceptance-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.acceptance-row input {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

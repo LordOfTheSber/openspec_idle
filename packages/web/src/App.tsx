@@ -4,6 +4,7 @@ import { Board } from './components/Board.js';
 import { CapabilityMapView } from './components/CapabilityMapView.js';
 import { Deltas } from './components/Deltas.js';
 import { EditorPane } from './components/EditorPane.js';
+import { Metrics } from './components/Metrics.js';
 import { SpecView } from './components/SpecView.js';
 import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
@@ -14,12 +15,13 @@ import {
   eventSourceTransport,
 } from './lib/connection.js';
 
-type Section = 'explorer' | 'deltas' | 'board' | 'search';
+type Section = 'explorer' | 'deltas' | 'board' | 'metrics' | 'search';
 
 const SECTION_TITLE: Record<Section, string> = {
   explorer: 'Обозреватель',
   deltas: 'Дельты',
   board: 'Доска',
+  metrics: 'Метрики',
   search: 'Поиск',
 };
 
@@ -102,6 +104,15 @@ export function App() {
         </button>
         <button
           type="button"
+          aria-current={section === 'metrics'}
+          aria-label="Метрики"
+          title="Метрики"
+          onClick={() => setSection('metrics')}
+        >
+          Мт
+        </button>
+        <button
+          type="button"
           aria-current={section === 'search'}
           aria-label="Поиск"
           title="Поиск"
@@ -158,6 +169,12 @@ export function App() {
 
             {section === 'search' ? (
               <Search />
+            ) : section === 'metrics' ? (
+              selection?.kind === 'change' || selection?.kind === 'artifact' ? (
+                <Metrics change={selection.parent ?? selection.id} />
+              ) : (
+                <p className="empty">Выберите изменение в дереве слева, чтобы увидеть его метрики.</p>
+              )
             ) : section === 'board' ? (
               <Board schemas={tree?.schemas ?? []} onChanged={() => void reload()} />
             ) : section === 'deltas' ? (

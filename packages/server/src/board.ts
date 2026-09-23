@@ -35,6 +35,8 @@ export interface TrackedItemsView {
     readonly text: string;
     readonly declaredNumber: string | null;
     readonly group: number;
+    /** Порядковый номер пункта внутри группы. */
+    readonly index: number;
     readonly done: boolean;
   }[];
   readonly complete: number;
@@ -151,6 +153,7 @@ export class BoardService {
         text: item.text,
         declaredNumber: item.declaredNumber,
         group: item.group,
+        index: item.index,
         done: item.done,
       })),
       complete: parsed.complete,

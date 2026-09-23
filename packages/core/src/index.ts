@@ -74,3 +74,30 @@ export {
   type TrackedGroup,
   type TrackedItem,
 } from './trackedItems.js';
+
+export { splitAcceptance, type AcceptanceSplit } from './acceptance.js';
+
+export {
+  METRICS_SCHEMA_VERSION,
+  RENUMBER_SIMILARITY_THRESHOLD,
+  applyEvent,
+  emptyState,
+  foldEvents,
+  itemMetrics,
+  reconcile,
+  removedKey,
+  sortByTokens,
+  summarize,
+  textSimilarity,
+  type ChangeRecord,
+  type ChangeSummary,
+  type CurrentItem,
+  type ItemMetrics,
+  type ItemRecord,
+  type ItemState,
+  type MetricEvent,
+  type MetricsExport,
+  type MetricsState,
+  type RunOutcome,
+  type RunRecord,
+} from './metrics.js';

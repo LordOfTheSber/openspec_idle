@@ -13,6 +13,8 @@ import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
 import { BoardService, ChangeOperationError } from './board.js';
 import { SchemaReader } from './schemaDefinition.js';
+import { MetricsService, UnknownItemError } from './metrics.js';
+import { MetricsStore } from './metricsStore.js';
 import { ArtifactCreationError, SNIPPETS, createArtifact } from './artifacts.js';
 import { StaleWriteError, WriteFailedError, readArtifactFile, saveArtifactFile } from './files.js';
 import { ValidationRunner } from './validation.js';
@@ -83,6 +85,15 @@ export function createApp(options: ServerOptions): AppParts {
     client === null || reader === null || schemaReader === null || location?.kind !== 'found'
       ? null
       : new BoardService(client, reader, schemaReader, location.bin);
+  const metrics =
+    root === null || board === null || reader === null
+      ? null
+      : new MetricsService({
+          root,
+          board,
+          workspace: reader,
+          store: new MetricsStore(root, (message) => console.error(`[метрики] ${message}`)),
+        });
   const validation =
     root !== null && location?.kind === 'found'
       ? new ValidationRunner({ bin: location.bin, cwd: root })
@@ -119,6 +130,10 @@ export function createApp(options: ServerOptions): AppParts {
     }
     if (error instanceof ArtifactCreationError) {
       await reply.code(400).send({ error: error.message });
+      return;
+    }
+    if (error instanceof UnknownItemError) {
+      await reply.code(404).send({ error: error.message });
       return;
     }
     if (error instanceof ChangeOperationError) {
@@ -211,6 +226,56 @@ export function createApp(options: ServerOptions): AppParts {
       throw new Error('Нужны имя change и номер строки пункта');
     }
     return board.toggleItem(body.change, body.line, body.done === true);
+  });
+
+  app.get('/api/metrics', async (request) => {
+    if (metrics === null) throw new Error('CLI OpenSpec недоступен');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const change = query['change'];
+    if (change === undefined || change === '') throw new Error('Не указано имя change');
+    return metrics.view(change);
+  });
+
+  app.post('/api/metrics/start', async (request) => {
+    if (metrics === null) throw new Error('CLI OpenSpec недоступен');
+    const body = (request.body ?? {}) as { change?: string; key?: string };
+    if (typeof body.change !== 'string' || typeof body.key !== 'string') {
+      throw new Error('Нужны имя change и ключ пункта');
+    }
+    await metrics.start(body.change, body.key);
+    return metrics.view(body.change);
+  });
+
+  app.put('/api/metrics/acceptance', async (request) => {
+    if (metrics === null) throw new Error('CLI OpenSpec недоступен');
+    const body = (request.body ?? {}) as { change?: string; key?: string; command?: string };
+    if (
+      typeof body.change !== 'string' ||
+      typeof body.key !== 'string' ||
+      typeof body.command !== 'string' ||
+      body.command.trim() === ''
+    ) {
+      throw new Error('Нужны имя change, ключ пункта и команда проверки');
+    }
+    await metrics.bindAcceptance(body.change, body.key, body.command.trim());
+    return metrics.view(body.change);
+  });
+
+  app.post('/api/metrics/acceptance/run', async (request) => {
+    if (metrics === null) throw new Error('CLI OpenSpec недоступен');
+    const body = (request.body ?? {}) as { change?: string; key?: string };
+    if (typeof body.change !== 'string' || typeof body.key !== 'string') {
+      throw new Error('Нужны имя change и ключ пункта');
+    }
+    const result = await metrics.runAcceptance(body.change, body.key);
+    return { result, view: await metrics.view(body.change) };
+  });
+
+  app.get('/api/metrics/export', async (request) => {
+    if (metrics === null) throw new Error('CLI OpenSpec недоступен');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const change = query['change'];
+    return metrics.export(change === undefined || change === '' ? undefined : change);
   });
 
   app.get('/api/deltas', async (request) => {
@@ -355,6 +420,11 @@ export function createApp(options: ServerOptions): AppParts {
           (batch) => {
             client?.invalidate();
             schemaReader?.invalidate();
+            // Отметки, поставленные в обход IDE, попадают в журнал с моментом,
+            // когда их заметил наблюдатель, а не при следующем открытии метрик.
+            void metrics?.reconcileAll().catch((error: unknown) =>
+              console.error(`[метрики] ${error instanceof Error ? error.message : String(error)}`),
+            );
             events.emit({ type: 'workspace-changed', payload: batch });
           },
         )
