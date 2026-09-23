@@ -30,6 +30,10 @@ interface EditorProps {
   readonly openspecFormat: boolean;
   /** Строка, к которой нужно прокрутить редактор. */
   readonly revealLine: number | null;
+  /** Текст без разметки Markdown — например, YAML схемы. */
+  readonly plain?: boolean;
+  /** Подпись для тестов и вспомогательных технологий. */
+  readonly label?: string;
 }
 
 export function Editor({
@@ -39,6 +43,8 @@ export function Editor({
   onSave,
   openspecFormat,
   revealLine,
+  plain = false,
+  label = 'editor',
 }: EditorProps) {
   const host = useRef<HTMLDivElement | null>(null);
   const view = useRef<EditorView | null>(null);
@@ -70,7 +76,7 @@ export function Editor({
         ...defaultKeymap,
         ...historyKeymap,
       ]),
-      markdown(),
+      ...(plain ? [] : [markdown()]),
       EditorView.lineWrapping,
       openspecTheme,
       EditorView.updateListener.of((update) => {
@@ -91,7 +97,7 @@ export function Editor({
     };
     // Пересоздание только при смене режима подсветки: набор расширений
     // фиксируется при создании состояния, а содержимое читается через ref.
-  }, [openspecFormat]);
+  }, [openspecFormat, plain]);
 
   // Содержимое подставляется только при смене ключа документа: открыт другой
   // файл, взята версия с диска, создан артефакт.
@@ -116,5 +122,5 @@ export function Editor({
     instance.focus();
   }, [revealLine]);
 
-  return <div className="editor-host" ref={host} data-testid="editor" />;
+  return <div className="editor-host" ref={host} data-testid={label} />;
 }

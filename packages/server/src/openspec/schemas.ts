@@ -145,7 +145,18 @@ export const schemaWhichSchema = z.object({
   name: z.string(),
   source: z.string(),
   path: z.string(),
-  shadows: z.array(z.unknown()).optional(),
+  shadows: z
+    .array(z.object({ source: z.string(), path: z.string() }).passthrough())
+    .optional(),
+});
+
+export const schemaValidateSchema = z.object({
+  name: z.string(),
+  path: z.string().optional(),
+  valid: z.boolean(),
+  issues: z.array(
+    z.object({ level: z.string(), path: z.string().optional(), message: z.string() }),
+  ),
 });
 
 export type RootRef = z.infer<typeof rootRefSchema>;
@@ -161,3 +172,4 @@ export type ArtifactInstructions = z.infer<typeof instructionsSchema>;
 export type TemplatesMap = z.infer<typeof templatesSchema>;
 export type SchemaListEntry = z.infer<typeof schemaListEntrySchema>;
 export type SchemaWhich = z.infer<typeof schemaWhichSchema>;
+export type SchemaValidate = z.infer<typeof schemaValidateSchema>;

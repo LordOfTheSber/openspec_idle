@@ -63,6 +63,7 @@ export {
   type BoardChange,
   type BoardColumn,
   type BoardSchema,
+  type SchemaWaiverNote,
 } from './board.js';
 
 export {
@@ -101,3 +102,37 @@ export {
   type RunOutcome,
   type RunRecord,
 } from './metrics.js';
+
+export {
+  WAIVERS_KEY,
+  addArtifact,
+  dependentsOf,
+  emptySchema,
+  removeArtifact,
+  removeWaiver,
+  schemaFromPlain,
+  schemaToPlain,
+  setWaiver,
+  updateApply,
+  updateArtifact,
+  type ArtifactPatch,
+  type SchemaArtifactDoc,
+  type SchemaDocument,
+  type SchemaParse,
+  type SchemaWaiver,
+} from './schemaDocument.js';
+
+export {
+  SDD_RULES,
+  checkConformance,
+  isContract,
+  reachableArtifacts,
+  transitiveDependencies,
+  type ConformanceReport,
+  type RuleLevel,
+  type SchemaField,
+  type SddRule,
+  type Violation,
+} from './sdd.js';
+
+export { previewSchema, type SchemaPreview } from './schemaPreview.js';

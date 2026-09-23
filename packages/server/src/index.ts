@@ -101,3 +101,14 @@ export {
   type ChangeMetricsView,
 } from './metrics.js';
 export { JOURNAL_FILE, MetricsStore, SNAPSHOT_FILE, type StoreLoad } from './metricsStore.js';
+export {
+  SchemaOperationError,
+  SchemaRegistry,
+  parseSchemaText,
+  type AssignResult,
+  type RegistryEntry,
+  type SchemaCheck,
+  type SchemaSource,
+  type StructuralIssue,
+  type YamlProblem,
+} from './schemaRegistry.js';

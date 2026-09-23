@@ -13,6 +13,7 @@ import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
 import { BoardService, ChangeOperationError } from './board.js';
 import { SchemaReader } from './schemaDefinition.js';
+import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
 import { MetricsService, UnknownItemError } from './metrics.js';
 import { MetricsStore } from './metricsStore.js';
 import { ArtifactCreationError, SNIPPETS, createArtifact } from './artifacts.js';
@@ -85,6 +86,8 @@ export function createApp(options: ServerOptions): AppParts {
     client === null || reader === null || schemaReader === null || location?.kind !== 'found'
       ? null
       : new BoardService(client, reader, schemaReader, location.bin);
+  const schemas =
+    client === null || location?.kind !== 'found' ? null : new SchemaRegistry(client, location.bin);
   const metrics =
     root === null || board === null || reader === null
       ? null
@@ -138,6 +141,10 @@ export function createApp(options: ServerOptions): AppParts {
     }
     if (error instanceof ChangeOperationError) {
       await reply.code(400).send({ error: error.message, output: error.output });
+      return;
+    }
+    if (error instanceof SchemaOperationError) {
+      await reply.code(400).send({ error: error.message, details: error.details });
       return;
     }
     if (error instanceof SecretInConfigError) {
@@ -197,6 +204,17 @@ export function createApp(options: ServerOptions): AppParts {
     if (typeof body.name !== 'string' || body.name.trim() === '') {
       throw new ChangeOperationError('Не указано имя изменения', '');
     }
+    if (body.schema !== undefined && body.schema !== '' && schemas !== null) {
+      // Схема, не прошедшая проверку, недоступна и для назначения change.
+      try {
+        await schemas.ensureAssignable(body.schema);
+      } catch (error) {
+        if (error instanceof SchemaOperationError) {
+          throw new ChangeOperationError(error.message, error.details.join('\n'));
+        }
+        throw error;
+      }
+    }
     await board.createChange(body.name.trim(), body.schema);
     return { created: body.name.trim() };
   });
@@ -209,6 +227,66 @@ export function createApp(options: ServerOptions): AppParts {
     }
     await board.archiveChange(body.name.trim());
     return { archived: body.name.trim() };
+  });
+
+  const needSchemas = (): SchemaRegistry => {
+    if (schemas === null) throw new Error('CLI OpenSpec недоступен');
+    return schemas;
+  };
+  const schemaName = (value: unknown): string => {
+    if (typeof value !== 'string' || value.trim() === '') {
+      throw new SchemaOperationError('Не указано имя схемы');
+    }
+    return value.trim();
+  };
+
+  app.get('/api/schemas', async () => {
+    const registry = needSchemas();
+    return { schemas: await registry.list(), default: await registry.defaultSchema() };
+  });
+
+  app.get('/api/schema', async (request) => {
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    return needSchemas().read(schemaName(query['name']));
+  });
+
+  app.put('/api/schema', async (request) => {
+    const body = (request.body ?? {}) as { name?: string; text?: string };
+    if (typeof body.text !== 'string') throw new SchemaOperationError('Нет текста схемы');
+    return needSchemas().save(schemaName(body.name), body.text);
+  });
+
+  app.post('/api/schema', async (request) => {
+    const body = (request.body ?? {}) as { name?: string; from?: string | null };
+    const from = typeof body.from === 'string' && body.from.trim() !== '' ? body.from.trim() : null;
+    return needSchemas().create(schemaName(body.name), from);
+  });
+
+  app.get('/api/schema/check', async (request) => {
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    return needSchemas().check(schemaName(query['name']));
+  });
+
+  app.post('/api/schema/assign', async (request) => {
+    const body = (request.body ?? {}) as { name?: string };
+    return needSchemas().assign(schemaName(body.name));
+  });
+
+  app.get('/api/schema/template', async (request) => {
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const template = query['template'];
+    if (template === undefined || template === '') throw new SchemaOperationError('Не указан шаблон');
+    const content = await needSchemas().readTemplate(schemaName(query['name']), template);
+    return { template, content, exists: content !== null };
+  });
+
+  app.put('/api/schema/template', async (request) => {
+    const body = (request.body ?? {}) as { name?: string; template?: string; content?: string };
+    if (typeof body.template !== 'string' || body.template === '' || typeof body.content !== 'string') {
+      throw new SchemaOperationError('Нужны путь шаблона и его содержимое');
+    }
+    await needSchemas().writeTemplate(schemaName(body.name), body.template, body.content);
+    return { template: body.template, saved: true };
   });
 
   app.get('/api/items', async (request) => {

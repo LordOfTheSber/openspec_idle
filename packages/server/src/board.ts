@@ -78,6 +78,7 @@ export class BoardService {
           requires: artifact.requires,
         })),
         trackedArtifactId: trackedArtifactId(definition.tracks, definition.artifacts),
+        waivers: definition.waivers,
       });
     }
 

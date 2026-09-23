@@ -1,5 +1,7 @@
 import type {
   Board,
+  ConformanceReport,
+  SchemaDocument,
   CapabilityMap,
   ChangeSummary,
   ItemMetrics,
@@ -42,7 +44,14 @@ async function get<T>(path: string): Promise<T> {
     headers: { 'x-openspec-ide-token': sessionToken() },
   });
   if (!response.ok) {
-    throw new Error(`Запрос ${path} завершился с кодом ${response.status}`);
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string; details?: string[]; output?: string }
+      | null;
+    throw new ApiError(
+      payload?.error ?? `Запрос ${path} завершился с кодом ${response.status}`,
+      payload?.details ?? [],
+      payload?.output ?? '',
+    );
   }
   return (await response.json()) as T;
 }
@@ -93,10 +102,29 @@ async function send<T>(path: string, method: string, body: unknown): Promise<T> 
     throw new StaleWriteConflict(payload.path, payload.disk, payload.error);
   }
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(payload?.error ?? `Запрос ${path} завершился с кодом ${response.status}`);
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string; details?: string[]; output?: string }
+      | null;
+    throw new ApiError(
+      payload?.error ?? `Запрос ${path} завершился с кодом ${response.status}`,
+      payload?.details ?? [],
+      payload?.output ?? '',
+    );
   }
   return (await response.json()) as T;
+}
+
+/** Отказ сервера с пояснениями — например, перечнем нарушений схемы. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly details: readonly string[],
+    /** Вывод CLI, приложенный к отказу. */
+    readonly output: string = '',
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
 }
 
 export function fetchFile(path: string): Promise<ArtifactFile> {
@@ -273,4 +301,89 @@ export function fetchMetricsExport(change?: string): Promise<MetricsExport> {
   return get<MetricsExport>(
     change === undefined ? '/api/metrics/export' : `/api/metrics/export?change=${encodeURIComponent(change)}`,
   );
+}
+
+/** Схема в реестре. */
+export interface RegistryEntry {
+  readonly name: string;
+  readonly description: string | null;
+  readonly source: 'package' | 'project';
+  readonly path: string;
+  readonly shadows: readonly { readonly source: string; readonly path: string }[];
+  readonly isDefault: boolean;
+  readonly readable: boolean;
+  readonly parseError: string | null;
+  readonly cliError: string | null;
+  readonly artifacts: readonly string[];
+  readonly conformance: {
+    readonly errors: number;
+    readonly warnings: number;
+    readonly assignable: boolean;
+    readonly waived: readonly string[];
+  } | null;
+}
+
+/** Схема, открытая в конструкторе. */
+export interface SchemaSource {
+  readonly name: string;
+  readonly source: 'package' | 'project';
+  readonly readOnly: boolean;
+  readonly path: string;
+  readonly text: string;
+  readonly document: SchemaDocument | null;
+  readonly yamlError: { message: string; line: number | null; column: number | null } | null;
+  readonly templates: readonly {
+    readonly artifact: string;
+    readonly template: string | null;
+    readonly exists: boolean;
+  }[];
+}
+
+/** Двухслойная проверка схемы. */
+export interface SchemaCheck {
+  readonly name: string;
+  readonly structural: {
+    readonly valid: boolean;
+    readonly issues: readonly { readonly level: string; readonly message: string; readonly artifact?: string }[];
+  };
+  readonly sdd: ConformanceReport;
+  readonly assignable: boolean;
+}
+
+export function fetchSchemas(): Promise<{ schemas: RegistryEntry[]; default: string | null }> {
+  return get('/api/schemas');
+}
+
+export function fetchSchema(name: string): Promise<SchemaSource> {
+  return get(`/api/schema?name=${encodeURIComponent(name)}`);
+}
+
+export function saveSchema(name: string, text: string): Promise<SchemaSource> {
+  return send('/api/schema', 'PUT', { name, text });
+}
+
+export function createSchema(name: string, from: string | null): Promise<SchemaSource> {
+  return send('/api/schema', 'POST', { name, from });
+}
+
+export function checkSchema(name: string): Promise<SchemaCheck> {
+  return get(`/api/schema/check?name=${encodeURIComponent(name)}`);
+}
+
+export function assignSchema(
+  name: string,
+): Promise<{ previous: string | null; activeChanges: number; pinned: string[]; warnings: string[] }> {
+  return send('/api/schema/assign', 'POST', { name });
+}
+
+export function fetchSchemaTemplate(
+  name: string,
+  template: string,
+): Promise<{ template: string; content: string | null; exists: boolean }> {
+  const params = new URLSearchParams({ name, template });
+  return get(`/api/schema/template?${params.toString()}`);
+}
+
+export function saveSchemaTemplate(name: string, template: string, content: string): Promise<unknown> {
+  return send('/api/schema/template', 'PUT', { name, template, content });
 }

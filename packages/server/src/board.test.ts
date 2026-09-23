@@ -84,6 +84,29 @@ describe('доска на собственной схеме', () => {
   });
 });
 
+describe('отказы от правил SDD на доске', () => {
+  it('карточка change несёт действующие отказы его схемы', async () => {
+    const boards = service('custom-schema');
+    const path = join(root, 'openspec/schemas/team-flow/schema.yaml');
+    writeFileSync(
+      path,
+      `${readFileSync(path, 'utf8')}sdd_waivers:\n  - rule: sdd/motivation-first\n    reason: Исследование заменяет предложение\n  - rule: sdd/reachable\n`,
+    );
+    const board = await boards.readBoard();
+    const card = board.cards.find((item) => item.change === 'team-feature');
+
+    // Отказ без причины не действует и на карточку не попадает.
+    expect(card?.waivers).toEqual([
+      { rule: 'sdd/motivation-first', reason: 'Исследование заменяет предложение' },
+    ]);
+  });
+
+  it('у схемы без отказов признака нет', async () => {
+    const board = await service('full-change').readBoard();
+    expect(board.cards.every((card) => card.waivers.length === 0)).toBe(true);
+  });
+});
+
 describe('операции над change', () => {
   it('создаёт change выбранной схемой', async () => {
     const instance = service('custom-schema');

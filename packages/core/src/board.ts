@@ -28,6 +28,14 @@ export interface BoardCard {
   /** Валидация ни разу не выполнялась. */
   readonly validationUnknown: boolean;
   readonly lastModified: string | null;
+  /** Действующие отказы схемы от правил SDD — признак на карточке. */
+  readonly waivers: readonly SchemaWaiverNote[];
+}
+
+/** Действующий отказ схемы от правила SDD. */
+export interface SchemaWaiverNote {
+  readonly rule: string;
+  readonly reason: string;
 }
 
 /** Доска целиком. */
@@ -42,6 +50,8 @@ export interface BoardSchema {
   readonly artifacts: readonly { readonly id: string; readonly requires: readonly string[] }[];
   /** Артефакт, по которому измеряется прогресс; `null`, если схема его не объявила. */
   readonly trackedArtifactId: string | null;
+  /** Действующие отказы от правил SDD. */
+  readonly waivers?: readonly SchemaWaiverNote[];
 }
 
 /** Change, как он нужен доске. */
@@ -94,6 +104,7 @@ export function buildBoard(schemas: readonly BoardSchema[], changes: readonly Bo
     errorCount: change.errorCount,
     validationUnknown: change.validationUnknown,
     lastModified: change.lastModified,
+    waivers: byName.get(change.schema)?.waivers ?? [],
   }));
 
   return { columns, cards };

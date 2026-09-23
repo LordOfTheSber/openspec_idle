@@ -5,6 +5,7 @@ import { CapabilityMapView } from './components/CapabilityMapView.js';
 import { Deltas } from './components/Deltas.js';
 import { EditorPane } from './components/EditorPane.js';
 import { Metrics } from './components/Metrics.js';
+import { Processes } from './components/Processes.js';
 import { SpecView } from './components/SpecView.js';
 import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
@@ -15,13 +16,14 @@ import {
   eventSourceTransport,
 } from './lib/connection.js';
 
-type Section = 'explorer' | 'deltas' | 'board' | 'metrics' | 'search';
+type Section = 'explorer' | 'deltas' | 'board' | 'metrics' | 'processes' | 'search';
 
 const SECTION_TITLE: Record<Section, string> = {
   explorer: 'Обозреватель',
   deltas: 'Дельты',
   board: 'Доска',
   metrics: 'Метрики',
+  processes: 'Процессы',
   search: 'Поиск',
 };
 
@@ -37,6 +39,8 @@ export function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Счётчик изменений на диске — разделам, которые читают данные сами.
+  const [revision, setRevision] = useState(0);
   const connectionRef = useRef<WorkspaceConnection | null>(null);
 
   const reload = useCallback(async () => {
@@ -55,7 +59,10 @@ export function App() {
       connect: () => eventSourceTransport(eventsUrl(), ['connected', 'workspace-changed']),
       onState: setConnection,
       onEvent: (event) => {
-        if (event.type === 'workspace-changed') void reload();
+        if (event.type === 'workspace-changed') {
+          setRevision((current) => current + 1);
+          void reload();
+        }
       },
       // После разрыва часть событий потеряна безвозвратно, поэтому состояние
       // перечитывается целиком.
@@ -113,6 +120,15 @@ export function App() {
         </button>
         <button
           type="button"
+          aria-current={section === 'processes'}
+          aria-label="Процессы"
+          title="Процессы"
+          onClick={() => setSection('processes')}
+        >
+          Пр
+        </button>
+        <button
+          type="button"
           aria-current={section === 'search'}
           aria-label="Поиск"
           title="Поиск"
@@ -130,15 +146,17 @@ export function App() {
           </span>
         </header>
 
-        <div className="panes">
-          <div className="pane">
-            <p className="pane-title">Рабочее пространство</p>
-            {tree === null ? (
-              <p className="empty">Загрузка…</p>
-            ) : (
-              <Tree tree={tree} selection={selection} onSelect={setSelection} />
-            )}
-          </div>
+        <div className={section === 'processes' ? 'panes single' : 'panes'}>
+          {section !== 'processes' && (
+            <div className="pane">
+              <p className="pane-title">Рабочее пространство</p>
+              {tree === null ? (
+                <p className="empty">Загрузка…</p>
+              ) : (
+                <Tree tree={tree} selection={selection} onSelect={setSelection} />
+              )}
+            </div>
+          )}
 
           <div className="pane">
             {loadError !== null && (
@@ -167,7 +185,11 @@ export function App() {
                 </p>
               ))}
 
-            {section === 'search' ? (
+            {section === 'processes' ? (
+              workspace?.state === 'ready' ? (
+                <Processes revision={revision} onChanged={() => void reload()} />
+              ) : null
+            ) : section === 'search' ? (
               <Search />
             ) : section === 'metrics' ? (
               selection?.kind === 'change' || selection?.kind === 'artifact' ? (

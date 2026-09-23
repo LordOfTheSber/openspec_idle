@@ -193,6 +193,15 @@ export function Board({
                     <h4>{item.change}</h4>
                     <div className="chips">
                       <span className="chip">{item.schema}</span>
+                      {item.waivers.length > 0 && (
+                        <span
+                          className="chip warn"
+                          data-testid="card-waiver"
+                          title={item.waivers.map((waiver) => `${waiver.rule}: ${waiver.reason}`).join('\n')}
+                        >
+                          ⊘ отказ SDD
+                        </span>
+                      )}
                       {item.artifacts.map((artifact) => (
                         <span
                           key={artifact.id}
@@ -240,6 +249,19 @@ export function Board({
           <p className="pane-title">
             {card.change} <span className="count">{card.schema}</span>
           </p>
+
+          {card.waivers.length > 0 && (
+            <div className="notice info" data-testid="change-waivers">
+              <span>Схема «{card.schema}» отказалась от правил SDD:</span>
+              <ul className="failure-details">
+                {card.waivers.map((waiver) => (
+                  <li key={waiver.rule}>
+                    <code>{waiver.rule}</code> — {waiver.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="change-actions">
             <button

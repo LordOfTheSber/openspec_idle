@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type SchemaWaiverNote, checkConformance, schemaFromPlain } from '@openspec-ide/core';
 import { parse as parseYaml } from 'yaml';
 import type { OpenspecClient } from './openspec/client.js';
 
@@ -25,6 +26,8 @@ export interface SchemaDefinition {
   readonly applyRequires: readonly string[];
   /** Файл, по которому измеряется прогресс. */
   readonly tracks: string | null;
+  /** Действующие отказы от правил SDD: с причиной и по известному правилу. */
+  readonly waivers: readonly SchemaWaiverNote[];
 }
 
 /**
@@ -117,6 +120,10 @@ export function parseSchemaYaml(
     artifacts,
     applyRequires,
     tracks: typeof apply['tracks'] === 'string' ? apply['tracks'] : null,
+    waivers: checkConformance(schemaFromPlain(parsed, name).document).waived.map((item) => ({
+      rule: item.rule.id,
+      reason: item.reason,
+    })),
   };
 }
 

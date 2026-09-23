@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonicalize } from './fs/workspace.js';
@@ -146,5 +146,65 @@ describe('сервер: поток событий', () => {
     const text = new TextDecoder().decode((await reader?.read())?.value);
     expect(text).toContain('event: connected');
     await reader?.cancel();
+  });
+});
+
+describe('сервер: схемы', () => {
+  it('отдаёт реестр и отклоняет занятое имя с кодом 400 и пояснением', async () => {
+    const running = await start({ watch: false });
+    const list = await fetch(`${running.url}/api/schemas`, authorized(running));
+    const body = (await list.json()) as { schemas: { name: string }[]; default: string };
+    expect(body.default).toBe('spec-driven');
+    expect(body.schemas.some((entry) => entry.name === 'spec-driven')).toBe(true);
+
+    const request = (name: string) =>
+      fetch(`${running.url}/api/schema`, {
+        method: 'POST',
+        headers: { [SESSION_HEADER]: running.token, 'content-type': 'application/json' },
+        body: JSON.stringify({ name, from: 'spec-driven' }),
+      });
+    expect((await request('flow')).status).toBe(200);
+    const conflict = await request('flow');
+    expect(conflict.status).toBe(400);
+    expect(((await conflict.json()) as { error: string }).error).toMatch(/уже существует/);
+  });
+
+  it('change по схеме с нарушением SDD не создаётся', async () => {
+    const running = await start({ watch: false });
+    const dir = join(root, 'openspec', 'schemas', 'no-specs');
+    mkdirSync(join(dir, 'templates'), { recursive: true });
+    writeFileSync(join(dir, 'templates', 'plan.md'), '# План\n');
+    writeFileSync(
+      join(dir, 'schema.yaml'),
+      'name: no-specs\nversion: 1\ndescription: x\nartifacts:\n  - id: plan\n    generates: plan.md\n    description: План\n    template: plan.md\n    instruction: Пункты.\n    requires: []\napply:\n  requires: [plan]\n  tracks: plan.md\n',
+    );
+    const response = await fetch(`${running.url}/api/change`, {
+      method: 'POST',
+      headers: { [SESSION_HEADER]: running.token, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'hotfix', schema: 'no-specs' }),
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: string; output: string };
+    expect(body.error).toMatch(/нельзя назначить/);
+    expect(body.output).toMatch(/sdd\/behaviour-contract/);
+    expect(existsSync(join(root, 'openspec', 'changes', 'hotfix'))).toBe(false);
+  });
+
+  it('некорректный YAML схемы не сохраняется: 400 с местом ошибки', async () => {
+    const running = await start({ watch: false });
+    await fetch(`${running.url}/api/schema`, {
+      method: 'POST',
+      headers: { [SESSION_HEADER]: running.token, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'flow', from: null }),
+    });
+    const response = await fetch(`${running.url}/api/schema`, {
+      method: 'PUT',
+      headers: { [SESSION_HEADER]: running.token, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'flow', text: 'name: flow\n  broken: [' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { details: string[] }).details[0]).toMatch(/строка/);
   });
 });
