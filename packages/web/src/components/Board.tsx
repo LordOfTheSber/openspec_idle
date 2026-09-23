@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Board as BoardModel, TreeSchema } from '@openspec-ide/core';
+import { groupModules, matchesModuleFilter, type ModuleDef, type TreeSchema } from '@openspec-ide/core';
 import {
   archiveChange,
   createChange,
   fetchBoard,
   fetchItems,
   toggleItem,
+  type ModuleBoard,
   type TrackedItemsResponse,
 } from '../lib/api.js';
 
@@ -17,12 +18,20 @@ const COLUMN_TITLE: Record<string, string> = {
 
 export function Board({
   schemas,
+  modules,
+  moduleFilter,
+  revision,
   onChanged,
 }: {
   readonly schemas: readonly TreeSchema[];
+  readonly modules: readonly ModuleDef[];
+  readonly moduleFilter: readonly string[];
+  /** Счётчик изменений на диске: доска перечитывается. */
+  readonly revision: number;
   readonly onChanged: () => void;
 }) {
-  const [board, setBoard] = useState<BoardModel | null>(null);
+  const [board, setBoard] = useState<ModuleBoard | null>(null);
+  const [newModules, setNewModules] = useState<readonly string[]>([]);
   const [error, setError] = useState<{ message: string; output: string } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [items, setItems] = useState<TrackedItemsResponse | null>(null);
@@ -44,7 +53,7 @@ export function Board({
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [reload, revision]);
 
   useEffect(() => {
     if (selected === null) {
@@ -130,9 +139,10 @@ export function Board({
           className="new-change-form"
           onSubmit={(event) => {
             event.preventDefault();
-            void run(() => createChange(newName, newSchema === '' ? undefined : newSchema)).then(
+            void run(() => createChange(newName, newSchema === '' ? undefined : newSchema, newModules)).then(
               () => {
                 setNewName('');
+                setNewModules([]);
                 setCreating(false);
               },
             );
@@ -162,6 +172,31 @@ export function Board({
           <button type="submit" className="btn primary">
             Создать
           </button>
+          {modules.length > 0 && (
+            <fieldset className="new-change-modules" data-testid="new-change-modules">
+              <legend>Модули change — запишутся в .openspec.yaml; несколько — сквозной change</legend>
+              {groupModules(modules).map((group) => (
+                <span key={group.title} className="module-group">
+                  <span className="muted">{group.title}:</span>
+                  {group.modules.map((module) => (
+                    <label key={module.id}>
+                      <input
+                        type="checkbox"
+                        checked={newModules.includes(module.id)}
+                        onChange={(event) =>
+                          setNewModules((current) =>
+                            event.target.checked ? [...current, module.id] : current.filter((id) => id !== module.id),
+                          )
+                        }
+                        data-testid={`new-change-module-${module.id}`}
+                      />
+                      <span className="mono">{module.id}</span>
+                    </label>
+                  ))}
+                </span>
+              ))}
+            </fieldset>
+          )}
         </form>
       )}
 
@@ -175,7 +210,9 @@ export function Board({
       {board !== null && (
         <div className="board" data-testid="board">
           {board.columns.map((column) => {
-            const cards = board.cards.filter((item) => item.column === column.id);
+            const cards = board.cards.filter(
+              (item) => item.column === column.id && matchesModuleFilter(item.modules, moduleFilter),
+            );
             return (
               <div className="col" key={column.id} data-testid={`column-${column.id}`}>
                 <header>
@@ -191,6 +228,16 @@ export function Board({
                     data-testid={`card-${item.change}`}
                   >
                     <h4>{item.change}</h4>
+                    {item.modules.length > 0 && (
+                      <div className="chips modules" data-testid="card-modules">
+                        {item.modules.map((id) => (
+                          <span key={id} className="chip module">
+                            {id}
+                          </span>
+                        ))}
+                        {item.modules.length > 1 && <span className="chip warn">сквозной</span>}
+                      </div>
+                    )}
                     <div className="chips">
                       <span className="chip">{item.schema}</span>
                       {item.waivers.length > 0 && (

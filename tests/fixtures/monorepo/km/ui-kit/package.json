@@ -1,0 +1,7 @@
+{
+  "name": "@platform/ui-kit",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

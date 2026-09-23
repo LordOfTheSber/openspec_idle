@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <parent>
+    <groupId>ru.platform</groupId>
+    <artifactId>platform</artifactId>
+    <version>1.0.0</version>
+  </parent>
+  <artifactId>reports-service</artifactId>
+  <name>Отчёты</name>
+  <dependencies>
+    <dependency>
+      <groupId>ru.platform</groupId>
+      <artifactId>billing-service</artifactId>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

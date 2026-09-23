@@ -59,6 +59,8 @@ interface CacheEntry {
 export class OpenspecClient {
   readonly #options: OpenspecClientOptions;
   readonly #cache = new Map<string, CacheEntry>();
+  /** Выполняющиеся вызовы: одинаковый запрос при том же состоянии файлов ждёт первый. */
+  readonly #inflight = new Map<string, Promise<CliResult<unknown>>>();
 
   constructor(options: OpenspecClientOptions) {
     this.#options = options;
@@ -169,6 +171,25 @@ export class OpenspecClient {
     const fresh = hit !== undefined && hit.stamp === stamp && (ttl === undefined || Date.now() - hit.at < ttl);
     if (fresh) return hit.value as CliResult<T>;
 
+    const flightKey = `${key}\u0000${stamp}`;
+    const pending = this.#inflight.get(flightKey);
+    if (pending !== undefined) return pending as Promise<CliResult<T>>;
+    const call = this.#call(key, stamp, args, schema, options);
+    this.#inflight.set(flightKey, call as Promise<CliResult<unknown>>);
+    try {
+      return await call;
+    } finally {
+      this.#inflight.delete(flightKey);
+    }
+  }
+
+  async #call<T>(
+    key: string,
+    stamp: string,
+    args: readonly string[],
+    schema: z.ZodType<T>,
+    options: { allowNonZeroExit?: boolean },
+  ): Promise<CliResult<T>> {
     const raw = await runCliJson<unknown>(this.#runOptions(), args);
 
     // `validate` сообщает о найденных замечаниях ненулевым кодом, но при этом

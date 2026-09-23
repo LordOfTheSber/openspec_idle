@@ -1,0 +1,9 @@
+{
+  "name": "platform-frontend",
+  "private": true,
+  "workspaces": [
+    "ui",
+    "km/ui-kit",
+    "services/notifications"
+  ]
+}

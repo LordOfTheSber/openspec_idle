@@ -76,6 +76,30 @@ export {
   type TrackedItem,
 } from './trackedItems.js';
 
+export {
+  EMPTY_MODULE_MAP,
+  MODULE_KINDS,
+  MODULE_KIND_LABEL,
+  affectedConsumers,
+  aggregateSummaries,
+  capabilityModule,
+  changeModules,
+  findCycles,
+  groupModules,
+  hasPrefix,
+  matchesModuleFilter,
+  moduleNeighbours,
+  moduleOverlay,
+  parseModuleMap,
+  type Consumer,
+  type ModuleMetricsSummary,
+  type ModuleOverlay,
+  type ModuleDef,
+  type ModuleKind,
+  type ModuleMap,
+  type ModuleProblem,
+} from './modules.js';
+
 export { splitAcceptance, type AcceptanceSplit } from './acceptance.js';
 
 export {

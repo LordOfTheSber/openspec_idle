@@ -153,6 +153,7 @@ export class WorkspaceReader {
       issues,
       lastModified: summary.lastModified,
       schemaError: null,
+      declaredModules: await this.#declaredModules(name),
     };
   }
 
@@ -187,6 +188,19 @@ export class WorkspaceReader {
       return typeof apply?.tracks === 'string' ? apply.tracks : null;
     } catch {
       return null;
+    }
+  }
+
+  /** Модули из ключа `modules` в `.openspec.yaml` change. */
+  async #declaredModules(change: string): Promise<string[]> {
+    const text = await this.#readRelative(join(OPENSPEC_DIR, 'changes', change, '.openspec.yaml'));
+    if (text === null) return [];
+    try {
+      const parsed = parseYaml(text) as { modules?: unknown } | null;
+      const modules = parsed?.modules;
+      return Array.isArray(modules) ? modules.filter((item): item is string => typeof item === 'string') : [];
+    } catch {
+      return [];
     }
   }
 

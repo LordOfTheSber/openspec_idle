@@ -2214,3 +2214,511 @@ table.m td.task {
     padding-right: 0;
   }
 }
+
+/* ── модули монорепозитория ─────────────────────── */
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 11.5px;
+}
+
+button.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+
+button.link:hover {
+  text-decoration: underline;
+}
+
+.link-list,
+.chips-list,
+.consumer-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0 0 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chips-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+button.chip {
+  border: 0;
+  cursor: pointer;
+}
+
+.chip.module {
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.chip.direct {
+  background: var(--modified-soft);
+  color: var(--modified);
+}
+
+.chip.transitive {
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.kind {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.kind.service {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.kind.ui {
+  background: var(--added-soft);
+  color: var(--added);
+}
+
+.kind.library {
+  background: var(--modified-soft);
+  color: var(--modified);
+}
+
+.node .x {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--modified);
+}
+
+.node.module {
+  font-weight: 600;
+}
+
+.module-filter {
+  position: relative;
+  display: flex;
+  gap: 4px;
+}
+
+.module-filter .btn {
+  padding: 3px 9px;
+  font-size: 12px;
+}
+
+.module-filter .btn.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.module-filter-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 260px;
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 8px;
+}
+
+.module-filter-pop label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.module-filter-pop label:hover {
+  background: var(--surface-2);
+}
+
+.modules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.modules-toolbar,
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modules-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 280px;
+  gap: 14px;
+  min-height: 0;
+}
+
+.module-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.module-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-2);
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.module-row:hover {
+  background: var(--surface-2);
+}
+
+.module-row.sel {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.module-row .n {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.module-graph-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  padding: 6px;
+}
+
+.module-graph-wrap.small {
+  max-height: 320px;
+  margin: 6px 0 10px;
+}
+
+.module-graph .edge {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1.4;
+}
+
+.module-graph .edge.lit {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.module-graph .edge.dim {
+  opacity: 0.35;
+}
+
+.module-graph .edge.extra {
+  stroke-dasharray: 4 3;
+  stroke: var(--added);
+}
+
+.module-graph .edge.extra.mismatch {
+  stroke: var(--removed);
+}
+
+.module-graph .edge-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  fill: var(--text-2);
+}
+
+.module-graph .arrow {
+  fill: var(--border-strong);
+}
+
+.module-graph .node {
+  cursor: pointer;
+}
+
+.module-graph .node rect {
+  fill: var(--surface-2);
+  stroke: var(--border-strong);
+}
+
+.module-graph .node text {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  fill: var(--text);
+}
+
+.module-graph .node.library rect {
+  fill: var(--modified-soft);
+}
+
+.module-graph .node.ui rect {
+  fill: var(--added-soft);
+}
+
+.module-graph .node.sel rect {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.module-graph .node.source rect {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.module-graph .node.source text {
+  fill: var(--surface);
+  font-weight: 600;
+}
+
+.module-graph .node.direct rect {
+  stroke: var(--modified);
+  stroke-width: 2.5;
+}
+
+.module-graph .node.transitive rect {
+  stroke: var(--modified);
+  stroke-dasharray: 4 3;
+  stroke-width: 2;
+}
+
+.module-graph .node.dim {
+  opacity: 0.4;
+}
+
+.module-graph .badge {
+  fill: var(--accent);
+}
+
+.module-graph .badge-text {
+  fill: var(--surface);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.impact-legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.impact-key::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+.impact-key.source::before {
+  background: var(--accent);
+}
+
+.impact-key.direct::before {
+  border: 2px solid var(--modified);
+}
+
+.impact-key.transitive::before {
+  border: 2px dashed var(--modified);
+}
+
+.module-panel dl {
+  margin: 0 0 10px;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  font-size: 12.5px;
+}
+
+.module-panel dt {
+  color: var(--muted);
+}
+
+.module-panel dd {
+  margin: 0;
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.detail dl + .change-modules {
+  margin-top: 14px;
+}
+
+.tree > li + li > .grp:first-child {
+  margin-top: 14px;
+}
+
+.discovery {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.discovery-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+
+.discovery-table th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.discovery-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.discovery-table tr.off {
+  opacity: 0.45;
+}
+
+.discovery-table input:not([type='checkbox']),
+.discovery-table select,
+.add-delta input {
+  font: inherit;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text);
+  width: 100%;
+  min-width: 90px;
+}
+
+.discovery-deps label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12.5px;
+}
+
+.discovery-deps .added {
+  color: var(--added);
+}
+
+.discovery-deps .removed {
+  color: var(--removed);
+}
+
+.new-change-modules {
+  flex-basis: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 6px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12.5px;
+}
+
+.new-change-modules legend {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.new-change-modules .module-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.new-change-modules label {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.chips.modules {
+  margin-bottom: 4px;
+}
+
+.add-delta {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.module-heading {
+  font-size: 13px;
+  margin: 18px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kpis {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.kpis div {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpis b {
+  font-size: 18px;
+}
+
+.kpis span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  .modules-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>ru.platform</groupId>
+  <artifactId>platform</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+  <modules>
+    <module>km/core</module>
+    <module>km/auth-client</module>
+    <module>km/events</module>
+    <module>services/auth</module>
+    <module>services/billing</module>
+    <module>services/orders</module>
+    <module>services/reports</module>
+  </modules>
+</project>

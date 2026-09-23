@@ -126,3 +126,7 @@ export {
   type RunRequest,
 } from './agent/runner.js';
 export { AgentRunStore, Redactor, type AgentRunRecord, type StoredAgentEvent } from './agent/store.js';
+export { ModuleService, type ChangeImpact, type DiscoveryResult, type ModuleMetrics, type ModulesView } from './modules/service.js';
+export { MODULES_FILE, ModuleMapError, ModuleMapStore, type ModuleInput, type ModuleMapView } from './modules/mapStore.js';
+export { diffWithMap, discoverModules, type DiscoveredModule, type DiscoveryDiff } from './modules/discovery.js';
+export { withModules, writeChangeModules } from './modules/changeMeta.js';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { SearchHit, SearchKind } from '@openspec-ide/core';
-import { fetchSearch } from '../lib/api.js';
+import { matchesModuleFilter, type SearchKind } from '@openspec-ide/core';
+import { fetchSearch, type ModuleSearchHit } from '../lib/api.js';
 
 const KIND_LABEL: Record<SearchKind, string> = {
   change: 'изменение',
@@ -19,10 +19,15 @@ const FILTERS: readonly { value: string; label: string }[] = [
   { value: 'schema', label: 'только процессы' },
 ];
 
-export function Search() {
+export function Search({ moduleFilter = [] }: { readonly moduleFilter?: readonly string[] }) {
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState('');
-  const [hits, setHits] = useState<SearchHit[] | null>(null);
+  const [found, setHits] = useState<ModuleSearchHit[] | null>(null);
+  // Фильтр по модулям: процессы общие и модулю не принадлежат — остаются.
+  const hits =
+    found === null
+      ? null
+      : found.filter((hit) => hit.kind === 'schema' || matchesModuleFilter(hit.modules, moduleFilter));
   const [busy, setBusy] = useState(false);
 
   async function run(nextQuery: string, nextKind: string): Promise<void> {
@@ -77,7 +82,9 @@ export function Search() {
         <p className="empty">Введите запрос, чтобы искать по требованиям и сценариям.</p>
       ) : hits.length === 0 ? (
         <p className="empty" data-testid="search-empty">
-          По запросу «{query}» ничего не найдено{kind === '' ? '' : ' с текущим фильтром'}.
+          По запросу «{query}» ничего не найдено
+          {kind === '' && moduleFilter.length === 0 ? '' : ' с текущим фильтром'}
+          {moduleFilter.length > 0 && found !== null && found.length > 0 ? ` (вне выбранных модулей — ${found.length})` : ''}.
         </p>
       ) : (
         <>
@@ -92,7 +99,7 @@ export function Search() {
                 <span>
                   {hit.title}
                   <span className="where">
-                    {hit.owner}
+                    {hit.modules.length > 0 && <span className="chip module">{hit.modules.join(', ')}</span>} {hit.owner}
                     {hit.file === null ? '' : ` · ${hit.file}`}
                     {hit.line === null ? '' : `:${hit.line}`}
                   </span>

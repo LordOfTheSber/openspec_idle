@@ -12,7 +12,71 @@ import type {
   RequirementComparison,
   SearchHit,
   WorkspaceTree,
+  Consumer,
+  ModuleDef,
+  ModuleKind,
+  ModuleMetricsSummary,
+  ModuleOverlay,
+  ModuleProblem,
 } from '@openspec-ide/core';
+
+/** Карта модулей в ответе сервера. */
+export interface ModulesView {
+  readonly map: {
+    readonly exists: boolean;
+    readonly file: string;
+    readonly modules: readonly ModuleDef[];
+    readonly problems: readonly ModuleProblem[];
+    readonly cycles: readonly (readonly string[])[];
+  };
+  readonly overlay: ModuleOverlay;
+}
+
+export type ModuleBoard = Omit<Board, 'cards'> & { readonly cards: readonly (Board['cards'][number] & { readonly modules: readonly string[] })[] };
+export type ModuleSearchHit = SearchHit & { readonly modules: readonly string[] };
+
+/** Модуль, найденный по манифесту сборки. */
+export interface DiscoveredModule {
+  readonly id: string;
+  readonly title: string;
+  readonly kind: ModuleKind;
+  readonly path: string;
+  readonly specs: string;
+  readonly group: string | null;
+  readonly dependsOn: readonly string[];
+  readonly manifest: string;
+  readonly manifestKind: string;
+}
+
+export interface DiscoveryResult {
+  readonly modules: readonly DiscoveredModule[];
+  readonly diff: {
+    readonly added: readonly DiscoveredModule[];
+    readonly dependencyChanges: readonly { readonly id: string; readonly add: readonly string[]; readonly remove: readonly string[] }[];
+    readonly missing: readonly string[];
+  } | null;
+}
+
+export interface ModuleInput {
+  readonly id: string;
+  readonly title: string;
+  readonly kind: ModuleKind;
+  readonly path: string;
+  readonly specs: string;
+  readonly group: string | null;
+  readonly dependsOn: readonly string[];
+}
+
+export interface ChangeImpact {
+  readonly change: string;
+  readonly modules: readonly string[];
+  readonly consumers: readonly Consumer[];
+  readonly deltasByModule: Readonly<Record<string, readonly string[]>>;
+}
+
+export interface ModuleMetrics extends ModuleMetricsSummary {
+  readonly rows: readonly (ChangeSummary & { readonly modules: readonly string[] })[];
+}
 
 /** Состояние рабочего пространства, отданное сервером. */
 export type WorkspaceResponse =
@@ -31,6 +95,7 @@ export type WorkspaceResponse =
       readonly root: string;
       readonly tree: WorkspaceTree;
       readonly errors: readonly string[];
+      readonly modules: ModulesView;
     };
 
 const TOKEN_META = 'openspec-ide-token';
@@ -74,10 +139,30 @@ export function fetchWorkspace(): Promise<WorkspaceResponse> {
   return get<WorkspaceResponse>('/api/workspace');
 }
 
-export function fetchSearch(query: string, kinds: readonly string[]): Promise<{ hits: SearchHit[] }> {
+export function fetchSearch(query: string, kinds: readonly string[]): Promise<{ hits: ModuleSearchHit[] }> {
   const params = new URLSearchParams({ q: query });
   if (kinds.length > 0) params.set('kinds', kinds.join(','));
-  return get<{ hits: SearchHit[] }>(`/api/search?${params.toString()}`);
+  return get<{ hits: ModuleSearchHit[] }>(`/api/search?${params.toString()}`);
+}
+
+export function fetchModules(): Promise<ModulesView> {
+  return get<ModulesView>('/api/modules');
+}
+
+export function discoverModules(): Promise<DiscoveryResult> {
+  return get<DiscoveryResult>('/api/modules/discover');
+}
+
+export function saveModules(modules: readonly ModuleInput[]): Promise<ModulesView['map']> {
+  return send<ModulesView['map']>('/api/modules', 'PUT', { modules });
+}
+
+export function fetchImpact(change: string): Promise<ChangeImpact> {
+  return get<ChangeImpact>(`/api/modules/impact?change=${encodeURIComponent(change)}`);
+}
+
+export function fetchModuleMetrics(ids: readonly string[]): Promise<ModuleMetrics> {
+  return get<ModuleMetrics>(`/api/modules/metrics?ids=${encodeURIComponent(ids.join(','))}`);
 }
 
 /** Адрес потока событий с токеном в строке запроса. */
@@ -240,12 +325,16 @@ export function fetchSpec(capability: string): Promise<SpecResponse> {
   return get<SpecResponse>(`/api/spec?capability=${encodeURIComponent(capability)}`);
 }
 
-export function fetchBoard(): Promise<Board> {
-  return get<Board>('/api/board');
+export function fetchBoard(): Promise<ModuleBoard> {
+  return get<ModuleBoard>('/api/board');
 }
 
-export function createChange(name: string, schema?: string): Promise<{ created: string }> {
-  return send<{ created: string }>('/api/change', 'POST', { name, schema });
+export function createChange(
+  name: string,
+  schema?: string,
+  modules: readonly string[] = [],
+): Promise<{ created: string }> {
+  return send<{ created: string }>('/api/change', 'POST', { name, schema, modules });
 }
 
 export function archiveChange(name: string): Promise<{ archived: string }> {

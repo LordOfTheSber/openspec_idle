@@ -1,0 +1,72 @@
+version: 1
+# Карта модулей платформы. Правится в пулл-реквестах, как спеки.
+modules:
+  - id: auth
+    title: Авторизация
+    kind: service
+    path: services/auth
+    specs: auth
+    group: Сервисы
+    dependsOn: [km/core, km/auth-client]
+  - id: billing
+    title: Биллинг
+    kind: service
+    path: services/billing
+    specs: billing
+    group: Сервисы
+    dependsOn: [km/core, km/events]
+    owner: team-billing
+  - id: orders
+    title: Заказы
+    kind: service
+    path: services/orders
+    specs: orders
+    group: Сервисы
+    dependsOn: [km/core, billing]
+  - id: notifications
+    title: Уведомления
+    kind: service
+    path: services/notifications
+    specs: notifications
+    group: Сервисы
+    dependsOn: [km/events]
+  - id: reports
+    title: Отчёты
+    kind: service
+    path: services/reports
+    specs: reports
+    group: Сервисы
+    dependsOn: [billing]
+  - id: web-ui
+    title: Веб-интерфейс
+    kind: ui
+    path: ui
+    specs: web-ui
+    group: UI
+    dependsOn: [km/core, km/ui-kit]
+  - id: km/core
+    title: КМ Core
+    kind: library
+    path: km/core
+    specs: km/core
+    group: КМ
+  - id: km/auth-client
+    title: КМ Auth Client
+    kind: library
+    path: km/auth-client
+    specs: km/auth-client
+    group: КМ
+    dependsOn: [km/core]
+  - id: km/events
+    title: КМ Events
+    kind: library
+    path: km/events
+    specs: km/events
+    group: КМ
+    dependsOn: [km/core]
+  - id: km/ui-kit
+    title: КМ UI Kit
+    kind: library
+    path: km/ui-kit
+    specs: km/ui-kit
+    group: КМ

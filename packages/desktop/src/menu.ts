@@ -1,15 +1,16 @@
 import type { MenuItemConstructorOptions } from 'electron';
 
-/** Разделы интерфейса в порядке панели слева — и сочетания Ctrl+1…8. */
+/** Разделы интерфейса в порядке панели слева — и сочетания Ctrl+1…9. */
 export const SECTIONS = [
   { id: 'explorer', label: 'Обозреватель' },
   { id: 'deltas', label: 'Дельты' },
   { id: 'board', label: 'Доска' },
   { id: 'metrics', label: 'Метрики' },
+  { id: 'modules', label: 'Модули' },
   { id: 'agent', label: 'Агент' },
-  { id: 'settings', label: 'Настройки' },
   { id: 'processes', label: 'Процессы' },
   { id: 'search', label: 'Поиск' },
+  { id: 'settings', label: 'Настройки' },
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number]['id'];

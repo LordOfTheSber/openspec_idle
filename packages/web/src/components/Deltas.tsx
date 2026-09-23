@@ -4,7 +4,8 @@ import type {
   DeltaView,
   RequirementComparison,
 } from '@openspec-ide/core';
-import { fetchComparison, fetchDeltas } from '../lib/api.js';
+import { capabilityModule } from '@openspec-ide/core';
+import { fetchComparison, fetchDeltas, type ModulesView } from '../lib/api.js';
 
 const OPERATION_LABEL: Record<string, string> = {
   ADDED: 'Добавлено',
@@ -27,7 +28,7 @@ const OPERATION_CLASS: Record<string, string> = {
   RENAMED: 'renamed',
 };
 
-export function Deltas({ change }: { readonly change: string }) {
+export function Deltas({ change, modules = null }: { readonly change: string; readonly modules?: ModulesView | null }) {
   const [views, setViews] = useState<readonly DeltaView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<{
@@ -68,7 +69,18 @@ export function Deltas({ change }: { readonly change: string }) {
     );
   }
 
+  const hasModules = modules !== null && modules.map.modules.length > 0;
+  const moduleOf = (capability: string): string | null =>
+    hasModules ? capabilityModule(capability, modules!.map.modules) : null;
+
   if (views === null) return <p className="empty">Загрузка дельт…</p>;
+
+  const order = new Map((modules?.map.modules ?? []).map((module, index) => [module.id, index]));
+  const rank = (capability: string): number => {
+    const owner = moduleOf(capability);
+    return owner === null ? Number.MAX_SAFE_INTEGER : (order.get(owner) ?? 0);
+  };
+  const ordered = hasModules ? [...views].sort((a, b) => rank(a.capability) - rank(b.capability)) : views;
 
   if (views.length === 0) {
     return (
@@ -80,8 +92,18 @@ export function Deltas({ change }: { readonly change: string }) {
 
   return (
     <div className="deltas" data-testid="deltas">
-      {views.map((view) => (
-        <section key={view.capability}>
+      {ordered.map((view, index) => {
+        // Дельты сквозного change сгруппированы по модулям: заголовок модуля
+        // перед первой его capability (порядок — по модулям, см. сортировку ниже).
+        const owner = moduleOf(view.capability);
+        const previous = index === 0 ? undefined : moduleOf(ordered[index - 1]!.capability);
+        return (
+        <section key={view.capability} data-module={owner ?? ''}>
+          {hasModules && (index === 0 || owner !== previous) && (
+            <h3 className="module-heading" data-testid={`deltas-module-${owner ?? 'none'}`}>
+              {owner === null ? 'Вне модулей' : `Модуль ${owner}`}
+            </h3>
+          )}
           <p className="pane-title">
             {view.capability}
             <span className="count">
@@ -143,7 +165,8 @@ export function Deltas({ change }: { readonly change: string }) {
             </div>
           ))}
         </section>
-      ))}
+        );
+      })}
 
       {selected !== null && (
         <section className="comparison" data-testid="comparison">

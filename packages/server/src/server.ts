@@ -12,6 +12,10 @@ import { type CliLocation, locateOpenspecCli, missingCliNotice } from './openspe
 import { runCli } from './openspec/exec.js';
 import type { AgentRunRecord } from './agent/store.js';
 import { WorkspaceWatcher } from './watcher.js';
+import { ModuleService } from './modules/service.js';
+import { ModuleMapError, type ModuleInput } from './modules/mapStore.js';
+import { writeChangeModules } from './modules/changeMeta.js';
+import { MODULE_KINDS, type ModuleKind, type ModuleOverlay } from '@openspec-ide/core';
 import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
 import { BoardService, ChangeOperationError } from './board.js';
@@ -89,6 +93,46 @@ interface AppParts {
   readonly agent: AgentService | null;
 }
 
+/** Модули владельца результата поиска: change или capability. */
+function ownerModules(overlay: ModuleOverlay, owner: string): readonly string[] {
+  const change = overlay.changes[owner];
+  if (change !== undefined) return change;
+  const capability = overlay.capabilities[owner];
+  return capability === undefined || capability === null ? [] : [capability];
+}
+
+/** Проверяет модули из запроса на запись карты. */
+function parseModuleInputs(value: unknown): ModuleInput[] {
+  if (!Array.isArray(value)) throw new ModuleMapError('Нужен список модулей');
+  return value.map((raw, index) => {
+    const entry = (raw ?? {}) as Record<string, unknown>;
+    const field = (name: string): string => {
+      const text = entry[name];
+      if (typeof text !== 'string' || text.trim() === '') {
+        throw new ModuleMapError(`Модуль ${index + 1}: не заполнено поле ${name}`);
+      }
+      return text.trim();
+    };
+    const kind = field('kind');
+    if (!(MODULE_KINDS as readonly string[]).includes(kind)) {
+      throw new ModuleMapError(`Модуль ${index + 1}: неизвестный вид ${kind}`);
+    }
+    const group = typeof entry['group'] === 'string' && entry['group'].trim() !== '' ? entry['group'].trim() : null;
+    const dependsOn = Array.isArray(entry['dependsOn'])
+      ? entry['dependsOn'].filter((id): id is string => typeof id === 'string' && id !== '')
+      : [];
+    return {
+      id: field('id'),
+      title: field('title'),
+      kind: kind as ModuleKind,
+      path: field('path'),
+      specs: field('specs'),
+      group,
+      dependsOn,
+    };
+  });
+}
+
 /** Собирает приложение, не открывая сокет. */
 export function createApp(options: ServerOptions): AppParts {
   const app = Fastify({ logger: false });
@@ -135,6 +179,8 @@ export function createApp(options: ServerOptions): AppParts {
         });
   const agent =
     root === null ? null : new AgentService({ root, events, metrics });
+  const modules =
+    root === null || reader === null ? null : new ModuleService({ root, workspace: reader, metrics });
   const prompts =
     root === null || client === null || schemaReader === null || metrics === null
       ? null
@@ -207,6 +253,10 @@ export function createApp(options: ServerOptions): AppParts {
       await reply.code(400).send({ error: error.message, details: error.details });
       return;
     }
+    if (error instanceof ModuleMapError) {
+      await reply.code(400).send({ error: error.message });
+      return;
+    }
     if (error instanceof SecretInConfigError) {
       await reply.code(400).send({ error: error.message, field: error.field });
       return;
@@ -241,7 +291,7 @@ export function createApp(options: ServerOptions): AppParts {
       return { state: 'cli-missing' as const, notice: missingCliNotice(location) };
     }
     const { tree, errors } = await reader!.readTree();
-    return { state: 'ready' as const, root, tree, errors };
+    return { state: 'ready' as const, root, tree, errors, modules: await modules!.view(tree) };
   });
 
   app.get('/api/search', async (request) => {
@@ -255,20 +305,58 @@ export function createApp(options: ServerOptions): AppParts {
 
     const { tree } = await reader.readTree();
     const index = await reader.buildSearchIndex(tree);
-    return { hits: index.search(text, kinds as never[]) };
+    const { overlay } = await modules!.view(tree);
+    return {
+      hits: index.search(text, kinds as never[]).map((hit) => ({ ...hit, modules: ownerModules(overlay, hit.owner) })),
+    };
   });
 
   app.get('/api/board', async () => {
-    if (board === null) throw new Error('CLI OpenSpec недоступен');
-    return board.readBoard();
+    if (board === null || modules === null) throw new Error('CLI OpenSpec недоступен');
+    const [result, view] = await Promise.all([board.readBoard(), modules.view()]);
+    return {
+      ...result,
+      cards: result.cards.map((card) => ({ ...card, modules: view.overlay.changes[card.change] ?? [] })),
+    };
+  });
+
+  const needModules = (): ModuleService => {
+    if (modules === null) throw new Error('CLI OpenSpec недоступен');
+    return modules;
+  };
+
+  app.get('/api/modules', async () => needModules().view());
+
+  app.put('/api/modules', async (request) => {
+    const body = (request.body ?? {}) as { modules?: unknown };
+    return needModules().save(parseModuleInputs(body.modules));
+  });
+
+  app.get('/api/modules/discover', async () => needModules().discover());
+
+  app.get('/api/modules/impact', async (request) => {
+    const change = ((request.query as Record<string, string | undefined>) ?? {})['change'];
+    if (change === undefined || change === '') throw new Error('Не указано имя change');
+    return needModules().impact(change);
+  });
+
+  app.get('/api/modules/metrics', async (request) => {
+    const ids = (((request.query as Record<string, string | undefined>) ?? {})['ids'] ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id !== '');
+    return needModules().metrics(ids);
   });
 
   app.post('/api/change', async (request) => {
     if (board === null) throw new Error('CLI OpenSpec недоступен');
-    const body = (request.body ?? {}) as { name?: string; schema?: string };
+    const body = (request.body ?? {}) as { name?: string; schema?: string; modules?: unknown };
     if (typeof body.name !== 'string' || body.name.trim() === '') {
       throw new ChangeOperationError('Не указано имя изменения', '');
     }
+    const changeModules = Array.isArray(body.modules)
+      ? body.modules.filter((id): id is string => typeof id === 'string' && id.trim() !== '')
+      : [];
     if (body.schema !== undefined && body.schema !== '' && schemas !== null) {
       // Схема, не прошедшая проверку, недоступна и для назначения change.
       try {
@@ -281,6 +369,13 @@ export function createApp(options: ServerOptions): AppParts {
       }
     }
     await board.createChange(body.name.trim(), body.schema);
+    // Сквозной change начинается без дельт: модули записываются явно, в
+    // порядке карты — так файл не зависит от порядка выбора.
+    if (changeModules.length > 0 && root !== null) {
+      const order = (await modules!.store.read()).modules.map((module) => module.id);
+      const rank = (id: string): number => (order.includes(id) ? order.indexOf(id) : order.length);
+      await writeChangeModules(root, body.name.trim(), [...changeModules].sort((a, b) => rank(a) - rank(b)));
+    }
     return { created: body.name.trim() };
   });
 

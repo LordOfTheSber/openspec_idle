@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <parent>
+    <groupId>ru.platform</groupId>
+    <artifactId>platform</artifactId>
+    <version>1.0.0</version>
+  </parent>
+  <artifactId>billing-service</artifactId>
+  <name>Биллинг</name>
+  <dependencies>
+    <dependency>
+      <groupId>ru.platform</groupId>
+      <artifactId>km-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ru.platform</groupId>
+      <artifactId>km-events</artifactId>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

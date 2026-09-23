@@ -1,4 +1,7 @@
-import type { WorkspaceTree } from '@openspec-ide/core';
+import { useEffect, useState } from 'react';
+import type { ModuleDef, TreeChange, WorkspaceTree } from '@openspec-ide/core';
+import { createArtifactFile, fetchImpact, type ChangeImpact, type ModulesView } from '../lib/api.js';
+import { ModuleGraph, type ModuleMark } from './ModuleGraph.js';
 import type { Selection } from './Tree.js';
 
 const STATE_LABEL: Record<string, string> = {
@@ -11,9 +14,15 @@ const STATE_LABEL: Record<string, string> = {
 export function Detail({
   tree,
   selection,
+  modules = null,
+  onSelect,
+  onShowImpact,
 }: {
   readonly tree: WorkspaceTree;
   readonly selection: Selection | null;
+  readonly modules?: ModulesView | null;
+  readonly onSelect?: (selection: Selection) => void;
+  readonly onShowImpact?: () => void;
 }) {
   if (selection === null) {
     return <p className="empty">Выберите элемент в дереве слева.</p>;
@@ -44,6 +53,7 @@ export function Detail({
             <dt>Ошибок валидации</dt>
             <dd>{change.errorCount}</dd>
           </dl>
+          <ChangeModules change={change} modules={modules} onSelect={onSelect} onShowImpact={onShowImpact} />
         </div>
       );
     }
@@ -104,5 +114,201 @@ export function Detail({
         <dd>{selection.id}</dd>
       </dl>
     </div>
+  );
+}
+
+/** Модули change, затронутые потребители и дельты по модулям. */
+function ChangeModules({
+  change,
+  modules,
+  onSelect,
+  onShowImpact,
+}: {
+  readonly change: TreeChange;
+  readonly modules: ModulesView | null;
+  readonly onSelect: ((selection: Selection) => void) | undefined;
+  readonly onShowImpact: (() => void) | undefined;
+}) {
+  const [impact, setImpact] = useState<ChangeImpact | null>(null);
+  const hasMap = modules !== null && modules.map.modules.length > 0;
+  const deltaKey = change.deltaCapabilities.join(',') + '|' + change.declaredModules.join(',');
+
+  useEffect(() => {
+    if (!hasMap) return;
+    let current = true;
+    void fetchImpact(change.name).then((result) => {
+      if (current) setImpact(result);
+    });
+    return () => {
+      current = false;
+    };
+  }, [change.name, hasMap, deltaKey, modules]);
+
+  const specs = change.artifacts.find((artifact) => artifact.outputPath.includes('*'));
+  const own = modules?.map.modules.filter((module) => impact?.modules.includes(module.id)) ?? [];
+
+  const marks = new Map<string, ModuleMark>();
+  for (const id of impact?.modules ?? []) marks.set(id, 'source');
+  for (const consumer of impact?.consumers ?? []) marks.set(consumer.id, consumer.depth === 1 ? 'direct' : 'transitive');
+
+  return (
+    <>
+      {hasMap && impact !== null && (
+        <section className="change-modules" data-testid="change-modules">
+          <p className="grp">
+            Модули · {impact.modules.length}
+            {impact.modules.length > 1 && <span className="chip warn">сквозной</span>}
+          </p>
+          {impact.modules.length === 0 ? (
+            <p className="empty">Change не относится ни к одному модулю: нет дельт в их спеках и ключа modules.</p>
+          ) : (
+            <ul className="chips-list">
+              {impact.modules.map((id) => (
+                <li key={id}>
+                  <span className="chip module">{id}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="grp">Затронутые потребители · {impact.consumers.length}</p>
+          {impact.consumers.length === 0 ? (
+            <p className="empty">От модулей change никто не зависит.</p>
+          ) : (
+            <ul className="consumer-list" data-testid="impact-consumers">
+              {impact.consumers.map((consumer) => (
+                <li key={consumer.id} data-depth={consumer.depth}>
+                  <span className="mono">{consumer.id}</span>{' '}
+                  <span className={`chip ${consumer.depth === 1 ? 'direct' : 'transitive'}`}>
+                    {consumer.depth === 1 ? 'прямой' : `транзитивный, через ${consumer.via}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {impact.consumers.length > 0 && modules !== null && (
+            <div className="module-graph-wrap small">
+              <ModuleGraph modules={modules.map.modules} selected={null} marks={marks} />
+            </div>
+          )}
+          {onShowImpact !== undefined && impact.modules.length > 0 && (
+            <button type="button" className="btn" onClick={onShowImpact} data-testid="show-impact">
+              Показать на графе модулей
+            </button>
+          )}
+        </section>
+      )}
+      {specs !== undefined && (
+        <DeltaFiles change={change} artifactId={specs.id} files={specs.files} own={own} impact={impact} onSelect={onSelect} />
+      )}
+    </>
+  );
+}
+
+/** Файлы дельт по модулям и добавление дельты с подсказкой префикса. */
+function DeltaFiles({
+  change,
+  artifactId,
+  files,
+  own,
+  impact,
+  onSelect,
+}: {
+  readonly change: TreeChange;
+  readonly artifactId: string;
+  readonly files: readonly string[];
+  readonly own: readonly ModuleDef[];
+  readonly impact: ChangeImpact | null;
+  readonly onSelect: ((selection: Selection) => void) | undefined;
+}) {
+  const [path, setPath] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const suggestions = own.map((module) => `${module.specs}/`);
+
+  const moduleOfFile = (file: string): string => {
+    const capability = file.replace(/^specs\//, '').replace(/\/[^/]+$/, '');
+    for (const [module, capabilities] of Object.entries(impact?.deltasByModule ?? {})) {
+      if (capabilities.includes(capability)) return module;
+    }
+    return '';
+  };
+  const grouped = new Map<string, string[]>();
+  for (const file of files) {
+    const module = moduleOfFile(file);
+    grouped.set(module, [...(grouped.get(module) ?? []), file]);
+  }
+
+  async function add(): Promise<void> {
+    setError(null);
+    try {
+      const created = await createArtifactFile(change.name, artifactId, path.trim().replace(/\/+$/, ''));
+      const file = created.path.replace(`openspec/changes/${change.name}/`, '');
+      setPath('');
+      onSelect?.({ kind: 'artifact', id: artifactId, parent: change.name, file });
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : String(problem));
+    }
+  }
+
+  return (
+    <section className="delta-files" data-testid="delta-files">
+      <p className="grp">Дельты спеков · {files.length}</p>
+      {[...grouped].map(([module, list]) => (
+        <div key={module} data-testid={`delta-files-${module === '' ? 'none' : module}`}>
+          {impact !== null && <p className="muted small">{module === '' ? 'вне модулей' : module}</p>}
+          <ul className="link-list">
+            {list.map((file) => (
+              <li key={file}>
+                <button
+                  type="button"
+                  className="link mono"
+                  onClick={() => onSelect?.({ kind: 'artifact', id: artifactId, parent: change.name, file })}
+                >
+                  {file}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <form
+        className="add-delta"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void add();
+        }}
+      >
+        <input
+          value={path}
+          onChange={(event) => setPath(event.target.value)}
+          placeholder={suggestions[0] === undefined ? 'путь capability' : `${suggestions[0]}…`}
+          aria-label="Путь capability новой дельты"
+          list={`delta-prefixes-${change.name}`}
+          data-testid="add-delta-path"
+        />
+        <datalist id={`delta-prefixes-${change.name}`}>
+          {suggestions.map((prefix) => (
+            <option key={prefix} value={prefix} />
+          ))}
+        </datalist>
+        <button type="submit" className="btn" disabled={path.trim().replace(/\/+$/, '') === ''} data-testid="add-delta">
+          Добавить дельту
+        </button>
+      </form>
+      {suggestions.length > 0 && (
+        <p className="muted small" data-testid="delta-prefix-hint">
+          Путь начинается с префикса модуля change: {suggestions.map((prefix) => <code key={prefix}>{prefix}</code>)}
+        </p>
+      )}
+      {path.trim() !== '' && suggestions.length > 0 && !suggestions.some((prefix) => path.startsWith(prefix) || `${path}/` === prefix) && (
+        <p className="notice info" data-testid="delta-prefix-warning">
+          Путь не начинается с префикса модулей change — дельта попадёт в другой модуль или вне модулей.
+        </p>
+      )}
+      {error !== null && (
+        <p className="notice error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }

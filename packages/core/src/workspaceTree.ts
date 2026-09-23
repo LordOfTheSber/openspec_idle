@@ -31,6 +31,10 @@ export interface TreeChange {
   readonly lastModified: string | null;
   /** Схема change не разрешается — работать с ним нельзя. */
   readonly schemaError: string | null;
+  /** Пути capability, которые change меняет дельтами. */
+  readonly deltaCapabilities: readonly string[];
+  /** Модули, перечисленные в ключе `modules` его `.openspec.yaml`. */
+  readonly declaredModules: readonly string[];
 }
 
 /** Узел дерева capability: сегмент пути или сам спек. */
@@ -78,6 +82,7 @@ export interface TreeInput {
     }[];
     readonly issues: readonly { readonly level: string; readonly path?: string | undefined }[];
     readonly schemaError?: string | null | undefined;
+    readonly declaredModules?: readonly string[] | undefined;
   }[];
   readonly specs: readonly { readonly id: string; readonly requirementCount?: number | undefined }[];
   readonly schemas: readonly {
@@ -134,7 +139,29 @@ function buildChange(change: TreeInput['changes'][number]): TreeChange {
     errorCount: errors.length,
     lastModified: change.lastModified ?? null,
     schemaError: change.schemaError ?? null,
+    deltaCapabilities: deltaCapabilities(artifacts),
+    declaredModules: change.declaredModules ?? [],
   };
+}
+
+/**
+ * Capability дельт — из файлов артефакта, порождающего файлы по шаблону
+ * (`specs/**\/spec.md`): путь между `specs/` и именем файла.
+ */
+function deltaCapabilities(artifacts: readonly TreeArtifact[]): string[] {
+  const capabilities = new Set<string>();
+  for (const artifact of artifacts) {
+    if (!artifact.outputPath.includes('*')) continue;
+    const base = artifact.outputPath.split('*')[0] ?? '';
+    for (const file of artifact.files) {
+      const normalized = file.replace(/\\/g, '/');
+      if (!normalized.startsWith(base)) continue;
+      const parts = normalized.slice(base.length).split('/');
+      parts.pop();
+      if (parts.length > 0) capabilities.add(parts.join('/'));
+    }
+  }
+  return [...capabilities].sort();
 }
 
 function artifactState(exists: boolean, errorCount: number, status?: string): ArtifactState {

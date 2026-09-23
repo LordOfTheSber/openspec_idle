@@ -1,0 +1,11 @@
+{
+  "name": "@platform/web-ui",
+  "private": true,
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "@platform/ui-kit": "1.0.0"
+  }
+}
