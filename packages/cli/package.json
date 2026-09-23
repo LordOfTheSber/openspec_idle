@@ -1,0 +1,15 @@
+{
+  "name": "@openspec-ide/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": { "openspec-ide": "./bin/openspec-ide.js" },
+  "files": ["dist", "bin"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": {
+    "@openspec-ide/core": "0.1.0",
+    "@openspec-ide/server": "0.1.0"
+  }
+}

@@ -1,0 +1,62 @@
+name: team-flow
+version: 1
+description: "Цикл команды: исследование перед предложением и ревью спека перед дизайном"
+artifacts:
+  - id: research
+    generates: research.md
+    description: Что уже известно о проблеме и что пришлось выяснить
+    template: research.md
+    instruction: |
+      Опиши, что известно о проблеме: где она проявляется, что уже пробовали,
+      какие ограничения обнаружены. Это вход для предложения, а не решение.
+    requires: []
+  - id: proposal
+    generates: proposal.md
+    description: Зачем это изменение и что оно меняет
+    template: proposal.md
+    instruction: |
+      Объясни, зачем нужно изменение и что именно меняется. Перечисли
+      затрагиваемые capability. Опирайся на research.md.
+    requires:
+      - research
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Контракт поведения — требования и сценарии
+    template: specs/spec.md
+    instruction: |
+      Опиши наблюдаемое поведение требованиями и сценариями. Секции дельт:
+      ADDED / MODIFIED / REMOVED / RENAMED Requirements.
+    requires:
+      - proposal
+  - id: spec-review
+    generates: review.md
+    description: Результат ревью спека до начала дизайна
+    template: review.md
+    instruction: |
+      Зафиксируй итог ревью спека: что принято, что изменено, какие вопросы
+      сняты. Без этого артефакта дизайн не начинается.
+    requires:
+      - specs
+  - id: design
+    generates: design.md
+    description: Технические решения
+    template: design.md
+    instruction: |
+      Опиши, как это реализуется: решения, альтернативы, риски.
+    requires:
+      - specs
+  - id: plan
+    generates: plan.md
+    description: План работ с отслеживаемыми пунктами
+    template: plan.md
+    instruction: |
+      Разбей работу на пункты-чекбоксы. У каждого пункта — способ проверки.
+    requires:
+      - spec-review
+      - design
+apply:
+  requires:
+    - plan
+  tracks: plan.md
+  instruction: |
+    Читай контекст, проходи пункты плана, отмечай выполненные по ходу.
