@@ -1,0 +1,597 @@
+<title>OpenSpec IDE Desktop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #f3eff2;
+    --page: #f7f4f6;
+    --surface: #ffffff;
+    --surface-2: #f1ecef;
+    --surface-3: #e7dfe4;
+    --border: #dfd6dc;
+    --border-strong: #c9bcc4;
+    --text: #1f181d;
+    --text-2: #4c424a;
+    --muted: #776c74;
+    --accent: #7d2e55;
+    --accent-soft: #f6e6ee;
+    --accent-line: #e3c4d4;
+    --ok: #2f7a4f;
+    --ok-soft: #e4f2e9;
+    --warn: #9a6212;
+    --warn-soft: #f8eedc;
+    --bad: #b03a2e;
+    --bad-soft: #fae6e3;
+    --chrome: #e9e2e7;
+    --chrome-text: #3a3137;
+    --shadow: 0 18px 40px -22px rgba(60, 20, 45, 0.35);
+    --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --r: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #100d10;
+      --page: #141114;
+      --surface: #1d181c;
+      --surface-2: #251f24;
+      --surface-3: #2f272d;
+      --border: #382f36;
+      --border-strong: #4c4049;
+      --text: #f0e9ed;
+      --text-2: #c9bdc5;
+      --muted: #9b8d96;
+      --accent: #e58bb4;
+      --accent-soft: #34202a;
+      --accent-line: #4d3140;
+      --ok: #63c08c;
+      --ok-soft: #1b2e24;
+      --warn: #e3ac4e;
+      --warn-soft: #322718;
+      --bad: #f08c7e;
+      --bad-soft: #34201d;
+      --chrome: #221c21;
+      --chrome-text: #d9ccd4;
+      --shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.7);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #100d10;
+    --page: #141114;
+    --surface: #1d181c;
+    --surface-2: #251f24;
+    --surface-3: #2f272d;
+    --border: #382f36;
+    --border-strong: #4c4049;
+    --text: #f0e9ed;
+    --text-2: #c9bdc5;
+    --muted: #9b8d96;
+    --accent: #e58bb4;
+    --accent-soft: #34202a;
+    --accent-line: #4d3140;
+    --ok: #63c08c;
+    --ok-soft: #1b2e24;
+    --warn: #e3ac4e;
+    --warn-soft: #322718;
+    --bad: #f08c7e;
+    --bad-soft: #34201d;
+    --chrome: #221c21;
+    --chrome-text: #d9ccd4;
+    --shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.7);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.45;
+    padding-inline: 20px;
+    padding-block: 28px 48px;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+  header.intro { display: flex; flex-direction: column; gap: 6px; max-width: 72ch; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: 26px; line-height: 1.2; margin: 0; text-wrap: balance; font-weight: 600; }
+  .lede { margin: 0; color: var(--text-2); }
+
+  nav.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav.tabs button {
+    font: inherit; font-size: 13px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+    padding: 7px 12px; border-radius: 999px; display: inline-flex; gap: 8px; align-items: baseline;
+  }
+  nav.tabs button .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  nav.tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+  nav.tabs button[aria-selected="true"] .n { color: var(--accent-soft); }
+  nav.tabs button:focus-visible, button:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ── окно приложения ─────────────────────────── */
+  .window {
+    border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden;
+    background: var(--page); box-shadow: var(--shadow);
+  }
+  .titlebar {
+    display: flex; align-items: center; gap: 10px; background: var(--chrome); color: var(--chrome-text);
+    padding: 7px 0 7px 12px; font-size: 12.5px;
+  }
+  .appicon { width: 16px; height: 16px; border-radius: 4px; background: var(--accent); display: grid; place-items: center; color: var(--surface); font: 700 9px var(--mono); }
+  .titlebar .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .winctl { display: flex; }
+  .winctl span { width: 42px; text-align: center; color: var(--muted); font-size: 12px; }
+  .menubar { display: flex; gap: 2px; background: var(--chrome); border-top: 1px solid var(--border); padding: 2px 8px; font-size: 12.5px; flex-wrap: wrap; }
+  .menubar span { padding: 3px 9px; border-radius: 4px; color: var(--chrome-text); }
+  .menubar span.open { background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+  .menu-pop {
+    width: min(290px, 100%); margin-top: 10px;
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; box-shadow: var(--shadow);
+    padding: 4px; font-size: 12.5px;
+  }
+  .menu-pop div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 10px; border-radius: 4px; }
+  .menu-pop div:hover, .menu-pop div.hl { background: var(--accent-soft); color: var(--accent); }
+  .menu-pop kbd { font: 11px var(--mono); color: var(--muted); }
+  .menu-pop hr { border: 0; border-top: 1px solid var(--border); margin: 4px 6px; }
+  .menu-pop .sub { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+
+  .statusbar { display: flex; gap: 16px; flex-wrap: wrap; padding: 5px 14px; border-top: 1px solid var(--border); background: var(--surface-2); font: 11.5px var(--mono); color: var(--muted); }
+  .statusbar b { color: var(--text-2); font-weight: 500; }
+  .statusbar .sp { flex: 1; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+
+  .screen { display: flex; flex-direction: column; gap: 14px; }
+  .caption { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; }
+  .caption h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+  .caption p { margin: 0 0 8px; color: var(--text-2); max-width: 68ch; }
+  .reqs { font-size: 12.5px; color: var(--text-2); }
+  .reqs ul { margin: 6px 0 0; padding-left: 18px; }
+  .reqs code, p code { font-family: var(--mono); font-size: 12px; }
+  .reqs .cap { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* ── стартовый экран ─────────────────────────── */
+  .start { position: relative; display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 440px; }
+  .start aside { background: var(--surface-2); border-right: 1px solid var(--border); padding: 28px 22px; display: flex; flex-direction: column; gap: 18px; }
+  .brand { display: flex; gap: 10px; align-items: center; }
+  .brand .logo { width: 38px; height: 38px; border-radius: 9px; background: var(--accent); color: var(--surface); display: grid; place-items: center; font: 700 15px var(--mono); }
+  .brand b { display: block; font-size: 16px; }
+  .brand span { font: 11.5px var(--mono); color: var(--muted); }
+  .actions { display: flex; flex-direction: column; gap: 6px; }
+  .btn { font: inherit; font-size: 13px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: var(--r); padding: 7px 12px; text-align: left; display: flex; justify-content: space-between; gap: 10px; cursor: default; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+  .btn kbd { font: 11px var(--mono); opacity: 0.75; }
+  .aside-note { margin-top: auto; font-size: 12px; color: var(--muted); }
+  .recent { padding: 26px 28px; display: flex; flex-direction: column; gap: 10px; }
+  .label { font: 500 10.5px var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  .recent ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .recent li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 10px; border-radius: var(--r); }
+  .recent li:hover { background: var(--surface-2); }
+  .recent li.sel { background: var(--accent-soft); }
+  .ricon { width: 30px; height: 30px; border-radius: 6px; background: var(--surface-3); display: grid; place-items: center; font: 600 12px var(--mono); color: var(--text-2); }
+  .recent .name { font-weight: 600; }
+  .recent .path { font: 11.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .recent .meta { font-size: 12px; color: var(--muted); text-align: right; }
+  .recent li.gone .name, .recent li.gone .path { color: var(--muted); text-decoration: line-through; }
+  .pill { display: inline-block; font: 10.5px var(--mono); padding: 1px 6px; border-radius: 3px; background: var(--surface-3); color: var(--muted); }
+  .pill.bad { background: var(--bad-soft); color: var(--bad); }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.acc { background: var(--accent-soft); color: var(--accent); }
+  .notice { border-radius: var(--r); padding: 10px 12px; font-size: 12.5px; background: var(--accent-soft); color: var(--accent); }
+  .notice.warn { background: var(--warn-soft); color: var(--warn); }
+  .notice .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .notice .btn { font-size: 12px; padding: 4px 10px; }
+
+  /* ── окно репозитория ────────────────────────── */
+  .ide { display: grid; grid-template-columns: 44px 250px minmax(0, 1fr); min-height: 520px; }
+  .rail { background: var(--surface-2); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 10px; }
+  .rail i { font: 600 11px var(--mono); font-style: normal; color: var(--muted); width: 32px; height: 30px; display: grid; place-items: center; border-radius: 5px; }
+  .rail i.on { background: var(--accent-soft); color: var(--accent); }
+  .tree { border-right: 1px solid var(--border); padding: 12px 10px; font-size: 13px; overflow: auto; }
+  .tree .grp { font: 500 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 10px 6px 4px; display: flex; justify-content: space-between; }
+  .tree .mod { display: flex; align-items: center; gap: 7px; padding: 3px 6px; border-radius: 4px; }
+  .tree .mod.sel { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .tree .mod .n { margin-left: auto; font: 11px var(--mono); color: var(--muted); font-weight: 400; }
+  .tree .kid { padding: 2px 6px 2px 26px; font-size: 12.5px; color: var(--text-2); display: flex; gap: 6px; align-items: center; }
+  .tree .kid .x { font: 10px var(--mono); color: var(--warn); }
+  .kind { width: 14px; height: 14px; border-radius: 3px; display: grid; place-items: center; font: 600 8.5px var(--mono); flex: none; }
+  .kind.svc { background: var(--surface-3); color: var(--text-2); }
+  .kind.ui { background: var(--ok-soft); color: var(--ok); }
+  .kind.lib { background: var(--accent-soft); color: var(--accent); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--border-strong); }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); }
+
+  .main { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .toolbar h2 { font-size: 15px; margin: 0; font-weight: 600; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .chip { font: 11.5px var(--mono); border: 1px solid var(--border); background: var(--surface); color: var(--text-2); border-radius: 999px; padding: 2px 9px; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+  .chip.add { border-style: dashed; color: var(--muted); }
+  .board { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .col { background: var(--surface-2); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 8px; min-width: 150px; }
+  .col h4 { margin: 0; font: 500 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 9px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+  .card.dim { opacity: 0.4; }
+  .card b { font: 600 12px var(--mono); overflow-wrap: anywhere; }
+  .card .mods { display: flex; gap: 4px; flex-wrap: wrap; }
+  .card .mods span { font: 10.5px var(--mono); padding: 0 5px; border-radius: 3px; background: var(--surface-3); color: var(--text-2); }
+  .card .mods span.me { background: var(--accent-soft); color: var(--accent); }
+  .card .x { font: 10.5px var(--mono); color: var(--warn); }
+  .meter { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--ok); }
+  .card .foot { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); margin: 0; }
+
+  /* ── граф модулей ────────────────────────────── */
+  .mods-screen { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 480px; }
+  .graph-pane { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .graph-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  svg.graph { display: block; width: 100%; min-width: 640px; height: auto; }
+  .edge { fill: none; stroke: var(--border-strong); stroke-width: 1.3; }
+  .edge.hot { stroke: var(--accent); stroke-width: 2.2; }
+  .edge.far { stroke: var(--warn); stroke-width: 1.8; stroke-dasharray: 5 4; }
+  .nbox { fill: var(--surface-2); stroke: var(--border-strong); stroke-width: 1.2; }
+  .nbox.lib { fill: var(--accent-soft); stroke: var(--accent-line); }
+  .nbox.src { stroke: var(--accent); stroke-width: 2.6; }
+  .nbox.d1 { stroke: var(--accent); stroke-width: 1.8; }
+  .nbox.d2 { stroke: var(--warn); stroke-width: 1.8; stroke-dasharray: 5 3; }
+  .nid { font: 600 12px var(--mono); fill: var(--text); }
+  .nsub { font: 10.5px var(--mono); fill: var(--muted); }
+  .ntag { font: 600 9px var(--mono); letter-spacing: 0.06em; fill: var(--accent); }
+  .ntag.w { fill: var(--warn); }
+  .colhead { font: 500 10px var(--mono); letter-spacing: 0.1em; fill: var(--muted); }
+  .arrow { fill: var(--border-strong); }
+  .arrow.hot { fill: var(--accent); }
+  .arrow.far { fill: var(--warn); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--accent); vertical-align: middle; margin-right: 6px; }
+  .legend i.far { border-top: 2px dashed var(--warn); }
+  .legend i.plain { border-top: 1.5px solid var(--border-strong); }
+  .side { border-left: 1px solid var(--border); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; font-size: 12.5px; }
+  .side h3 { margin: 0; font-size: 14px; }
+  .kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+  .impact { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .impact li { display: flex; gap: 8px; align-items: baseline; }
+  .impact .d { font: 10.5px var(--mono); padding: 0 5px; border-radius: 3px; }
+  .impact .d.one { background: var(--accent-soft); color: var(--accent); }
+  .impact .d.two { background: var(--warn-soft); color: var(--warn); }
+  .impact code { font: 12px var(--mono); }
+  .impact span.via { color: var(--muted); font-size: 11.5px; }
+
+  /* ── обнаружение ─────────────────────────────── */
+  .disc { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 860px; font-size: 12.5px; }
+  th { text-align: left; font: 500 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  td code, td .mono { font: 12px var(--mono); }
+  tr.new td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
+  tr.removed td { color: var(--muted); text-decoration: line-through; }
+  .sel-mock { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; background: var(--surface); font-size: 12px; }
+  .sel-mock::after { content: '▾'; color: var(--muted); font-size: 10px; }
+  .inp { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; background: var(--surface); display: inline-block; min-width: 90px; }
+  .deps { font: 11.5px var(--mono); color: var(--text-2); }
+  .two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  pre.yaml { margin: 0; font: 12px/1.55 var(--mono); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; color: var(--text-2); }
+  pre.yaml .k { color: var(--accent); }
+  pre.yaml .c { color: var(--muted); }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .bar .sp { flex: 1; }
+
+  @media (max-width: 900px) {
+    .caption, .two-col { grid-template-columns: minmax(0, 1fr); }
+    .start { grid-template-columns: minmax(0, 1fr); }
+    .start aside { border-right: 0; border-bottom: 1px solid var(--border); }
+    .ide { grid-template-columns: 44px minmax(0, 1fr); }
+    .ide .tree { display: none; }
+    .mods-screen { grid-template-columns: minmax(0, 1fr); }
+    .side { border-left: 0; border-top: 1px solid var(--border); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="eyebrow">макеты · add-desktop-shell + add-monorepo-modules</span>
+    <h1>OpenSpec IDE как приложение для монорепозитория</h1>
+    <p class="lede">
+      Окно приложения вместо вкладки браузера и модули поверх одного корневого
+      <code>openspec/</code>. Пример ниже — монорепо из пяти сервисов, UI и КМ
+      из четырёх библиотек; имена модулей условные.
+    </p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Экраны">
+    <button role="tab" id="tab-start" aria-selected="true" aria-controls="start"><span class="n">01</span>Стартовый экран</button>
+    <button role="tab" id="tab-board" aria-selected="false" aria-controls="board"><span class="n">02</span>Доска по модулям</button>
+    <button role="tab" id="tab-graph" aria-selected="false" aria-controls="graph"><span class="n">03</span>Граф модулей</button>
+    <button role="tab" id="tab-discover" aria-selected="false" aria-controls="discover"><span class="n">04</span>Обнаружение модулей</button>
+  </nav>
+
+  <!-- 01 стартовый экран -->
+  <section class="screen" id="start" role="tabpanel" aria-labelledby="tab-start">
+    <div class="window">
+      <div class="titlebar"><span class="appicon">OS</span><span class="t">OpenSpec IDE</span><span class="winctl"><span>—</span><span>▢</span><span>✕</span></span></div>
+      <div class="start">
+        <aside>
+          <div class="brand"><span class="logo">OS</span><div><b>OpenSpec IDE</b><span>0.2.0 · встроенный CLI openspec 1.13.1</span></div></div>
+          <div class="actions">
+            <span class="btn primary">Открыть репозиторий… <kbd>Ctrl+O</kbd></span>
+          </div>
+          <div class="notice warn">
+            <b>В папке C:\Work\sandbox нет openspec/</b><br>
+            Ни в ней, ни выше по дереву. Завести OpenSpec здесь?
+            <div class="row"><span class="btn primary">Выполнить openspec init</span><span class="btn">Выбрать другую папку</span></div>
+          </div>
+          <p class="aside-note">Недавние и положение окон хранятся в профиле пользователя. В репозиторий ничего не пишется.</p>
+        </aside>
+        <div class="recent">
+          <span class="label">Недавние репозитории</span>
+          <ul>
+            <li class="sel"><span class="ricon">pl</span><div><div class="name">platform</div><div class="path">C:\Work\platform</div></div><div class="meta">10 модулей · 7 changes<br>сегодня, 09:42</div></li>
+            <li><span class="ricon">km</span><div><div class="name">km-sandbox</div><div class="path">C:\Work\km-sandbox</div></div><div class="meta">без карты модулей<br>вчера</div></li>
+            <li><span class="ricon">op</span><div><div class="name">openspec_idle</div><div class="path">C:\Work\idle\openspec_idle</div></div><div class="meta">3 changes<br>12 сентября</div></li>
+            <li class="gone"><span class="ricon">ol</span><div><div class="name">platform-old</div><div class="path">D:\archive\platform-old</div></div><div class="meta"><span class="pill bad">папка недоступна</span><br><span style="color:var(--accent)">убрать из списка</span></div></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <div>
+        <h3>Запуск ярлыком, без консоли и браузера</h3>
+        <p>Приложение открывается стартовым экраном: недавние репозитории и открытие папки системным диалогом. Выбранная папка может быть любой внутри репозитория — корень <code>openspec/</code> ищется вверх по дереву, как у CLI.</p>
+        <p>Каждый репозиторий открывается в своём окне. Повторное открытие того же репозитория переводит фокус на уже открытое окно. Запуск ярлыком при работающем приложении не создаёт второй экземпляр.</p>
+      </div>
+      <div class="reqs"><span class="cap">desktop-shell</span>
+        <ul><li>Установка и запуск приложения</li><li>Стартовый экран и открытие репозитория</li><li>Окна репозиториев</li><li>Встроенный CLI OpenSpec</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 доска по модулям -->
+  <section class="screen" id="board" role="tabpanel" aria-labelledby="tab-board" hidden>
+    <div class="window">
+      <div class="titlebar"><span class="appicon">OS</span><span class="t">platform — OpenSpec IDE</span><span class="winctl"><span>—</span><span>▢</span><span>✕</span></span></div>
+      <div class="menubar"><span>Файл</span><span>Правка</span><span>Вид</span><span>Модули</span><span>Справка</span></div>
+      <div class="ide">
+        <div class="rail"><i>Об</i><i>Дл</i><i class="on">Дс</i><i>Мт</i><i>Мд</i><i>Аг</i><i>Пр</i><i>По</i></div>
+        <div class="tree">
+          <div class="grp"><span>Сервисы</span><span>5</span></div>
+          <div class="mod"><span class="kind svc">S</span>auth<span class="n">1</span></div>
+          <div class="mod sel"><span class="kind svc">S</span>billing<span class="n">3</span></div>
+          <div class="kid"><span class="dot warn"></span>add-invoice-export <span class="x">сквозной</span></div>
+          <div class="kid"><span class="dot ok"></span>fix-vat-rounding</div>
+          <div class="kid"><span class="dot"></span>add-cache-ttl <span class="x">через km/core</span></div>
+          <div class="mod"><span class="kind svc">S</span>orders<span class="n">1</span></div>
+          <div class="mod"><span class="kind svc">S</span>notifications<span class="n">0</span></div>
+          <div class="mod"><span class="kind svc">S</span>reports<span class="n">0</span></div>
+          <div class="grp"><span>UI</span><span>1</span></div>
+          <div class="mod"><span class="kind ui">U</span>web-ui<span class="n">2</span></div>
+          <div class="grp"><span>КМ</span><span>4</span></div>
+          <div class="mod"><span class="kind lib">L</span>km/core<span class="n">1</span></div>
+          <div class="mod"><span class="kind lib">L</span>km/auth-client<span class="n">0</span></div>
+          <div class="mod"><span class="kind lib">L</span>km/events<span class="n">1</span></div>
+          <div class="mod"><span class="kind lib">L</span>km/ui-kit<span class="n">1</span></div>
+          <div class="grp"><span>Вне модулей</span><span>2</span></div>
+          <div class="mod"><span class="kind svc">·</span>glossary<span class="n">спек</span></div>
+        </div>
+        <div class="main">
+          <div class="toolbar">
+            <h2>Доска</h2>
+            <div class="filters">
+              <span class="hint">Модули:</span>
+              <span class="chip on">billing ✕</span>
+              <span class="chip">+ сквозные</span>
+              <span class="chip add">+ модуль</span>
+            </div>
+          </div>
+          <div class="board">
+            <div class="col"><h4>proposal <span>1</span></h4>
+              <div class="card"><b>add-invoice-export</b><div class="mods"><span class="me">billing</span><span>km/events</span></div><span class="x">сквозной · 2 модуля</span><div class="foot"><span>нет пунктов</span><span>не проверялся</span></div></div>
+            </div>
+            <div class="col"><h4>specs <span>0</span></h4></div>
+            <div class="col"><h4>tasks <span>0</span></h4></div>
+            <div class="col"><h4>В работе <span>2</span></h4>
+              <div class="card"><b>fix-vat-rounding</b><div class="mods"><span class="me">billing</span></div><div class="meter"><i style="width:60%"></i></div><div class="foot"><span>3/5 пунктов</span><span class="ok">валиден</span></div></div>
+              <div class="card"><b>add-cache-ttl</b><div class="mods"><span>km/core</span></div><span class="x">затрагивает billing как потребителя</span><div class="meter"><i style="width:25%"></i></div><div class="foot"><span>1/4 пунктов</span><span class="ok">валиден</span></div></div>
+            </div>
+            <div class="col"><h4>К архивации <span>0</span></h4></div>
+          </div>
+          <p class="hint">Фильтр «billing» оставил changes модуля и сквозные, где он участвует. «add-cache-ttl» меняет библиотеку <code>km/core</code>, от которой зависит billing, — показан как затрагивающий. Фильтр сохраняется при переключении на поиск и метрики.</p>
+        </div>
+      </div>
+      <div class="statusbar"><span>репозиторий <b>C:\Work\platform</b></span><span>модулей <b>10</b> · changes <b>7</b> · спеков <b>64</b></span><span class="sp"></span><span>CLI <b>openspec 1.13.1</b> · из репозитория</span><span class="ok">● наблюдение за файлами</span></div>
+    </div>
+    <div class="caption">
+      <div>
+        <h3>Одно окно на монорепо, работа по модулю</h3>
+        <p>Слева — дерево, сгруппированное по карте модулей: сервисы, UI, КМ, плюс группа «вне модулей», чтобы ни одна capability не пропала. Сквозной change виден под каждым своим модулем.</p>
+        <p>Фильтр по модулю общий для доски, поиска и метрик. На карточке — модули change, выбранный выделен. Системное меню и сочетания клавиш заменяют адресную строку.</p>
+      </div>
+      <div class="reqs"><span class="cap">monorepo-modules</span>
+        <ul><li>Принадлежность спеков и changes модулям</li><li>Представление по модулям</li></ul>
+        <span class="cap">desktop-shell</span>
+        <ul><li>Меню и горячие клавиши</li><li>Встроенный CLI OpenSpec (строка состояния)</li></ul>
+        <span class="cap">меню «Файл»</span>
+        <div class="menu-pop">
+        <div class="hl"><span>Открыть репозиторий…</span><kbd>Ctrl+O</kbd></div>
+        <div><span>Недавние</span><kbd>▸</kbd></div>
+        <div class="sub"><span>platform · km-sandbox · openspec_idle</span></div>
+        <hr>
+        <div><span>Новый change…</span><kbd>Ctrl+N</kbd></div>
+        <div><span>Сохранить</span><kbd>Ctrl+S</kbd></div>
+        <hr>
+        <div><span>Закрыть окно</span><kbd>Ctrl+W</kbd></div>
+      </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 граф модулей -->
+  <section class="screen" id="graph" role="tabpanel" aria-labelledby="tab-graph" hidden>
+    <div class="window">
+      <div class="titlebar"><span class="appicon">OS</span><span class="t">platform — OpenSpec IDE</span><span class="winctl"><span>—</span><span>▢</span><span>✕</span></span></div>
+      <div class="menubar"><span>Файл</span><span>Правка</span><span>Вид</span><span>Модули</span><span>Справка</span></div>
+      <div class="mods-screen">
+        <div class="graph-pane">
+          <div class="toolbar"><h2>Модули</h2><span class="chip on">change: add-cache-ttl</span><span class="hint">выделены затронутые потребители</span></div>
+          <div class="graph-scroll">
+            <svg class="graph" viewBox="0 0 740 380" role="img" aria-label="Граф модулей: библиотека km/core, изменённая в add-cache-ttl, и её потребители — прямые auth, billing, orders, notifications, web-ui и транзитивный reports">
+              <defs>
+                <marker id="a0" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" class="arrow"/></marker>
+                <marker id="a1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" class="arrow hot"/></marker>
+                <marker id="a2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" class="arrow far"/></marker>
+              </defs>
+              <text class="colhead" x="30" y="22">БИБЛИОТЕКИ КМ</text>
+              <text class="colhead" x="300" y="22">СЕРВИСЫ И UI</text>
+              <text class="colhead" x="580" y="22">ПОТРЕБИТЕЛИ СЕРВИСОВ</text>
+              <!-- обычные рёбра -->
+              <path class="edge" marker-end="url(#a0)" d="M170,142 C235,142 235,127 298,127"/>
+              <path class="edge" marker-end="url(#a0)" d="M170,142 C235,142 235,197 298,197"/>
+              <path class="edge" marker-end="url(#a0)" d="M170,142 C235,142 235,337 298,337"/>
+              <path class="edge" marker-end="url(#a0)" d="M170,222 C235,222 235,127 298,127"/>
+              <path class="edge" marker-end="url(#a0)" d="M170,222 C235,222 235,197 298,197"/>
+              <path class="edge" marker-end="url(#a0)" d="M170,222 C235,222 235,267 298,267"/>
+              <path class="edge" marker-end="url(#a0)" d="M170,302 C235,302 235,337 298,337"/>
+              <!-- прямые потребители km/core -->
+              <path class="edge hot" marker-end="url(#a1)" d="M170,62 C235,62 235,57 298,57"/>
+              <path class="edge hot" marker-end="url(#a1)" d="M170,62 C235,62 235,127 298,127"/>
+              <path class="edge hot" marker-end="url(#a1)" d="M170,62 C235,62 235,197 298,197"/>
+              <path class="edge hot" marker-end="url(#a1)" d="M170,62 C235,62 235,267 298,267"/>
+              <path class="edge hot" marker-end="url(#a1)" d="M170,62 C235,62 235,337 298,337"/>
+              <!-- транзитивные -->
+              <path class="edge far" marker-end="url(#a2)" d="M440,127 C510,127 510,162 578,162"/>
+              <path class="edge far" marker-end="url(#a2)" d="M440,197 C510,197 510,162 578,162"/>
+
+              <g><text class="ntag" x="30" y="34">ИЗМЕНЯЕТСЯ</text><rect class="nbox lib src" x="30" y="40" width="140" height="44" rx="7"/><text class="nid" x="42" y="60">km/core</text><text class="nsub" x="42" y="76">12 спеков · 1 change</text></g>
+              <g><rect class="nbox lib" x="30" y="120" width="140" height="44" rx="7"/><text class="nid" x="42" y="140">km/auth-client</text><text class="nsub" x="42" y="156">6 спеков</text></g>
+              <g><rect class="nbox lib" x="30" y="200" width="140" height="44" rx="7"/><text class="nid" x="42" y="220">km/events</text><text class="nsub" x="42" y="236">8 спеков · 1 change</text></g>
+              <g><rect class="nbox lib" x="30" y="280" width="140" height="44" rx="7"/><text class="nid" x="42" y="300">km/ui-kit</text><text class="nsub" x="42" y="316">9 спеков · 1 change</text></g>
+
+              <g><rect class="nbox d1" x="300" y="35" width="140" height="44" rx="7"/><text class="nid" x="312" y="55">auth</text><text class="nsub" x="312" y="71">сервис · прямой</text></g>
+              <g><rect class="nbox d1" x="300" y="105" width="140" height="44" rx="7"/><text class="nid" x="312" y="125">billing</text><text class="nsub" x="312" y="141">сервис · прямой</text></g>
+              <g><rect class="nbox d1" x="300" y="175" width="140" height="44" rx="7"/><text class="nid" x="312" y="195">orders</text><text class="nsub" x="312" y="211">сервис · прямой</text></g>
+              <g><rect class="nbox d1" x="300" y="245" width="140" height="44" rx="7"/><text class="nid" x="312" y="265">notifications</text><text class="nsub" x="312" y="281">сервис · прямой</text></g>
+              <g><rect class="nbox d1" x="300" y="315" width="140" height="44" rx="7"/><text class="nid" x="312" y="335">web-ui</text><text class="nsub" x="312" y="351">UI · прямой</text></g>
+
+              <g><text class="ntag w" x="580" y="134">ЧЕРЕЗ ЦЕПОЧКУ</text><rect class="nbox d2" x="580" y="140" width="140" height="44" rx="7"/><text class="nid" x="592" y="160">reports</text><text class="nsub" x="592" y="176">сервис · глубина 2</text></g>
+            </svg>
+          </div>
+          <div class="legend"><span><i></i>прямой потребитель</span><span><i class="far"></i>потребитель через цепочку</span><span><i class="plain"></i>прочие зависимости</span><span>стрелка — от модуля к тому, кто от него зависит</span></div>
+        </div>
+        <aside class="side">
+          <div><span class="label">change</span><h3>add-cache-ttl</h3></div>
+          <dl class="kv"><dt>Модули</dt><dd>km/core</dd><dt>Схема</dt><dd>spec-driven</dd><dt>Дельты</dt><dd>km/core/cache</dd><dt>Прогресс</dt><dd>1 / 4 пунктов</dd></dl>
+          <div><span class="label">Затронутые потребители · 6</span></div>
+          <ul class="impact">
+            <li><span class="d one">1</span><code>auth</code></li>
+            <li><span class="d one">1</span><code>billing</code></li>
+            <li><span class="d one">1</span><code>orders</code></li>
+            <li><span class="d one">1</span><code>notifications</code></li>
+            <li><span class="d one">1</span><code>web-ui</code></li>
+            <li><span class="d two">2</span><code>reports</code><span class="via">через billing, orders</span></li>
+          </ul>
+          <div class="notice">Потребители считаются по зависимостям из карты модулей, а не по коду. Если спеки потребителя описывают поведение, которое меняется, добавьте в change дельту в его модуле — change станет сквозным.</div>
+        </aside>
+      </div>
+    </div>
+    <div class="caption">
+      <div>
+        <h3>Кого заденет change в библиотеке</h3>
+        <p>Граф строится по зависимостям из карты модулей. Change в <code>km/core</code> подсвечивает прямых потребителей и тех, кто зависит от них, — с глубиной, чтобы было видно, откуда пришла зависимость.</p>
+        <p>Выбор модуля на графе показывает его зависимости, потребителей, активные changes и число спеков. Цикл в карте не ломает граф и показывается ошибкой карты.</p>
+      </div>
+      <div class="reqs"><span class="cap">monorepo-modules</span>
+        <ul><li>Граф модулей и затронутые потребители</li><li>Сквозные changes</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 обнаружение -->
+  <section class="screen" id="discover" role="tabpanel" aria-labelledby="tab-discover" hidden>
+    <div class="window">
+      <div class="titlebar"><span class="appicon">OS</span><span class="t">platform — OpenSpec IDE</span><span class="winctl"><span>—</span><span>▢</span><span>✕</span></span></div>
+      <div class="menubar"><span>Файл</span><span>Правка</span><span>Вид</span><span>Модули</span><span>Справка</span></div>
+      <div class="disc">
+        <div class="bar">
+          <h2 style="margin:0;font-size:15px">Обнаружение модулей</h2>
+          <span class="pill ok">найдено 10</span><span class="pill acc">новых 1</span><span class="pill warn">расхождений 1</span>
+          <span class="sp"></span>
+          <span class="btn">Обнаружить заново</span><span class="btn primary">Сохранить в openspec/modules.yaml</span>
+        </div>
+        <p class="hint">Просмотрено 1 284 каталога за 1,8 с; пропущены node_modules, target, build, dist и всё из .gitignore. Черновик ничего не записывает, пока вы его не сохраните.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Модуль</th><th>Манифест</th><th>Каталог кода</th><th>Вид</th><th>Префикс спеков</th><th>Группа</th><th>Зависит от</th></tr></thead>
+            <tbody>
+              <tr><td><code>auth</code></td><td class="mono">pom.xml</td><td class="mono">services/auth</td><td><span class="sel-mock">сервис</span></td><td><span class="inp">auth</span></td><td><span class="inp">Сервисы</span></td><td class="deps">km/core</td></tr>
+              <tr><td><code>billing</code></td><td class="mono">pom.xml</td><td class="mono">services/billing</td><td><span class="sel-mock">сервис</span></td><td><span class="inp">billing</span></td><td><span class="inp">Сервисы</span></td><td class="deps">km/core, km/auth-client, km/events</td></tr>
+              <tr><td><code>orders</code></td><td class="mono">pom.xml</td><td class="mono">services/orders</td><td><span class="sel-mock">сервис</span></td><td><span class="inp">orders</span></td><td><span class="inp">Сервисы</span></td><td class="deps">km/core, km/auth-client, km/events</td></tr>
+              <tr><td><code>notifications</code></td><td class="mono">build.gradle.kts</td><td class="mono">services/notifications</td><td><span class="sel-mock">сервис</span></td><td><span class="inp">notifications</span></td><td><span class="inp">Сервисы</span></td><td class="deps">km/core, km/events</td></tr>
+              <tr class="new"><td><code>reports</code> <span class="pill acc">новый</span></td><td class="mono">pom.xml</td><td class="mono">services/reports</td><td><span class="sel-mock">сервис</span></td><td><span class="inp">reports</span></td><td><span class="inp">Сервисы</span></td><td class="deps">billing, orders</td></tr>
+              <tr><td><code>web-ui</code></td><td class="mono">package.json</td><td class="mono">ui</td><td><span class="sel-mock">UI</span></td><td><span class="inp">ui</span></td><td><span class="inp">UI</span></td><td class="deps">km/core, km/auth-client, km/ui-kit <span class="pill warn">+ km/ui-kit</span></td></tr>
+              <tr><td><code>km/core</code></td><td class="mono">package.json</td><td class="mono">km/core</td><td><span class="sel-mock">библиотека</span></td><td><span class="inp">km/core</span></td><td><span class="inp">КМ</span></td><td class="deps">—</td></tr>
+              <tr><td><code>km/auth-client</code></td><td class="mono">package.json</td><td class="mono">km/auth-client</td><td><span class="sel-mock">библиотека</span></td><td><span class="inp">km/auth-client</span></td><td><span class="inp">КМ</span></td><td class="deps">km/core</td></tr>
+              <tr><td><code>km/events</code></td><td class="mono">package.json</td><td class="mono">km/events</td><td><span class="sel-mock">библиотека</span></td><td><span class="inp">km/events</span></td><td><span class="inp">КМ</span></td><td class="deps">—</td></tr>
+              <tr><td><code>km/ui-kit</code></td><td class="mono">package.json</td><td class="mono">km/ui-kit</td><td><span class="sel-mock">библиотека</span></td><td><span class="inp">km/ui-kit</span></td><td><span class="inp">КМ</span></td><td class="deps">—</td></tr>
+              <tr class="removed"><td><code>e2e-tests</code></td><td class="mono">package.json</td><td class="mono">tests/e2e</td><td>—</td><td>—</td><td>—</td><td class="deps">убран из черновика</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="two-col">
+          <div class="notice">Карта уже есть, поэтому показаны только расхождения: новый модуль <code>reports</code> и новая зависимость <code>web-ui → km/ui-kit</code>. Ваши правки названий и групп в карте не перезаписываются.</div>
+          <pre class="yaml"><span class="c"># openspec/modules.yaml — фрагмент после сохранения</span>
+<span class="k">version</span>: 1
+<span class="k">modules</span>:
+  - <span class="k">id</span>: reports
+    <span class="k">title</span>: Отчёты
+    <span class="k">kind</span>: service
+    <span class="k">path</span>: services/reports
+    <span class="k">specs</span>: reports
+    <span class="k">group</span>: Сервисы
+    <span class="k">dependsOn</span>: [billing, orders]</pre>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <div>
+        <h3>Карта модулей из манифестов сборки</h3>
+        <p>Модули и связи между ними находятся по <code>pom.xml</code>, <code>package.json</code>, <code>build.gradle</code> и другим манифестам. Вид и префикс спеков угадываются и правятся здесь же, лишнее убирается.</p>
+        <p>Результат — <code>openspec/modules.yaml</code> в git рядом со спеками: карта общая для команды и правится в пулл-реквестах. CLI OpenSpec этот файл не читает и ему не мешает.</p>
+      </div>
+      <div class="reqs"><span class="cap">monorepo-modules</span>
+        <ul><li>Карта модулей</li><li>Обнаружение модулей</li></ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  (function () {
+    const tabs = Array.from(document.querySelectorAll('nav.tabs [role="tab"]'));
+    function show(id) {
+      tabs.forEach(function (tab) {
+        const on = tab.getAttribute('aria-controls') === id;
+        tab.setAttribute('aria-selected', String(on));
+        document.getElementById(tab.getAttribute('aria-controls')).hidden = !on;
+      });
+    }
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        const id = tab.getAttribute('aria-controls');
+        show(id);
+        try { history.replaceState(null, '', '#' + id); } catch (e) { /* без истории */ }
+      });
+    });
+    const initial = (location.hash || '').slice(1);
+    if (tabs.some(function (tab) { return tab.getAttribute('aria-controls') === initial; })) show(initial);
+  })();
+</script>
