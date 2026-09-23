@@ -8,6 +8,8 @@ const children = [];
 function run(name, command, args, env = {}) {
   const child = spawn(command, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
+    // npm на Windows — обёртка npm.cmd, её запускает только оболочка.
+    shell: process.platform === 'win32' && command === 'npm',
     env: { ...process.env, ...env },
   });
   const tag = `[${name}]`;

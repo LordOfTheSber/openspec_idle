@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { killTree, spawnShell } from './process/platform.js';
 import {
   METRICS_SCHEMA_VERSION,
   type ChangeSummary,
@@ -265,28 +265,16 @@ function runShell(command: string, cwd: string, timeoutMs: number): Promise<Acce
     // Отдельная группа процессов: команда проверки обычно порождает свои
     // процессы (тест-раннер, воркеры), и сигнал одному `sh` их не остановит —
     // они продолжат держать канал вывода, и проверка не завершится никогда.
-    const child = spawn('sh', ['-c', command], {
-      cwd,
-      env: { ...process.env, NO_COLOR: '1', CI: '1' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: true,
-    });
-
-    const killGroup = (signal: NodeJS.Signals): void => {
-      if (child.pid === undefined) return;
-      try {
-        process.kill(-child.pid, signal);
-      } catch {
-        // Группа уже завершилась.
-      }
-    };
+    // Оболочка платформы: `sh` на POSIX, `cmd.exe` на Windows.
+    const child = spawnShell(command, { cwd, env: { ...process.env, NO_COLOR: '1', CI: '1' } });
+    const killGroup = (signal: NodeJS.Signals): void => killTree(child, signal === 'SIGKILL');
 
     let output = '';
     const collect = (chunk: Buffer): void => {
       output = (output + chunk.toString()).slice(-OUTPUT_TAIL);
     };
-    child.stdout.on('data', collect);
-    child.stderr.on('data', collect);
+    child.stdout?.on('data', collect);
+    child.stderr?.on('data', collect);
 
     let timedOut = false;
     const timer = setTimeout(() => {

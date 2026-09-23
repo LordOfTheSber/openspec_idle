@@ -79,10 +79,19 @@ export async function run(argv: readonly string[]): Promise<RunOutcome> {
 }
 
 function openBrowser(url: string): void {
-  const command =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+  // `start` на Windows — встроенная команда cmd.exe, а не программа. Пустой
+  // аргумент в кавычках — заголовок окна, иначе start принял бы за него URL.
+  const [command, args] =
+    process.platform === 'darwin'
+      ? ['open', [url]]
+      : process.platform === 'win32'
+        ? ['cmd', ['/d', '/c', 'start', '""', url]]
+        : ['xdg-open', [url]];
   try {
-    spawn(command, [url], { stdio: 'ignore', detached: true }).unref();
+    const child = spawn(command, args, { stdio: 'ignore', detached: true, windowsHide: true });
+    // Нет xdg-open — не беда: URL уже напечатан.
+    child.on('error', () => undefined);
+    child.unref();
   } catch {
     // Открыть браузер — удобство, а не условие запуска: URL уже напечатан.
   }

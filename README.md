@@ -44,6 +44,18 @@ cd packages/cli && npm link && cd -
 Без `npm link` IDE запускается по полному пути:
 `node <путь к openspec_idle>/packages/cli/bin/openspec-ide.js`.
 
+Сборка обязательна при любом способе получения исходников — в том числе из
+ZIP-архива ветки: в репозитории нет собранных файлов `dist/`. Без неё
+`openspec-ide` сообщит, что IDE не собрана, и напомнит команды.
+
+### Windows
+
+Работает в PowerShell, cmd и Git Bash — те же команды `npm ci`, `npm run build`,
+`npm link`. Обёртки `.cmd`, которые npm ставит для `openspec` и `gigacode`, IDE
+разбирает сама и запускает их скрипт напрямую через Node: через `cmd.exe`
+многострочный промпт агента не передаётся. Команды проверки приёмки в метриках
+выполняются оболочкой платформы — на Windows это `cmd.exe`, а не `sh`.
+
 ## Запуск
 
 ```bash
@@ -106,7 +118,9 @@ OpenSpec IDE: http://127.0.0.1:41523
    запускается IDE, и перезапустите IDE:
 
    ```bash
-   export GIGACODE_API_KEY=…
+   export GIGACODE_API_KEY=…          # bash, Git Bash
+   $env:GIGACODE_API_KEY = "…"        # PowerShell
+   set GIGACODE_API_KEY=…             # cmd
    openspec-ide
    ```
 

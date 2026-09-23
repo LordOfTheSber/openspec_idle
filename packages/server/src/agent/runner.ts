@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute, relative } from 'node:path';
 import {
@@ -15,6 +15,7 @@ import {
 import { type IdeConfig, loadConfig } from '../config.js';
 import type { EventBus } from '../events.js';
 import type { MetricsService } from '../metrics.js';
+import { killTree, spawnTree, toPosixPath } from '../process/platform.js';
 import { type AgentConfig, buildArgs, displayCommand, parseDuration } from './launch.js';
 import { type ProbeResult, probeAgent } from './probe.js';
 import type { BuiltPrompt, RunTarget } from './prompt.js';
@@ -261,13 +262,8 @@ export class AgentService {
       unknownEvents: 0,
     };
 
-    const child = spawn(probe.bin as string, args, {
-      cwd: this.#options.root,
-      env: this.#env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      // Своя группа процессов: остановка снимает и дочерние процессы агента.
-      detached: true,
-    });
+    // Своя группа процессов (на POSIX): остановка снимает и дочерние процессы агента.
+    const child = spawnTree(probe.bin as string, args, { cwd: this.#options.root, env: this.#env });
     const run: ActiveRun = { record, child, tally: emptyTally(), stoppedByUser: false, watchdogFired: false, killTimer: null };
     this.#active.set(change, run);
     this.#options.events.emit({ type: 'agent-started', payload: record });
@@ -419,26 +415,13 @@ export class AgentService {
   }
 
   #terminate(run: ActiveRun): void {
-    this.#signal(run.child, 'SIGTERM');
+    killTree(run.child, false);
     if (run.killTimer !== null) return;
-    run.killTimer = setTimeout(() => this.#signal(run.child, 'SIGKILL'), this.#options.killGraceMs ?? 5000);
-  }
-
-  #signal(child: ChildProcess, signal: NodeJS.Signals): void {
-    if (child.pid === undefined || child.exitCode !== null) return;
-    try {
-      process.kill(-child.pid, signal);
-    } catch {
-      try {
-        child.kill(signal);
-      } catch {
-        // процесс уже завершился
-      }
-    }
+    run.killTimer = setTimeout(() => killTree(run.child, true), this.#options.killGraceMs ?? 5000);
   }
 
   #relative(file: string): string {
-    return isAbsolute(file) ? relative(this.#options.root, file) : file;
+    return toPosixPath(isAbsolute(file) ? relative(this.#options.root, file) : file);
   }
 
   /** История запусков change от новых к старым, включая выполняющийся. */
@@ -460,7 +443,7 @@ export class AgentService {
   shutdown(): void {
     for (const run of this.#active.values()) {
       run.stoppedByUser = true;
-      this.#signal(run.child, 'SIGKILL');
+      killTree(run.child, true);
     }
   }
 }

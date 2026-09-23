@@ -10,6 +10,7 @@ import {
 } from '@openspec-ide/core';
 import { parse as parseYaml } from 'yaml';
 import type { OpenspecClient } from './openspec/client.js';
+import { toPosixPath } from './process/platform.js';
 
 /** Собирает дерево рабочего пространства и поисковый индекс по данным CLI. */
 export class WorkspaceReader {
@@ -133,7 +134,7 @@ export class WorkspaceReader {
         id: artifact.id,
         outputPath: paths?.outputPath ?? `${artifact.id}.md`,
         existingOutputPaths: (paths?.existingOutputPaths ?? []).map((path) =>
-          relative(changeRoot, path),
+          toPosixPath(relative(changeRoot, path)),
         ),
         status: artifact.status,
       };

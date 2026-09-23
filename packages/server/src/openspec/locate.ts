@@ -1,5 +1,6 @@
-import { accessSync, constants } from 'node:fs';
+import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
+import { executableCandidates } from '../process/platform.js';
 
 /** Где искали исполняемый файл и что нашли. */
 export type CliLocation =
@@ -22,9 +23,10 @@ export function locateOpenspecCli(root: string, env: NodeJS.ProcessEnv = process
 
   let current = root;
   for (;;) {
-    const projectBin = join(current, 'node_modules', '.bin', BIN_NAME);
-    searched.push(projectBin);
-    if (isExecutable(projectBin)) return { kind: 'found', bin: projectBin, source: 'project' };
+    for (const projectBin of executableCandidates(join(current, 'node_modules', '.bin'), BIN_NAME)) {
+      searched.push(projectBin);
+      if (isExecutable(projectBin)) return { kind: 'found', bin: projectBin, source: 'project' };
+    }
 
     const parent = dirname(current);
     if (parent === current) break;
@@ -33,9 +35,10 @@ export function locateOpenspecCli(root: string, env: NodeJS.ProcessEnv = process
 
   for (const dir of (env.PATH ?? '').split(delimiter)) {
     if (dir === '') continue;
-    const candidate = join(dir, BIN_NAME);
-    searched.push(candidate);
-    if (isExecutable(candidate)) return { kind: 'found', bin: candidate, source: 'path' };
+    for (const candidate of executableCandidates(dir, BIN_NAME)) {
+      searched.push(candidate);
+      if (isExecutable(candidate)) return { kind: 'found', bin: candidate, source: 'path' };
+    }
   }
 
   return { kind: 'not-found', searched };
@@ -58,6 +61,8 @@ export function missingCliNotice(location: Extract<CliLocation, { kind: 'not-fou
 
 function isExecutable(path: string): boolean {
   try {
+    if (!statSync(path).isFile()) return false;
+    // На Windows признака исполняемости нет: X_OK проверяет лишь наличие.
     accessSync(path, constants.X_OK);
     return true;
   } catch {

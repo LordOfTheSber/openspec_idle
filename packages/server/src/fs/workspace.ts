@@ -43,7 +43,9 @@ export function canonicalize(path: string): string {
   const tail: string[] = [];
   for (;;) {
     if (existsSync(head)) {
-      const real = realpathSync(head);
+      // native: на Windows даёт настоящий регистр букв пути и разрешает
+      // junction — иначе один и тот же каталог выглядел бы двумя разными.
+      const real = realpathSync.native(head);
       return tail.length === 0 ? real : resolve(real, ...tail.reverse());
     }
     const parent = dirname(head);

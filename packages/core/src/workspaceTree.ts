@@ -152,11 +152,13 @@ function artifactState(exists: boolean, errorCount: number, status?: string): Ar
  * иначе оно осело бы на первом попавшемся.
  */
 function issueBelongsToArtifact(
-  issuePath: string | undefined,
+  rawIssuePath: string | undefined,
   outputPath: string,
   files: readonly string[],
 ): boolean {
-  if (issuePath === undefined || issuePath === '' || issuePath === 'file') return false;
+  if (rawIssuePath === undefined || rawIssuePath === '' || rawIssuePath === 'file') return false;
+  // CLI на Windows отдаёт пути с обратными слэшами — сравнение идёт по прямым.
+  const issuePath = rawIssuePath.replace(/\\/g, '/');
   if (files.some((file) => file.endsWith(issuePath) || issuePath.endsWith(file))) return true;
   const globPrefix = outputPath.split('*')[0] ?? outputPath;
   return globPrefix !== '' && issuePath.startsWith(globPrefix);

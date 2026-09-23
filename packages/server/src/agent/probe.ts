@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, stat } from 'node:fs/promises';
-import { delimiter, isAbsolute, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, resolve } from 'node:path';
+import { executableCandidates, isUnresolvedShim, resolveCommand } from '../process/platform.js';
 import type { AgentConfig } from './launch.js';
 
 /** Итог проверки доступности CLI. */
@@ -31,11 +32,14 @@ export async function locateExecutable(
 ): Promise<{ bin: string | null; searched: string[] }> {
   const candidates =
     command.includes('/') || command.includes('\\')
-      ? [isAbsolute(command) ? command : resolve(root, command)]
+      ? (() => {
+          const absolute = isAbsolute(command) ? command : resolve(root, command);
+          return executableCandidates(dirname(absolute), basename(absolute));
+        })()
       : pathEnv
           .split(delimiter)
           .filter((dir) => dir !== '')
-          .map((dir) => join(dir, command));
+          .flatMap((dir) => executableCandidates(dir, command));
 
   for (const candidate of candidates) {
     try {
@@ -60,7 +64,13 @@ function capture(
   return new Promise((done) => {
     let stdout = '';
     let stderr = '';
-    const child = spawn(bin, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const resolved = resolveCommand(bin);
+    const child = spawn(resolved.command, [...resolved.prefix, ...args], {
+      cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
     const timer = setTimeout(() => child.kill('SIGKILL'), PROBE_TIMEOUT_MS);
     child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
     child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
@@ -98,6 +108,21 @@ export async function probeAgent(
       streaming: false,
       notice: null,
       error: `Исполняемый файл «${agent.command}» не найден. Проверены пути: ${searched.join(', ') || '(PATH пуст)'}`,
+    };
+  }
+
+  if (isUnresolvedShim(bin)) {
+    return {
+      ...base,
+      ok: false,
+      bin,
+      version: null,
+      format: null,
+      streaming: false,
+      notice: null,
+      error:
+        `«${bin}» — обёртка .cmd, из которой не удалось извлечь запускаемый скрипт. ` +
+        'Через cmd.exe многострочный промпт не передаётся: укажите в настройках путь к .exe или к .js-файлу CLI.',
     };
   }
 

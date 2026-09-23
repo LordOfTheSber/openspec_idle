@@ -1,6 +1,7 @@
 import { OPENSPEC_DIR } from '@openspec-ide/core';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { join } from 'node:path';
+import { toPosixPath } from './process/platform.js';
 
 /** Сводка одного объединённого обновления файлов. */
 export interface FileChangeBatch {
@@ -78,7 +79,7 @@ export class WorkspaceWatcher {
     const relative = path.startsWith(this.#options.root)
       ? path.slice(this.#options.root.length + 1)
       : path;
-    this.#pending.add(relative);
+    this.#pending.add(toPosixPath(relative));
     this.#count += 1;
 
     if (this.#timer !== null) clearTimeout(this.#timer);

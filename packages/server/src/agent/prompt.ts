@@ -1,5 +1,6 @@
 import { relative } from 'node:path';
 import type { MetricsService } from '../metrics.js';
+import { toPosixPath } from '../process/platform.js';
 import type { OpenspecClient } from '../openspec/client.js';
 import type { SchemaReader } from '../schemaDefinition.js';
 
@@ -48,7 +49,7 @@ export interface BuiltPrompt {
 
 function rel(root: string, path: string): string {
   const value = relative(root, path);
-  return value === '' ? '.' : value;
+  return value === '' ? '.' : toPosixPath(value);
 }
 
 /**
