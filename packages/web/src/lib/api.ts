@@ -512,7 +512,9 @@ export interface AgentStatus {
   readonly effective: EffectiveLaunch;
 }
 
-export type RunTarget = { readonly kind: 'artifact'; readonly artifact: string } | { readonly kind: 'item'; readonly key: string };
+export type RunTarget =
+  | { readonly kind: 'artifact'; readonly artifact: string; readonly brief?: string }
+  | { readonly kind: 'item'; readonly key: string };
 
 export interface AgentRunRecord {
   readonly runId: string;

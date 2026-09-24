@@ -64,7 +64,18 @@ export type HostMessage =
       readonly kind: 'navigate';
       readonly section: PanelSection;
       readonly selection: PanelSelection | null;
+      /** Запуск агента по артефакту, который нужно сразу подготовить. */
+      readonly agent?: AgentIntent;
     };
+
+/** Генерация артефакта агентом: какой артефакт и с каким замыслом. */
+export interface AgentIntent {
+  readonly artifact: string;
+  readonly brief: string | null;
+}
+
+/** Предел длины замысла в сообщении — тот же, что у сборщика промпта. */
+export const MAX_INTENT_BRIEF = 4000;
 
 /** Итог разбора входящего сообщения. */
 export type Parsed<T> = { readonly ok: true; readonly message: T } | { readonly ok: false; readonly reason: string };
@@ -167,6 +178,18 @@ export function parseViewMessage(value: unknown): Parsed<ViewMessage> {
   }
 }
 
+/** Цель агента в навигации: `null` — её нет, `undefined` — она некорректна. */
+function parseAgentIntent(value: unknown): AgentIntent | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const { artifact, brief } = value;
+  if (typeof artifact !== 'string' || !isSafeName(artifact)) return undefined;
+  if (brief !== null && brief !== undefined && (typeof brief !== 'string' || brief.length > MAX_INTENT_BRIEF)) {
+    return undefined;
+  }
+  return { artifact, brief: typeof brief === 'string' && brief.trim() !== '' ? brief : null };
+}
+
 /** Имя change: один сегмент пути без переходов наверх. */
 function isSafeName(name: string): boolean {
   return name !== '' && !/[\\/]/.test(name) && !name.startsWith('.');
@@ -206,7 +229,15 @@ export function parseHostMessage(value: unknown): Parsed<HostMessage> {
       }
       const selection = parseSelection(value['selection'] ?? null);
       if (selection === undefined) return { ok: false, reason: 'Некорректный выбор' };
-      return { ok: true, message: { kind: 'navigate', section: section as PanelSection, selection } };
+      const agent = parseAgentIntent(value['agent']);
+      if (agent === undefined) return { ok: false, reason: 'Некорректная цель агента' };
+      return {
+        ok: true,
+        message:
+          agent === null
+            ? { kind: 'navigate', section: section as PanelSection, selection }
+            : { kind: 'navigate', section: section as PanelSection, selection, agent },
+      };
     }
 
     default:

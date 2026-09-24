@@ -8,6 +8,7 @@ import {
   saveFile,
   type ArtifactFile,
 } from '../lib/api.js';
+import { useGenerableArtifacts } from '../lib/generable.js';
 import { Editor } from './Editor.js';
 import { Outline, StructureProblems } from './Outline.js';
 import { Problems, type ValidationState } from './Problems.js';
@@ -18,6 +19,8 @@ interface EditorPaneProps {
   /** Файл артефакта, выбранный для правки; `null`, если файлов ещё нет. */
   readonly file: string | null;
   readonly revealLine: number | null;
+  /** Сгенерировать отсутствующий артефакт агентом с замыслом автора. */
+  readonly onGenerate?: (brief: string | null) => void;
 }
 
 const EMPTY_VALIDATION: ValidationState = {
@@ -28,7 +31,7 @@ const EMPTY_VALIDATION: ValidationState = {
   running: false,
 };
 
-export function EditorPane({ change, artifactId, file, revealLine }: EditorPaneProps) {
+export function EditorPane({ change, artifactId, file, revealLine, onGenerate }: EditorPaneProps) {
   const [loaded, setLoaded] = useState<ArtifactFile | null>(null);
   const [draft, setDraft] = useState('');
   const [conflict, setConflict] = useState<{ disk: ArtifactFile; message: string } | null>(null);
@@ -36,6 +39,9 @@ export function EditorPane({ change, artifactId, file, revealLine }: EditorPaneP
   const [validation, setValidation] = useState<ValidationState>(EMPTY_VALIDATION);
   const [reveal, setReveal] = useState<number | null>(revealLine);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [brief, setBrief] = useState('');
+  const generable = useGenerableArtifacts(change.name);
+  const canGenerate = onGenerate !== undefined && generable?.has(artifactId) === true;
   /** Увеличивается, когда содержимое приходит извне, а не из редактора. */
   const [documentKey, setDocumentKey] = useState(0);
   const requestId = useRef(0);
@@ -141,12 +147,40 @@ export function EditorPane({ change, artifactId, file, revealLine }: EditorPaneP
           Артефакт <span className="count">{artifactId}</span>
         </p>
         <p className="empty">
-          Файл «{artifact.outputPath}» ещё не создан. Его можно создать из шаблона схемы «
-          {change.schema}».
+          Файл «{artifact.outputPath}» ещё не создан. Его можно сгенерировать агентом по инструкции схемы «
+          {change.schema}» или создать пустым из её шаблона.
         </p>
-        <button type="button" className="btn primary" onClick={() => void create()}>
-          Создать из шаблона
-        </button>
+        {canGenerate && (
+          <label className="brief-field">
+            <span>Замысел — что должно получиться (необязательно)</span>
+            <textarea
+              rows={4}
+              value={brief}
+              aria-label="Замысел артефакта"
+              data-testid="editor-brief"
+              onChange={(event) => setBrief(event.target.value)}
+            />
+          </label>
+        )}
+        <div className="conflict-actions">
+          {canGenerate && (
+            <button
+              type="button"
+              className="btn primary"
+              data-testid="editor-generate"
+              onClick={() => onGenerate?.(brief.trim() === '' ? null : brief.trim())}
+            >
+              Сгенерировать агентом
+            </button>
+          )}
+          <button
+            type="button"
+            className={canGenerate ? 'btn' : 'btn primary'}
+            onClick={() => void create()}
+          >
+            Пустой по шаблону
+          </button>
+        </div>
         {createError !== null && (
           <p className="notice error" role="alert" data-testid="create-error">
             {createError}

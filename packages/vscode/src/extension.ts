@@ -184,12 +184,30 @@ class OpenspecController implements vscode.Disposable {
   }
 
   async createArtifact(change: string, artifact: string, perCapability: boolean): Promise<void> {
-    const answer = await vscode.window.showInformationMessage(
-      `Артефакт «${artifact}» change «${change}» ещё не создан. Создать его по шаблону схемы?`,
-      { modal: true },
-      'Создать',
-    );
-    if (answer !== 'Создать') return;
+    const generate = 'Сгенерировать агентом';
+    const template = 'Пустой по шаблону';
+    const generable = await this.#generable(change);
+    const answer = generable.has(artifact)
+      ? await vscode.window.showInformationMessage(
+          `Артефакт «${artifact}» change «${change}» ещё не создан. Как его создать?`,
+          {
+            modal: true,
+            detail:
+              'Агент GigaCode CLI напишет его по инструкции схемы и вашему замыслу — запуск нужно будет подтвердить в разделе «Агент». По шаблону — файл с заголовками и заглушками.',
+          },
+          generate,
+          template,
+        )
+      : await vscode.window.showInformationMessage(
+          `Артефакт «${artifact}» change «${change}» ещё не создан. Создать его по шаблону схемы?`,
+          { modal: true },
+          template,
+        );
+    if (answer === generate) {
+      await this.#generate(change, artifact);
+      return;
+    }
+    if (answer !== template) return;
 
     let capabilityPath: string | undefined;
     if (perCapability) {
@@ -242,6 +260,43 @@ class OpenspecController implements vscode.Disposable {
     if (created === null) return;
     void vscode.window.showInformationMessage(`Change «${name.trim()}» создан по схеме «${picked.label}».`);
     await this.refresh();
+
+    // Замысел — по нему агент сразу напишет первый артефакт схемы, чтобы
+    // change не начинался с пустого файла.
+    const change = this.#workspace?.state === 'ready'
+      ? this.#workspace.tree.changes.find((item) => item.name === name.trim())
+      : undefined;
+    const first = change?.artifacts[0]?.id;
+    if (first === undefined || !(await this.#generable(name.trim())).has(first)) return;
+    const brief = await vscode.window.showInputBox({
+      title: `Замысел для «${name.trim()}»`,
+      prompt: `Что и зачем меняем — агент напишет по этому «${first}». Пусто или Esc — пропустить.`,
+      placeHolder: 'Например: выгрузка данных пользователя в CSV с ограничением объёма',
+    });
+    if (brief === undefined || brief.trim() === '') return;
+    await this.#panel.show('agent', { kind: 'change', id: name.trim() }, { artifact: first, brief: brief.trim() });
+  }
+
+  /** Открывает раздел «Агент» с запуском по артефакту, спросив замысел. */
+  async #generate(change: string, artifact: string): Promise<void> {
+    const brief = await vscode.window.showInputBox({
+      title: `Замысел для «${artifact}» change «${change}»`,
+      prompt: 'Что должно получиться (необязательно). Промпт и режим вы увидите перед запуском.',
+    });
+    if (brief === undefined) return;
+    await this.#panel.show(
+      'agent',
+      { kind: 'change', id: change },
+      { artifact, brief: brief.trim() === '' ? null : brief.trim() },
+    );
+  }
+
+  /** Артефакты change, у которых в схеме есть инструкция для агента. */
+  async #generable(change: string): Promise<ReadonlySet<string>> {
+    const targets = (await this.#request('GET', `/api/agent/targets?change=${encodeURIComponent(change)}`, undefined, {
+      quiet: true,
+    })) as { artifacts?: { id: string; available: boolean }[] } | null;
+    return new Set((targets?.artifacts ?? []).filter((item) => item.available).map((item) => item.id));
   }
 
   async validateCommand(node?: TreeNode): Promise<void> {

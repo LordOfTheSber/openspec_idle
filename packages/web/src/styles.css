@@ -1414,6 +1414,46 @@ button.chip:hover {
   margin-top: 4px;
 }
 
+/* Замысел автора: по нему агент пишет артефакт. */
+.new-change-brief,
+.brief-field textarea {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface-2);
+  color: var(--text);
+  resize: vertical;
+  min-width: 0;
+}
+
+.new-change-brief {
+  flex: 1 1 100%;
+}
+
+.brief-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.btn.small {
+  font-size: 11px;
+  padding: 1px 8px;
+}
+
 /* ---------- панель деталей change ---------- */
 
 .change-detail {

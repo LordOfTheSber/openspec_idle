@@ -20,11 +20,25 @@ import {
 import { formatDuration, formatTokens } from '../lib/format.js';
 import { MODES } from './Settings.js';
 
+/** Генерация артефакта агентом: с каким артефактом и замыслом открыт раздел. */
+export interface GenerateIntent {
+  readonly artifact: string;
+  readonly brief: string | null;
+}
+
 interface AgentProps {
   readonly change: string;
   /** Пункт плана, выбранный в метриках, — запуск по нему предлагается сразу. */
   readonly initialItem?: string | null;
+  /** Артефакт, который нужно сгенерировать, — запуск по нему предлагается сразу. */
+  readonly initialGenerate?: GenerateIntent | null;
 }
+
+/**
+ * Режимы, в которых неинтерактивный запуск не запишет файл: `plan` не правит
+ * ничего, `default` отклоняет правку без подтверждения.
+ */
+const NO_WRITE_MODES: ReadonlySet<ApprovalMode> = new Set(['plan', 'default']);
 
 interface Draft {
   readonly target: RunTarget;
@@ -33,6 +47,8 @@ interface Draft {
   readonly mode: ApprovalMode;
   readonly consent: boolean;
   readonly effective: EffectiveLaunch;
+  /** Почему режим отличается от настроек. */
+  readonly modeNote: string | null;
 }
 
 interface Failure {
@@ -66,6 +82,10 @@ function failure(error: unknown): Failure {
     };
   }
   return { message: error instanceof Error ? error.message : String(error), details: [], output: '', runningRunId: null };
+}
+
+function artifactTarget(artifact: string, brief: string): RunTarget {
+  return brief.trim() === '' ? { kind: 'artifact', artifact } : { kind: 'artifact', artifact, brief: brief.trim() };
 }
 
 function clock(iso: string, since: string): string {
@@ -115,7 +135,7 @@ function describe(event: AgentEvent): { mark: string; text: string; tone?: strin
   }
 }
 
-export function Agent({ change, initialItem = null }: AgentProps) {
+export function Agent({ change, initialItem = null, initialGenerate = null }: AgentProps) {
   const [targets, setTargets] = useState<AgentTargets | null>(null);
   const [history, setHistory] = useState<AgentRunRecord[]>([]);
   const [blockers, setBlockers] = useState<readonly string[]>([]);
@@ -126,6 +146,8 @@ export function Agent({ change, initialItem = null }: AgentProps) {
   const [tally, setTally] = useState<AgentStreamEvent['tally'] | null>(null);
   const [viewing, setViewing] = useState<{ record: AgentRunRecord; events: LogLine[] } | null>(null);
   const [now, setNow] = useState(() => new Date().toISOString());
+  // Замысел автора для запуска по артефакту: попадает в промпт.
+  const [brief, setBrief] = useState(initialGenerate?.brief ?? '');
   const activeRef = useRef<AgentRunRecord | null>(null);
   activeRef.current = active;
   // Быстрый запуск успевает прислать события и даже завершиться раньше, чем
@@ -159,18 +181,27 @@ export function Agent({ change, initialItem = null }: AgentProps) {
   }, [reload]);
 
   const choose = useCallback(
-    async (target: RunTarget) => {
+    async (target: RunTarget, generate = false) => {
       setError(null);
       setViewing(null);
       try {
         const built = await buildAgentPrompt(change, target);
+        const configured = built.effective.approvalMode as ApprovalMode;
+        // Генерация артефакта — это запись файла: в режимах, где запуск его не
+        // запишет, предлагается auto-edit. Настройки не меняются.
+        const bump = generate && NO_WRITE_MODES.has(configured);
         setDraft({
-          target,
+          target: built.target,
           label: built.label,
           text: built.prompt,
-          mode: built.effective.approvalMode as ApprovalMode,
+          mode: bump ? 'auto-edit' : configured,
           consent: false,
           effective: built.effective,
+          modeNote: bump
+            ? `В настройках выбран режим ${configured}: в неинтерактивном запуске он ${
+                configured === 'plan' ? 'не правит файлы' : 'отклоняет правку файлов'
+              }, и артефакт не появится. Для генерации выбран auto-edit — только для этого запуска.`
+            : null,
         });
       } catch (caught) {
         setDraft(null);
@@ -183,6 +214,12 @@ export function Agent({ change, initialItem = null }: AgentProps) {
   useEffect(() => {
     if (initialItem !== null) void choose({ kind: 'item', key: initialItem });
   }, [initialItem, choose]);
+
+  useEffect(() => {
+    if (initialGenerate === null) return;
+    setBrief(initialGenerate.brief ?? '');
+    void choose(artifactTarget(initialGenerate.artifact, initialGenerate.brief ?? ''), true);
+  }, [initialGenerate, choose]);
 
   useEffect(
     () =>
@@ -272,6 +309,17 @@ export function Agent({ change, initialItem = null }: AgentProps) {
         <p className="pane-title">
           Запуск по артефакту <span className="count">{targets?.schema ?? ''}</span>
         </p>
+        <label className="brief-field">
+          <span>Замысел — что должно получиться (необязательно)</span>
+          <textarea
+            rows={4}
+            value={brief}
+            placeholder="Например: выгрузка данных пользователя в CSV с ограничением объёма"
+            aria-label="Замысел для запуска по артефакту"
+            data-testid="agent-brief"
+            onChange={(event) => setBrief(event.target.value)}
+          />
+        </label>
         <ul className="target-list" data-testid="agent-artifacts">
           {targets?.artifacts.map((artifact) => (
             <li key={artifact.id}>
@@ -281,7 +329,7 @@ export function Agent({ change, initialItem = null }: AgentProps) {
                 disabled={!artifact.available}
                 title={artifact.reason ?? undefined}
                 data-testid={`target-artifact-${artifact.id}`}
-                onClick={() => void choose({ kind: 'artifact', artifact: artifact.id })}
+                onClick={() => void choose(artifactTarget(artifact.id, brief))}
               >
                 <span className="nm mono">{artifact.id}</span>
                 {!artifact.available && <span className="tail">нет инструкции</span>}
@@ -410,7 +458,12 @@ export function Agent({ change, initialItem = null }: AgentProps) {
                 Модель <b>{draft.effective.model ?? 'по умолчанию CLI'}</b>
               </span>
             </div>
-            <p className="hint" data-testid="run-mode-hint">
+            {draft.modeNote !== null && draft.mode === 'auto-edit' && (
+              <p className="notice info" data-testid="run-mode-note">
+                {draft.modeNote}
+              </p>
+            )}
+                        <p className="hint" data-testid="run-mode-hint">
               {MODES.find((mode) => mode.id === draft.mode)?.hint}
             </p>
             {!draft.effective.streaming && draft.effective.notice !== null && (

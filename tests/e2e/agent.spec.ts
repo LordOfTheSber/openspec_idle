@@ -188,3 +188,69 @@ test.describe('запуск агента', () => {
     await expect(page.getByTestId('item-agent')).toContainText('Запуски агента (1)');
   });
 });
+
+test.describe('генерация артефактов агентом', () => {
+  let ide: LaunchedIde;
+  let scenario: (name: string) => void;
+
+  test.beforeEach(async () => {
+    ({ ide, scenario } = await launch());
+  });
+
+  test.afterEach(async () => {
+    await ide?.stop();
+  });
+
+  test('новый change с замыслом: агент готов писать первый артефакт в режиме auto-edit', async ({ page }) => {
+    scenario('write');
+    await page.goto(ide.url);
+    await page.getByRole('button', { name: 'Доска' }).click();
+
+    await page.getByTestId('new-change').click();
+    await page.getByLabel('Имя изменения').fill('add-export');
+    await page.getByTestId('new-change-brief').fill('Выгрузка данных пользователя в CSV с ограничением объёма');
+    await expect(page.getByTestId('new-change-generate')).toBeChecked();
+    await page.getByRole('button', { name: 'Создать' }).click();
+
+    await expect(page.getByTestId('run-confirm')).toContainText('артефакт proposal');
+    await expect(page.getByLabel('Промпт запуска')).toHaveValue(
+      /## Замысел автора\s+Выгрузка данных пользователя в CSV с ограничением объёма[\s\S]*## Инструкция схемы/,
+    );
+    await expect(page.getByLabel('Режим подтверждения')).toHaveValue('auto-edit');
+    await expect(page.getByTestId('run-mode-note')).toContainText('default');
+
+    await page.getByTestId('run-start').click();
+    await expect(page.getByTestId('run-view')).toHaveAttribute('data-outcome', 'success', { timeout: 15_000 });
+    // Настройки не меняются: auto-edit выбран только для этого запуска.
+    const config = JSON.parse(readFileSync(join(ide.root, '.openspec-ide/config.json'), 'utf8')) as {
+      agent: { approvalMode?: string };
+    };
+    expect(config.agent.approvalMode ?? 'default').toBe('default');
+  });
+
+  test('«Сгенерировать» у несозданного артефакта в панели деталей открывает агента по нему', async ({ page }) => {
+    await page.goto(ide.url);
+    await page.getByRole('button', { name: 'Доска' }).click();
+    await page.getByTestId('new-change').click();
+    await page.getByLabel('Имя изменения').fill('add-thing');
+    await page.getByRole('button', { name: 'Создать' }).click();
+    await expect(page.getByTestId('card-add-thing')).toBeVisible();
+
+    await page.getByTestId('card-open-add-thing').click();
+    await page.getByTestId('detail-generate-proposal').click();
+
+    await expect(page.getByTestId('run-confirm')).toContainText('артефакт proposal');
+    await expect(page.getByLabel('Промпт запуска')).toHaveValue(/openspec\/changes\/add-thing\/proposal\.md/);
+    await expect(page.getByLabel('Промпт запуска')).not.toHaveValue(/Замысел автора/);
+  });
+
+  test('замысел в разделе «Агент» попадает в промпт, режим остаётся из настроек', async ({ page }) => {
+    await openAgent(page, ide.url);
+
+    await page.getByTestId('agent-brief').fill('Описать решение по таймаутам');
+    await page.getByTestId('target-artifact-design').click();
+
+    await expect(page.getByLabel('Промпт запуска')).toHaveValue(/## Замысел автора\s+Описать решение по таймаутам/);
+    await expect(page.getByLabel('Режим подтверждения')).toHaveValue('default');
+  });
+});

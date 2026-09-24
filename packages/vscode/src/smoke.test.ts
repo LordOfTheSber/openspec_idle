@@ -168,12 +168,33 @@ describe('расширение VS Code: дерево и редактор', () =>
     const node = findNode(topNodes(state), 'artifact:bare-feature/proposal');
     expect(node?.contextValue).toBe('artifact-missing');
 
-    state.answers.push('Создать');
+    state.answers.push('Пустой по шаблону');
     await command(state, 'openspec.openNode', node);
 
     const created = join(root, 'openspec', 'changes', 'bare-feature', 'proposal.md');
     expect(existsSync(created)).toBe(true);
     expect(state.shownDocuments.at(-1)?.path).toBe(created);
+    expect(state.messages.at(-1)?.buttons).toEqual(['Сгенерировать агентом', 'Пустой по шаблону']);
+  });
+
+  it('отсутствующий артефакт генерируется агентом: панель открывается на агенте с замыслом', async () => {
+    const root = copyFixture('bare-change');
+    const state = await activate([root]);
+
+    state.answers.push('Сгенерировать агентом', 'Выгрузка данных в CSV');
+    await command(state, 'openspec.openNode', findNode(topNodes(state), 'artifact:bare-feature/proposal'));
+
+    const panel = lastPanel(state);
+    panel.webview.receive({ kind: 'ready' });
+    await until(() => panel.webview.posted.length > 0, 'навигация к агенту');
+    expect(panel.webview.posted[0]).toEqual({
+      kind: 'navigate',
+      section: 'agent',
+      selection: { kind: 'change', id: 'bare-feature' },
+      agent: { artifact: 'proposal', brief: 'Выгрузка данных в CSV' },
+    });
+    // Файл пишет агент после подтверждения запуска, а не расширение.
+    expect(existsSync(join(root, 'openspec', 'changes', 'bare-feature', 'proposal.md'))).toBe(false);
   });
 });
 
@@ -280,6 +301,23 @@ describe('расширение VS Code: валидация и команды', (
 
     expect(existsSync(join(root, 'openspec', 'changes', 'add-thing'))).toBe(true);
     await until(() => findNode(topNodes(state), 'change:add-thing') !== undefined, 'change в дереве');
+  });
+
+  it('создаёт change с замыслом и открывает агента по первому артефакту схемы', async () => {
+    const root = copyFixture('empty');
+    const state = await activate([root]);
+
+    state.answers.push('add-export', 'spec-driven', 'Выгрузка данных пользователя в CSV');
+    await command(state, 'openspec.newChange');
+
+    const panel = lastPanel(state);
+    panel.webview.receive({ kind: 'ready' });
+    await until(() => panel.webview.posted.length > 0, 'навигация к агенту');
+    expect(panel.webview.posted[0]).toMatchObject({
+      section: 'agent',
+      selection: { kind: 'change', id: 'add-export' },
+      agent: { artifact: 'proposal', brief: 'Выгрузка данных пользователя в CSV' },
+    });
   });
 
   it('архивирует change из палитры: подтверждение перечисляет изменения спеков', async () => {

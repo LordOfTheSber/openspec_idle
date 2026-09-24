@@ -155,10 +155,12 @@ export {
 
 export {
   API_METHODS,
+  MAX_INTENT_BRIEF,
   PANEL_SECTIONS,
   isPanelApiPath,
   parseHostMessage,
   parseViewMessage,
+  type AgentIntent,
   type ApiMethod,
   type HostEvent,
   type HostMessage,

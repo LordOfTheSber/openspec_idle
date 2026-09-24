@@ -36,15 +36,19 @@ export interface BoardProps {
   readonly onOpenArtifact: (change: string, artifactId: string, path: string | null) => void;
   /** Открыть файл рабочего пространства на строке. */
   readonly onOpenFile: (path: string, line: number | null) => void;
+  /** Сгенерировать артефакт change агентом с замыслом автора. */
+  readonly onGenerate: (change: string, artifact: string, brief: string | null) => void;
 }
 
-export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact, onOpenFile }: BoardProps) {
+export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact, onOpenFile, onGenerate }: BoardProps) {
   const [board, setBoard] = useState<BoardModel | null>(null);
   const [error, setError] = useState<{ message: string; output: string } | null>(null);
   const [selected, setSelected] = useState<{ change: string; intent: DetailIntent } | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newSchema, setNewSchema] = useState('');
+  const [newBrief, setNewBrief] = useState('');
+  const [generateFirst, setGenerateFirst] = useState(true);
   const [filter, setFilter] = useState('');
   const [mode, setMode] = useState<BoardMode>(() => readPref('board-mode', MODES, 'auto'));
   const [showEmpty, setShowEmpty] = useState(() => readPref('board-empty', ['show', 'collapse'], 'collapse') === 'show');
@@ -105,11 +109,21 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
   async function create(): Promise<void> {
     setError(null);
     try {
-      await createChange(newName, newSchema === '' ? undefined : newSchema);
+      const name = newName.trim();
+      await createChange(name, newSchema === '' ? undefined : newSchema);
+      const brief = newBrief.trim();
       setNewName('');
+      setNewBrief('');
       setCreating(false);
-      await reload();
+      const next = await fetchBoard();
+      setBoard(next);
       onChanged();
+      // С замыслом change сразу получает первый артефакт от агента — тот, в
+      // колонке которого стоит его карточка.
+      const first = next.cards.find((card) => card.change === name)?.column;
+      if (brief !== '' && generateFirst && first !== undefined && next.columns.some((column) => column.id === first && column.isArtifact)) {
+        onGenerate(name, first, brief);
+      }
     } catch (problem) {
       const payload = problem as { message?: string; output?: string };
       setError({
@@ -204,6 +218,26 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
           <button type="submit" className="btn primary">
             Создать
           </button>
+          <textarea
+            className="new-change-brief"
+            rows={3}
+            value={newBrief}
+            placeholder="Замысел: что и зачем меняем (необязательно) — по нему агент напишет первый артефакт"
+            aria-label="Замысел изменения"
+            data-testid="new-change-brief"
+            onChange={(event) => setNewBrief(event.target.value)}
+          />
+          {newBrief.trim() !== '' && (
+            <label className="inline-check">
+              <input
+                type="checkbox"
+                checked={generateFirst}
+                onChange={(event) => setGenerateFirst(event.target.checked)}
+                data-testid="new-change-generate"
+              />
+              Сгенерировать первый артефакт агентом
+            </label>
+          )}
         </form>
       )}
 
@@ -257,6 +291,7 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
               onNavigate={onNavigate}
               onOpenArtifact={onOpenArtifact}
               onOpenFile={onOpenFile}
+              onGenerate={(artifact) => onGenerate(card.change, artifact, null)}
               onChanged={async () => {
                 await reload();
                 onChanged();

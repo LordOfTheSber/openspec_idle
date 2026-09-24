@@ -21,7 +21,7 @@ import { MetricsStore } from './metricsStore.js';
 import { ArtifactCreationError, SNIPPETS, createArtifact } from './artifacts.js';
 import { StaleWriteError, WriteFailedError, readArtifactFile, saveArtifactFile } from './files.js';
 import { ValidationRunner } from './validation.js';
-import { PromptBuilder, PromptError, type RunTarget } from './agent/prompt.js';
+import { PromptBuilder, PromptError, type RunTarget, normalizeBrief } from './agent/prompt.js';
 import {
   APPROVAL_MODES,
   AgentBlockedError,
@@ -506,9 +506,10 @@ export function createApp(options: ServerOptions): AppParts {
     return { agent, prompts };
   };
   const readTarget = (value: unknown): RunTarget => {
-    const target = (value ?? {}) as { kind?: string; artifact?: string; key?: string };
+    const target = (value ?? {}) as { kind?: string; artifact?: string; key?: string; brief?: unknown };
     if (target.kind === 'artifact' && typeof target.artifact === 'string') {
-      return { kind: 'artifact', artifact: target.artifact };
+      const brief = normalizeBrief(target.brief);
+      return brief === undefined ? { kind: 'artifact', artifact: target.artifact } : { kind: 'artifact', artifact: target.artifact, brief };
     }
     if (target.kind === 'item' && typeof target.key === 'string') return { kind: 'item', key: target.key };
     throw new PromptError('Не указана цель запуска: артефакт или пункт плана');
