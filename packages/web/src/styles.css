@@ -2214,3 +2214,40 @@ table.m td.task {
     padding-right: 0;
   }
 }
+
+/*
+ * Панель VS Code: цвета и шрифты берутся из темы редактора. VS Code задаёт
+ * переменные --vscode-* сам и обновляет их при смене темы, поэтому панель
+ * перекрашивается без перезагрузки. Цвета дельт — из декораций git, чтобы
+ * ADDED / MODIFIED / REMOVED оставались различимыми в любой теме.
+ */
+:root[data-host='vscode'] {
+  --bg: var(--vscode-editor-background);
+  --surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --surface-2: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  --surface-3: var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background));
+  --border: var(--vscode-panel-border, var(--vscode-widget-border, rgba(128, 128, 128, 0.35)));
+  --border-strong: var(--vscode-editorWidget-border, var(--vscode-focusBorder));
+  --text: var(--vscode-foreground);
+  --text-2: var(--vscode-descriptionForeground, var(--vscode-foreground));
+  --muted: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+  --accent: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+  --accent-soft: var(--vscode-list-inactiveSelectionBackground, var(--vscode-editorWidget-background));
+  --accent-line: var(--vscode-focusBorder);
+
+  --added: var(--vscode-gitDecoration-addedResourceForeground, #2f7a4f);
+  --added-soft: var(--vscode-diffEditor-insertedTextBackground, rgba(47, 122, 79, 0.15));
+  --modified: var(--vscode-gitDecoration-modifiedResourceForeground, #9a6212);
+  --modified-soft: color-mix(in srgb, var(--modified) 15%, transparent);
+  --removed: var(--vscode-gitDecoration-deletedResourceForeground, #b03a2e);
+  --removed-soft: var(--vscode-diffEditor-removedTextBackground, rgba(176, 58, 46, 0.15));
+
+  --sans: var(--vscode-font-family);
+  --mono: var(--vscode-editor-font-family);
+}
+
+:root[data-host='vscode'] body {
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+}

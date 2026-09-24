@@ -9,6 +9,7 @@ import {
   type MetricsResponse,
 } from '../lib/api.js';
 import { formatDuration, formatShare, formatTokens, plural } from '../lib/format.js';
+import { inVsCode, openInEditor } from '../lib/host.js';
 
 const STATE_LABEL: Record<ItemMetrics['state'], string> = {
   'not-started': 'не начата',
@@ -286,7 +287,20 @@ export function Metrics({
             <dt>Возвратов в работу</dt>
             <dd>{current.reopenCount}</dd>
             <dt>Затронуто файлов</dt>
-            <dd>{current.files.length === 0 ? '—' : current.files.join(', ')}</dd>
+            <dd>
+              {current.files.length === 0
+                ? '—'
+                : inVsCode()
+                  ? current.files.map((file, index) => (
+                      <span key={file}>
+                        {index > 0 && ', '}
+                        <button type="button" className="linklike mono" onClick={() => openInEditor(file)}>
+                          {file}
+                        </button>
+                      </span>
+                    ))
+                  : current.files.join(', ')}
+            </dd>
           </dl>
 
           <div className="item-actions">

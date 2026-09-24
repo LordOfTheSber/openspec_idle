@@ -18,6 +18,7 @@ import {
   WorkspaceConnection,
   eventSourceTransport,
 } from './lib/connection.js';
+import { messageStreamTransport, onNavigate, openInEditor, vscodeHost } from './lib/host.js';
 
 type Section = 'explorer' | 'deltas' | 'board' | 'metrics' | 'agent' | 'settings' | 'processes' | 'search';
 
@@ -32,6 +33,17 @@ const SECTION_TITLE: Record<Section, string> = {
   search: 'Поиск',
 };
 
+const RAIL: readonly { section: Section; short: string }[] = [
+  { section: 'explorer', short: 'Об' },
+  { section: 'deltas', short: 'Дл' },
+  { section: 'board', short: 'Дс' },
+  { section: 'metrics', short: 'Мт' },
+  { section: 'agent', short: 'Аг' },
+  { section: 'settings', short: 'Нс' },
+  { section: 'processes', short: 'Пр' },
+  { section: 'search', short: 'По' },
+];
+
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
   connecting: 'подключение…',
   connected: 'наблюдение за файлами',
@@ -39,7 +51,10 @@ const CONNECTION_LABEL: Record<ConnectionState, string> = {
 };
 
 export function App() {
-  const [section, setSection] = useState<Section>('explorer');
+  // В панели VS Code артефакты редактируются в редакторе VS Code, поэтому
+  // раздела «Обозреватель» со встроенным редактором там нет.
+  const host = vscodeHost();
+  const [section, setSection] = useState<Section>(host === null ? 'explorer' : 'board');
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
@@ -64,7 +79,9 @@ export function App() {
 
     const instance = new WorkspaceConnection({
       connect: () =>
-        eventSourceTransport(eventsUrl(), ['connected', 'workspace-changed', ...AGENT_EVENT_TYPES]),
+        host === null
+          ? eventSourceTransport(eventsUrl(), ['connected', 'workspace-changed', ...AGENT_EVENT_TYPES])
+          : messageStreamTransport(host),
       onState: setConnection,
       onEvent: (event) => {
         if (event.type === 'workspace-changed') {
@@ -88,88 +105,49 @@ export function App() {
       instance.stop();
       connectionRef.current = null;
     };
-  }, [reload]);
+  }, [reload, host]);
+
+  // Команды палитры и контекстное меню дерева VS Code переключают раздел и
+  // выбор в уже открытой панели.
+  useEffect(() => {
+    if (host === null) return;
+    const unsubscribe = onNavigate((next, nextSelection) => {
+      if (next !== 'agent') setAgentItem(null);
+      setSection(next);
+      if (nextSelection !== null) setSelection(nextSelection);
+    });
+    host.post({ kind: 'ready' });
+    return unsubscribe;
+  }, [host]);
 
   const tree = workspace?.state === 'ready' ? workspace.tree : null;
+
+  const select = (next: Selection): void => {
+    setSelection(next);
+    if (host === null || next.kind !== 'artifact' || next.parent === undefined) return;
+    const change = tree?.changes.find((item) => item.name === next.parent);
+    const file = change?.artifacts.find((item) => item.id === next.id)?.files[0];
+    if (file !== undefined) openInEditor(`openspec/changes/${next.parent}/${file}`);
+  };
 
   return (
     <div className="app">
       <nav className="rail" aria-label="Разделы">
-        <button
-          type="button"
-          aria-current={section === 'explorer'}
-          aria-label="Обозреватель"
-          title="Обозреватель"
-          onClick={() => setSection('explorer')}
-        >
-          Об
-        </button>
-        <button
-          type="button"
-          aria-current={section === 'deltas'}
-          aria-label="Дельты"
-          title="Дельты"
-          onClick={() => setSection('deltas')}
-        >
-          Дл
-        </button>
-        <button
-          type="button"
-          aria-current={section === 'board'}
-          aria-label="Доска"
-          title="Доска"
-          onClick={() => setSection('board')}
-        >
-          Дс
-        </button>
-        <button
-          type="button"
-          aria-current={section === 'metrics'}
-          aria-label="Метрики"
-          title="Метрики"
-          onClick={() => setSection('metrics')}
-        >
-          Мт
-        </button>
-        <button
-          type="button"
-          aria-current={section === 'agent'}
-          aria-label="Агент"
-          title="Агент"
-          onClick={() => {
-            setAgentItem(null);
-            setSection('agent');
-          }}
-        >
-          Аг
-        </button>
-        <button
-          type="button"
-          aria-current={section === 'settings'}
-          aria-label="Настройки"
-          title="Настройки"
-          onClick={() => setSection('settings')}
-        >
-          Нс
-        </button>
-        <button
-          type="button"
-          aria-current={section === 'processes'}
-          aria-label="Процессы"
-          title="Процессы"
-          onClick={() => setSection('processes')}
-        >
-          Пр
-        </button>
-        <button
-          type="button"
-          aria-current={section === 'search'}
-          aria-label="Поиск"
-          title="Поиск"
-          onClick={() => setSection('search')}
-        >
-          По
-        </button>
+        {RAIL.filter((entry) => host === null || entry.section !== 'explorer').map((entry) => (
+          <button
+            key={entry.section}
+            type="button"
+            aria-current={section === entry.section}
+            aria-label={SECTION_TITLE[entry.section]}
+            title={SECTION_TITLE[entry.section]}
+            onClick={() => {
+              if (entry.section === 'agent') setAgentItem(null);
+              setSection(entry.section);
+            }}
+          >
+            {entry.short}
+          </button>
+        ))}
       </nav>
 
       <div className="stage">
@@ -187,7 +165,7 @@ export function App() {
               {tree === null ? (
                 <p className="empty">Загрузка…</p>
               ) : (
-                <Tree tree={tree} selection={selection} onSelect={setSelection} />
+                <Tree tree={tree} selection={selection} onSelect={select} />
               )}
             </div>
           )}
