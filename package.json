@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Локальная web-среда для работы по методологии OpenSpec",
+  "description": "OpenSpec IDE — расширение VS Code для работы по методологии OpenSpec",
   "license": "MIT",
   "engines": {
     "node": ">=22"
@@ -12,15 +12,16 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b packages/core packages/server packages/cli && npm run build -w @openspec-ide/web",
-    "typecheck": "tsc -b packages/core packages/server packages/cli && tsc -p packages/web --noEmit",
+    "build": "tsc -b packages/core packages/server && npm run build -w @openspec-ide/web && npm run build -w openspec-ide",
+    "typecheck": "tsc -b packages/core packages/server && tsc -p packages/web --noEmit && tsc -p packages/vscode",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run typecheck && npm run lint && npm run test",
     "dev": "node scripts/dev.mjs",
-    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo",
-    "test:e2e": "npm run build && playwright test"
+    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo packages/vscode/media/web",
+    "test:e2e": "npm run build && playwright test",
+    "package": "npm run build -w @openspec-ide/web && npm run package -w openspec-ide"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

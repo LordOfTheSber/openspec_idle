@@ -7,6 +7,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/node_modules/**',
       'docs/mockups/**',
+      'packages/vscode/media/web/**',
       'tests/fixtures/**',
       '**/*.tsbuildinfo',
     ],
@@ -28,7 +29,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs', 'packages/vscode/*.mjs'],
     languageOptions: {
       globals: {
         console: 'readonly',
@@ -40,7 +41,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['packages/cli/**/*.ts', 'scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs'],
+    files: ['packages/cli/**/*.ts', 'scripts/**/*.mjs', 'packages/cli/bin/*.js', 'tests/agent/**/*.mjs', 'packages/vscode/*.mjs'],
     rules: { 'no-console': 'off' },
   },
   {

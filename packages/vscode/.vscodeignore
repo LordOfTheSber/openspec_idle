@@ -1,0 +1,9 @@
+# В .vsix попадают только манифест, бандл, собранный интерфейс и документы:
+# зависимости уже внутри dist/extension.cjs.
+**
+!package.json
+!README.md
+!LICENSE
+!dist/extension.cjs
+!media/openspec.svg
+!media/web/**
