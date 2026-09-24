@@ -61,11 +61,40 @@ async function call<T>(method: ApiMethod, path: string, body?: unknown): Promise
   }
   const details = payload?.['details'];
   const output = payload?.['output'];
+  if (isUnknownRoute(response.status, payload)) {
+    throw new ApiError(unknownRouteMessage(path), [], '', payload ?? {});
+  }
   throw new ApiError(
     typeof payload?.['error'] === 'string' ? payload['error'] : `Запрос ${path} завершился с кодом ${response.status}`,
     Array.isArray(details) ? details.filter((item): item is string => typeof item === 'string') : [],
     typeof output === 'string' ? output : '',
     payload ?? {},
+  );
+}
+
+/**
+ * Бэкенд не знает маршрута — это стандартный 404 Fastify, а не отказ самого
+ * маршрута (у тех всегда своё пояснение).
+ *
+ * На практике так бывает в VS Code, когда .vsix той же версии поставлен
+ * поверх прежнего: панель загружает новый интерфейс с диска, а хост
+ * расширений до перезагрузки окна держит в памяти старый бэкенд.
+ */
+function isUnknownRoute(status: number, payload: Record<string, unknown> | null): boolean {
+  return (
+    status === 404 &&
+    payload?.['error'] === 'Not Found' &&
+    typeof payload['message'] === 'string' &&
+    payload['message'].startsWith('Route ')
+  );
+}
+
+function unknownRouteMessage(path: string): string {
+  const route = path.split('?')[0] ?? path;
+  return (
+    `Бэкенд не знает маршрута ${route}: интерфейс новее запущенного бэкенда. ` +
+    'Если расширение только что обновлено, перезагрузите окно VS Code ' +
+    '(команда «Developer: Reload Window»).'
   );
 }
 

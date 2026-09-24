@@ -91,6 +91,23 @@ describe('транспорт сообщений панели', () => {
     expect((error as ApiError).details).toEqual(['a']);
   });
 
+  it('неизвестный бэкенду маршрут объясняется, а не показывается как «Not Found»', async () => {
+    const { source, sent } = setup();
+
+    const reading = fetchFile('openspec/a.md');
+    source.deliver({
+      kind: 'response',
+      id: (sent[0] as { id: number }).id,
+      status: 404,
+      body: { message: 'Route GET:/api/file?path=openspec%2Fa.md not found', error: 'Not Found', statusCode: 404 },
+    });
+
+    const error = await reading.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toContain('Бэкенд не знает маршрута /api/file');
+    expect((error as ApiError).message).toContain('Developer: Reload Window');
+  });
+
   it('отбрасывает сообщения, не прошедшие разбор, и ответы на неизвестный номер', async () => {
     const { source, channel } = setup();
     const pending = channel.transport.request('GET', '/api/board');
