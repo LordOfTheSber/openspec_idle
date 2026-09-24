@@ -1149,6 +1149,240 @@
   }
   .foot-note code { font-family: var(--mono); color: var(--text-2); }
 
+  /* ---------- окно VS Code ---------- */
+
+  .vsc {
+    display: grid;
+    grid-template-columns: 44px 216px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-height: 620px;
+  }
+  .vsc.no-side { grid-template-columns: 44px minmax(0, 1fr); }
+  .vsc-act {
+    grid-row: 1;
+    background: var(--surface-3);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 0;
+  }
+  .vsc-act i {
+    width: 26px; height: 26px;
+    border-radius: 5px;
+    display: grid;
+    place-items: center;
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-left: 2px solid transparent;
+  }
+  .vsc-act i.on { color: var(--accent); border-left-color: var(--accent); border-radius: 0; }
+  .vsc-side {
+    grid-row: 1;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    padding: 8px 8px 12px;
+    min-width: 0;
+    font-size: 12.5px;
+  }
+  .vsc-side .side-head {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 2px 4px 8px;
+    display: flex;
+    gap: 6px;
+  }
+  .vsc-side .side-head span { margin-left: auto; letter-spacing: 0; }
+  .vsc-main { grid-row: 1; min-width: 0; display: flex; flex-direction: column; }
+  .vsc-groups { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; }
+  .vsc-groups.split { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+  .vsc-groups.split > .vsc-group + .vsc-group { border-left: 1px solid var(--border-strong); }
+  .vsc-group { min-width: 0; display: flex; flex-direction: column; }
+  .vsc-tabs {
+    display: flex;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .vsc-tab {
+    font-size: 12px;
+    padding: 7px 14px;
+    color: var(--muted);
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .vsc-tab.on { background: var(--surface); color: var(--text); border-top: 2px solid var(--accent); padding-top: 5px; }
+  .vsc-tab .ro { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .vsc-status {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 3px 12px;
+    background: var(--accent);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  :root[data-theme="dark"] .vsc-status { color: #2A1520; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .vsc-status { color: #2A1520; }
+  }
+  .vsc-status .spacer { flex: 1; }
+  .vsc .app { min-height: 0; flex: 1; }
+
+  /* ---------- новая доска в панели ---------- */
+
+  .board-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px 0;
+  }
+  .search {
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    border-radius: var(--r);
+    padding: 4px 9px;
+    min-width: 150px;
+  }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; font-size: 12px; }
+  .seg span { padding: 4px 10px; color: var(--text-2); }
+  .seg span + span { border-left: 1px solid var(--border); }
+  .seg span.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  .board-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; padding: 12px 14px 14px; align-items: start; }
+  .board-body.solo { grid-template-columns: minmax(0, 1fr); }
+
+  .vboard { display: grid; gap: 8px; align-items: start; overflow-x: auto; }
+  .strip {
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r);
+    min-height: 150px;
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .strip b { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 500; white-space: nowrap; }
+  .card .head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .card .head h4 { margin: 0; }
+  .card .age { margin-left: auto; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .chip.link { text-decoration: underline; text-underline-offset: 2px; }
+  .chip.mod { background: var(--modified-soft); color: var(--modified); }
+
+  .detail {
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface);
+    padding: 11px 12px;
+    font-size: 12.5px;
+    min-width: 0;
+  }
+  .detail .dh { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
+  .detail .dh .nm { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+  .detail .dh .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .detail .dh .x { margin-left: auto; color: var(--muted); font-size: 16px; line-height: 1; }
+  .detail .acts { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .detail .blk { border-top: 1px solid var(--border); padding-top: 9px; margin-top: 9px; }
+  .detail .arts { list-style: none; margin: 0; padding: 0; }
+  .detail .arts li { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+  .detail .arts .f { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .detail .arts a { color: var(--accent); text-decoration: none; }
+  .detail .gt { font-weight: 600; font-size: 12px; margin: 4px 0 2px; color: var(--text-2); }
+  .detail .its { list-style: none; margin: 0; padding: 0; }
+  .detail .its li { display: flex; gap: 7px; align-items: baseline; padding: 2px 0; color: var(--text-2); }
+  .detail .its .bx {
+    width: 12px; height: 12px; flex: 0 0 auto;
+    border: 1px solid var(--border-strong); border-radius: 3px;
+    display: grid; place-items: center; font-size: 9px; transform: translateY(2px);
+  }
+  .detail .its .bx.x { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .detail .its .no { font-family: var(--mono); font-size: 10.5px; color: var(--accent); }
+
+  .plist { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px 14px; }
+  .phase > header {
+    display: flex; gap: 8px; align-items: center;
+    padding-bottom: 6px; margin-bottom: 8px;
+    border-bottom: 2px solid var(--border-strong);
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+  }
+  .phase > header span { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 11px; }
+  .phase.empty > header { border-bottom: 1px dashed var(--border); color: var(--muted); margin-bottom: 0; }
+  .card.row { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 4px 14px; align-items: center; }
+  .card.row .head, .card.row .chips { grid-column: 1; margin-bottom: 0; }
+  .card.row .meter { grid-column: 2; grid-row: 1; margin: 0; }
+  .card.row .foot { grid-column: 2; grid-row: 2; }
+
+  /* ---------- предпросмотр архивации ---------- */
+
+  .confirm { border: 1px solid var(--accent-line); border-radius: var(--r); padding: 10px 11px; margin-bottom: 10px; }
+  .outcome { border-radius: var(--r); padding: 9px 11px; font-size: 12.5px; margin-bottom: 9px; }
+  .outcome.ok { background: var(--added-soft); color: var(--added); }
+  .outcome.bad { background: var(--removed-soft); color: var(--removed); }
+  .outcome b { font-weight: 600; }
+  .outcome .t { font-family: var(--mono); font-size: 11px; margin-left: 8px; }
+  .outcome p { margin: 5px 0 0; }
+  .outcome .fix { font-size: 11.5px; opacity: .85; }
+  .specp { border: 1px solid var(--border); border-radius: var(--r); padding: 9px 10px; margin-bottom: 9px; }
+  .specp header { display: flex; flex-wrap: wrap; gap: 6px 9px; align-items: center; margin-bottom: 6px; }
+  .specp .cap { font-family: var(--mono); font-weight: 600; font-size: 12px; }
+  .specp .cnt { font-family: var(--mono); font-size: 11px; display: inline-flex; gap: 5px; }
+  .cnt .a { color: var(--added); } .cnt .m { color: var(--modified); } .cnt .r { color: var(--renamed); } .cnt .d { color: var(--removed); }
+  .rq { list-style: none; margin: 0 0 6px; padding: 0; font-size: 12.5px; }
+  .rq li { display: flex; flex-wrap: wrap; gap: 2px 7px; align-items: baseline; padding: 3px 0 3px 7px; border-left: 3px solid transparent; }
+  .rq li + li { border-top: 1px solid var(--border); }
+  .rq .g { font-family: var(--mono); width: 10px; }
+  .rq .k { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .rq .sc { flex-basis: 100%; padding-left: 17px; font-size: 11.5px; }
+  .rq li.a { border-left-color: var(--added); } .rq li.a .g, .rq li.a .k, .rq .sc.p { color: var(--added); }
+  .rq li.m { border-left-color: var(--modified); } .rq li.m .g, .rq li.m .k { color: var(--modified); }
+  .rq li.r { border-left-color: var(--renamed); } .rq li.r .g, .rq li.r .k { color: var(--renamed); }
+  .rq li.d { border-left-color: var(--removed); color: var(--removed); } .rq li.d .nm { text-decoration: line-through; } .rq li.d .k, .rq .sc.x { color: var(--removed); }
+  .lnk { font-size: 11.5px; color: var(--accent); }
+  .lnk code { font-family: var(--mono); font-size: 11px; }
+
+  .sbs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); flex: 1; font-family: var(--mono); font-size: 11.5px; line-height: 1.7; }
+  .sbs > div { min-width: 0; overflow: hidden; padding: 6px 0; }
+  .sbs > div + div { border-left: 1px solid var(--border); }
+  .sbs .l { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; padding-right: 8px; white-space: nowrap; min-height: 1.7em; }
+  .sbs .l > span:first-child { color: var(--muted); opacity: .6; text-align: right; font-size: 10.5px; }
+  .sbs .l > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+  .sbs .l.p { background: var(--added-soft); color: var(--added); }
+  .sbs .l.m { background: var(--removed-soft); color: var(--removed); }
+  .sbs .l.e { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--surface-2) 5px 10px); }
+  .sbs .l .h { font-weight: 600; }
+
+  .note-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .modal {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+    padding: 14px 16px;
+    font-size: 12.5px;
+  }
+  .modal h5 { margin: 0 0 6px; font-size: 13px; }
+  .modal pre { margin: 0 0 10px; font-family: var(--mono); font-size: 11.5px; color: var(--text-2); white-space: pre-wrap; }
+  .modal .mb { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .btn[disabled] { opacity: .5; }
+
   /* ---------- narrow ---------- */
 
   @media (max-width: 900px) {
@@ -1156,6 +1390,12 @@
     .panes.explorer > .pane:nth-child(3) { display: none; }
     .caption { grid-template-columns: minmax(0, 1fr); gap: 20px; }
     .two-col { grid-template-columns: 1fr; }
+    .vsc { grid-template-columns: 44px minmax(0, 1fr); }
+    .vsc-side { display: none; }
+    .board-body { grid-template-columns: minmax(0, 1fr); }
+    .vsc-groups.split { grid-template-columns: minmax(0, 1fr); }
+    .vsc-groups.split > .vsc-group + .vsc-group { border-left: 0; border-top: 1px solid var(--border-strong); }
+    .note-row { grid-template-columns: minmax(0, 1fr); }
   }
 
   @media (max-width: 680px) {
@@ -1166,20 +1406,26 @@
     .panes.explorer > .pane:nth-child(1), .panes.two > .pane:nth-child(1) { border-bottom: 1px solid var(--border); }
     .pane + .pane { border-left: 0; }
     .board { grid-template-columns: repeat(4, 78vw); }
+    .vsc, .vsc.no-side { grid-template-columns: minmax(0, 1fr); }
+    .vsc-act { display: none; }
+    .vboard { grid-template-columns: repeat(3, 30px) repeat(4, 70vw) !important; }
+    .sbs { grid-template-columns: minmax(0, 1fr); }
+    .sbs > div + div { border-left: 0; border-top: 1px solid var(--border); }
   }
 </style>
 
 <div class="wrap">
 
-  <p class="eyebrow">Change <code>add-openspec-ide</code> · фаза макетов</p>
+  <p class="eyebrow">Changes <code>add-openspec-ide</code> · <code>add-vscode-extension</code> · <code>rework-board-archive-preview</code></p>
   <h1>OpenSpec IDE</h1>
   <p class="lede">
     Локальная среда для работы по OpenSpec: артефакты change редактируются с живой
     валидацией, дельты читаются как требования, а не как markdown, процесс виден на доске,
     каждый пункт плана несёт метрики, и агент запускается через GigaCode CLI с бюджетом.
     Сам процесс при этом собирается под команду — но только такой, который остаётся
-    спек-ориентированным. Семь экранов ниже — макеты к 47 требованиям спецификации
-    этого change.
+    спек-ориентированным. Восемь экранов ниже — макеты к 47 требованиям исходного change;
+    экраны «Доска» и «Архивация» уже показывают IDE внутри VS Code — с предпросмотром того,
+    что архивация сделает с основными спеками.
   </p>
 
   <dl class="facts">
@@ -1199,6 +1445,7 @@
       <button role="tab" aria-selected="false" data-screen="s5"><span class="num">05</span> Агент</button>
       <button role="tab" aria-selected="false" data-screen="s6"><span class="num">06</span> Настройки</button>
       <button role="tab" aria-selected="false" data-screen="s7"><span class="num">07</span> Процессы</button>
+      <button role="tab" aria-selected="false" data-screen="s8"><span class="num">08</span> Архивация</button>
     </div>
     <button class="theme-btn" id="theme">Тема</button>
   </div>
@@ -1463,122 +1710,243 @@
     <div class="window">
       <div class="chrome">
         <div class="dots"><i></i><i></i><i></i></div>
-        <div class="addr">127.0.0.1:7410 — доска процесса</div>
+        <div class="addr">openspec_idle — Visual Studio Code · панель «OpenSpec: Доска» во всю ширину</div>
       </div>
-      <div class="app">
-        <nav class="rail">
-          <i>Об</i><i>Дл</i><i class="on">Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i><i>Пр</i>
-        </nav>
-        <div class="stage">
-          <div class="toolbar">
-            <h2>Доска</h2>
-            <span class="crumbs">фаза вычисляется из openspec status, вручную не двигается</span>
-            <span class="spacer"></span>
-            <button class="btn primary">Новый change</button>
+      <div class="vsc no-side">
+        <nav class="vsc-act"><i>⧉</i><i>⌕</i><i>⑂</i><i class="on">OS</i></nav>
+        <div class="vsc-main">
+          <div class="vsc-tabs">
+            <span class="vsc-tab">tasks.md</span>
+            <span class="vsc-tab on">OpenSpec: Доска</span>
           </div>
+          <div class="app">
+            <nav class="rail">
+              <i>Дл</i><i class="on">Дс</i><hr><i>Мт</i><i>Аг</i><i>Нс</i><i>Пр</i><i>По</i>
+            </nav>
+            <div class="stage">
+              <div class="toolbar">
+                <h2>Доска</h2>
+                <span class="crumbs">~/work/openspec_idle</span>
+              </div>
 
-          <div class="board">
-            <div class="col p1">
-              <header><h3>Предложение</h3><span class="n">1</span></header>
-              <div class="card">
-                <h4>extract-metrics-export</h4>
-                <div class="chips">
-                  <span class="chip on">proposal</span>
-                  <span class="chip no">specs</span>
-                  <span class="chip no">design</span>
-                  <span class="chip no">tasks</span>
+              <div class="board-tools">
+                <span class="btn primary">Новое изменение</span>
+                <span class="search">фильтр по имени</span>
+                <span class="seg"><span class="on">Авто</span><span>Колонки</span><span>Список</span></span>
+                <span class="btn">Показать пустые</span>
+                <span class="crumbs">фаза выводится из файлов — карточку не перетащить</span>
+              </div>
+
+              <div class="board-body">
+                <div class="vboard" style="grid-template-columns: 30px minmax(140px, 1fr) 30px 30px minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr)">
+                  <div class="strip" data-tip="proposal: пусто — щелчок разворачивает колонку">0<b>proposal</b></div>
+
+                  <div class="col p1">
+                    <header><h3>specs</h3><span class="n">1</span></header>
+                    <div class="card">
+                      <div class="head"><h4>extract-metrics-export</h4></div>
+                      <div class="chips">
+                        <span class="chip">spec-driven</span>
+                        <span class="chip on link">proposal</span>
+                        <span class="chip no">specs</span>
+                      </div>
+                      <div class="foot"><span>нет пунктов</span><span style="margin-left:auto">не проверялся</span></div>
+                    </div>
+                  </div>
+
+                  <div class="strip">0<b>design</b></div>
+                  <div class="strip">0<b>tasks</b></div>
+
+                  <div class="col p2">
+                    <header><h3>Готово к работе</h3><span class="n">1</span></header>
+                    <div class="card">
+                      <div class="head"><h4>rework-agent-budgets</h4></div>
+                      <div class="chips">
+                        <span class="chip">spec-driven</span>
+                        <span class="chip on link">proposal</span>
+                        <span class="chip on link">specs</span>
+                        <span class="chip on link">tasks</span>
+                      </div>
+                      <div class="meter"><i style="width:0%"></i></div>
+                      <div class="foot"><span>0/6</span><span class="err" style="margin-left:auto">✕ 2 ош.</span></div>
+                    </div>
+                  </div>
+
+                  <div class="col p3">
+                    <header><h3>В работе</h3><span class="n">1</span></header>
+                    <div class="card lift">
+                      <div class="head"><h4>add-openspec-ide</h4><span class="age">5 мин</span></div>
+                      <div class="chips">
+                        <span class="chip on link">proposal</span>
+                        <span class="chip on link">specs</span>
+                        <span class="chip on link">design</span>
+                        <span class="chip on link">tasks</span>
+                      </div>
+                      <div class="meter warn"><i style="width:36%"></i></div>
+                      <div class="foot"><span>4/11</span><span class="ok" style="margin-left:auto">валиден</span></div>
+                    </div>
+                  </div>
+
+                  <div class="col p4">
+                    <header><h3>Готово к архивации</h3><span class="n">1</span></header>
+                    <div class="card">
+                      <div class="head"><h4>fix-tree-watcher</h4><span class="age">2 ч</span></div>
+                      <div class="chips">
+                        <span class="chip on link">proposal</span>
+                        <span class="chip on link">specs</span>
+                        <span class="chip on link">tasks</span>
+                      </div>
+                      <div class="meter good"><i style="width:100%"></i></div>
+                      <div class="foot"><span>5/5</span><span class="ok" style="margin-left:auto">валиден</span></div>
+                      <span class="btn primary" style="display:block;text-align:center;margin-top:9px">Архивировать…</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="meter"><i style="width:0%"></i></div>
-                <div class="foot"><span>0/0 задач</span><span style="margin-left:auto">не проверялся</span></div>
+
+                <aside class="detail">
+                  <div class="dh">
+                    <div>
+                      <div class="nm">add-openspec-ide</div>
+                      <div class="meta"><span class="chip">spec-driven</span> В работе · изменён 5 мин назад</div>
+                    </div>
+                    <span class="x">×</span>
+                  </div>
+                  <div class="acts">
+                    <span class="btn">Проверить</span><span class="btn">Дельты</span><span class="btn">Метрики</span><span class="btn">Агент</span><span class="btn">Архивировать…</span>
+                  </div>
+                  <div class="blk">
+                    <p class="pane-title">Артефакты</p>
+                    <ul class="arts">
+                      <li><span class="dot ok"></span><a>proposal</a><span class="f">proposal.md</span></li>
+                      <li><span class="dot ok"></span><a>specs</a><span class="f">7 файлов</span></li>
+                      <li><span class="dot ok"></span><a>design</a><span class="f">design.md</span></li>
+                      <li><span class="dot ok"></span><a>tasks</a><span class="f">tasks.md</span></li>
+                    </ul>
+                  </div>
+                  <div class="blk">
+                    <p class="pane-title">План <span class="count">4/11</span></p>
+                    <p class="gt">1. Каркас</p>
+                    <ul class="its">
+                      <li><span class="bx x">✓</span><span class="no">1.1</span>Монорепозиторий и сборка</li>
+                      <li><span class="bx x">✓</span><span class="no">1.2</span>Обёртка над CLI с JSON-выводом</li>
+                    </ul>
+                    <p class="gt">2. Доска</p>
+                    <ul class="its">
+                      <li><span class="bx x">✓</span><span class="no">2.1</span>Колонки из схемы change</li>
+                      <li><span class="bx"></span><span class="no">2.2</span>Архивация через предпросмотр</li>
+                    </ul>
+                  </div>
+                </aside>
+              </div>
+
+              <div class="statusbar">
+                <span>изменений <b>4</b> · спеков <b>7</b></span>
+                <span class="spacer"></span>
+                <span class="ok">● наблюдение за файлами</span>
               </div>
             </div>
-
-            <div class="col p2">
-              <header><h3>Готово к работе</h3><span class="n">1</span></header>
-              <div class="card">
-                <h4>rework-agent-budgets</h4>
-                <div class="chips">
-                  <span class="chip on">proposal</span>
-                  <span class="chip on">specs</span>
-                  <span class="chip on">design</span>
-                  <span class="chip on">tasks</span>
-                </div>
-                <div class="meter"><i style="width:0%"></i></div>
-                <div class="foot"><span>0/6 задач</span><span class="err" style="margin-left:auto">✕ 2 ошибки</span></div>
-              </div>
-            </div>
-
-            <div class="col p3">
-              <header><h3>В работе</h3><span class="n">1</span></header>
-              <div class="card lift">
-                <h4>add-openspec-ide</h4>
-                <div class="chips">
-                  <span class="chip on">proposal</span>
-                  <span class="chip on">specs · 7</span>
-                  <span class="chip on">design</span>
-                  <span class="chip on">tasks</span>
-                </div>
-                <div class="meter warn"><i style="width:36%"></i></div>
-                <div class="foot"><span>4/11 задач</span><span class="ok" style="margin-left:auto">✓ валиден</span></div>
-              </div>
-              <div class="card" style="border-style:dashed;background:transparent;box-shadow:none;color:var(--muted);text-align:center;font-size:12px;padding:16px">
-                перетащить сюда нельзя — фаза следует за файлами
-              </div>
-            </div>
-
-            <div class="col p4">
-              <header><h3>Готово к архивации</h3><span class="n">1</span></header>
-              <div class="card">
-                <h4>fix-tree-watcher</h4>
-                <div class="chips">
-                  <span class="chip on">proposal</span>
-                  <span class="chip on">specs · 1</span>
-                  <span class="chip no">design</span>
-                  <span class="chip on">tasks</span>
-                </div>
-                <div class="meter good"><i style="width:100%"></i></div>
-                <div class="foot"><span>5/5 задач</span><span class="ok" style="margin-left:auto">✓ валиден</span></div>
-                <div style="margin-top:9px;display:flex;gap:6px">
-                  <button class="btn primary" style="flex:1">Архивировать</button>
-                  <button class="btn">Метрики</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="statusbar">
-            <span>активных change <b>4</b></span>
-            <span>в архиве <b>0</b></span>
-            <span class="spacer"></span>
-            <span>операции выполняет <b>openspec</b>, не IDE</span>
           </div>
         </div>
+        <div class="vsc-status"><span>⑂ main</span><span>⎇ 4 · ▤ 7</span><span class="spacer"></span><span>✕ 2  ⚠ 0</span></div>
+      </div>
+    </div>
+
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">панель рядом с редактором — уже 640 px, «Авто» переключил доску в «Список»</div>
+      </div>
+      <div class="vsc">
+        <nav class="vsc-act"><i>⧉</i><i>⌕</i><i>⑂</i><i class="on">OS</i></nav>
+        <aside class="vsc-side">
+          <div class="side-head">OpenSpec: рабочее пространство</div>
+          <div class="grp">Изменения</div>
+          <ul class="tree">
+            <li><div class="node sel"><span class="tw">▾</span><span class="dot ok"></span><span class="nm mono">add-openspec-ide</span><span class="tail">4/11</span></div></li>
+            <li><div class="node"><span class="tw">▸</span><span class="dot err"></span><span class="nm mono">rework-agent-budgets</span><span class="tail">✕2</span></div></li>
+            <li><div class="node"><span class="tw">▸</span><span class="dot ok"></span><span class="nm mono">fix-tree-watcher</span><span class="tail">5/5</span></div></li>
+          </ul>
+          <div class="grp">Спеки</div>
+          <ul class="tree">
+            <li><div class="node"><span class="tw"></span><span class="nm mono">workflow-board</span><span class="tail">4</span></div></li>
+            <li><div class="node"><span class="tw"></span><span class="nm mono">spec-delta-viewer</span><span class="tail">5</span></div></li>
+          </ul>
+        </aside>
+        <div class="vsc-main">
+          <div class="vsc-groups split">
+            <div class="vsc-group">
+              <div class="vsc-tabs"><span class="vsc-tab on">tasks.md</span></div>
+              <pre class="code" style="padding:8px 0"><span class="ln"><span>12</span><span class="h2">## 2. Доска</span></span>
+<span class="ln"><span>13</span><span></span></span>
+<span class="ln hl"><span>14</span><span class="txt">- [x] 2.1 Колонки из схемы change</span></span>
+<span class="ln"><span>15</span><span class="txt">- [ ] 2.2 Архивация через предпросмотр</span></span>
+<span class="ln"><span>16</span><span class="txt">- [ ] 2.3 Живое обновление доски</span></span></pre>
+            </div>
+            <div class="vsc-group">
+              <div class="vsc-tabs"><span class="vsc-tab on">OpenSpec: Доска</span></div>
+              <div class="board-tools" style="padding-top:8px">
+                <span class="search" style="min-width:110px">фильтр</span>
+                <span class="seg"><span class="on">Авто</span><span>Колонки</span><span>Список</span></span>
+              </div>
+              <div class="plist">
+                <div class="phase empty"><header>proposal<span>0</span></header></div>
+                <div class="phase empty"><header>specs<span>0</span></header></div>
+                <div class="phase empty"><header>Готово к работе<span>0</span></header></div>
+                <div class="phase">
+                  <header>В работе<span>1</span></header>
+                  <div class="card row lift">
+                    <div class="head"><h4>add-openspec-ide</h4><span class="age">только что</span></div>
+                    <div class="chips"><span class="chip on link">proposal</span><span class="chip on link">tasks</span></div>
+                    <div class="meter warn"><i style="width:45%"></i></div>
+                    <div class="foot"><span>5/11</span><span class="ok" style="margin-left:auto">валиден</span></div>
+                  </div>
+                </div>
+                <div class="phase">
+                  <header>Готово к архивации<span>1</span></header>
+                  <div class="card row">
+                    <div class="head"><h4>fix-tree-watcher</h4></div>
+                    <div class="chips"><span class="chip on link">tasks</span></div>
+                    <div class="meter good"><i style="width:100%"></i></div>
+                    <div class="foot"><span>5/5</span><span class="ok" style="margin-left:auto">валиден</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="vsc-status"><span>⑂ main</span><span>⎇ 3 · ▤ 7</span><span class="spacer"></span><span>tasks.md сохранён → карточка 5/11</span></div>
       </div>
     </div>
 
     <div class="caption">
       <div>
-        <h3>Колонку выбирают файлы, а не человек</h3>
+        <h3>Доска, которой пользуются в половине окна</h3>
         <p>
-          Карточка не перетаскивается между колонками: фаза выводится из состояния
-          артефактов и прогресса <code>tasks.md</code>, которые отдаёт
-          <code>openspec status --json</code>. Отметил последнюю задачу — карточка сама
-          переехала в «Готово к архивации». Это принципиально: доска не может рассказывать
-          про процесс то, чего нет в файлах.
+          Доска занимает всю ширину панели — дубль дерева рабочего пространства ей не нужен,
+          в VS Code есть нативное. Пустые колонки свёрнуты в полосы: семь фаз процесса
+          помещаются, а щелчок по полосе разворачивает колонку. Когда панель стоит рядом с
+          редактором и становится уже 640 px, режим «Авто» показывает фазы списком сверху
+          вниз — без горизонтальной прокрутки. Режим можно закрепить вручную.
         </p>
         <p>
-          Создание и архивация выполняются командами <code>openspec new change</code> и
-          <code>openspec archive</code> — IDE не пишет свою реализацию этих операций, чтобы
-          результат совпадал с тем, что получит коллега из терминала.
+          Щелчок по карточке открывает панель деталей рядом с доской, а не под ней:
+          артефакты с переходом в редактор VS Code, пункты плана по группам, результат
+          проверки со ссылками на строки, переходы к дельтам, метрикам и агенту.
+          Метки артефактов на самой карточке тоже открывают файлы. Колонка по-прежнему
+          выводится из файлов: отметил пункт в <code>tasks.md</code> в редакторе и сохранил —
+          карточка сдвинулась сама, без перезагрузки панели.
         </p>
       </div>
       <div class="reqs">
         <h4>Требования экрана</h4>
         <ul>
-          <li>Доска фаз жизненного цикла <code>workflow-board</code></li>
+          <li>Доска фаз процесса <code>workflow-board</code></li>
           <li>Содержимое карточки change <code>workflow-board</code></li>
-          <li>Операции над change с доски <code>workflow-board</code></li>
-          <li>Отметка выполнения задач с доски <code>workflow-board</code></li>
+          <li>Раскладка доски в узкой панели <code>workflow-board</code></li>
+          <li>Панель деталей change <code>workflow-board</code></li>
+          <li>Живое обновление доски <code>workflow-board</code></li>
+          <li>Отметка выполнения пунктов с доски <code>workflow-board</code></li>
+          <li>Оформление по теме VS Code <code>vscode-extension</code></li>
         </ul>
       </div>
     </div>
@@ -2260,8 +2628,186 @@
     </div>
   </section>
 
+  <!-- ================= SCREEN 8 ================= -->
+  <section id="s8" class="screen" hidden>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">openspec_idle — Visual Studio Code · «Архивировать…» на карточке change</div>
+      </div>
+      <div class="vsc no-side">
+        <nav class="vsc-act"><i>⧉</i><i>⌕</i><i>⑂</i><i class="on">OS</i></nav>
+        <div class="vsc-main">
+          <div class="vsc-groups split">
+            <div class="vsc-group">
+              <div class="vsc-tabs"><span class="vsc-tab on">OpenSpec: Доска</span></div>
+              <div style="padding:12px 14px">
+                <div class="detail">
+                  <div class="dh">
+                    <div>
+                      <div class="nm">rework-board-archive-preview</div>
+                      <div class="meta"><span class="chip">spec-driven</span> Готово к архивации</div>
+                    </div>
+                    <span class="x">×</span>
+                  </div>
+                  <div class="confirm">
+                    <p class="pane-title">Архивация и изменения основных спеков</p>
+                    <div class="outcome ok"><b>Архивация пройдёт</b><span class="t">+9 добавлено · ~3 изменено</span></div>
+
+                    <div class="specp">
+                      <header>
+                        <span class="cap">workflow-board</span><span class="chip mod">изменится</span>
+                        <span class="cnt"><span class="a">+3</span><span class="m">~2</span></span>
+                        <span class="spacer"></span><span class="btn">Открыть сравнение</span>
+                      </header>
+                      <ul class="rq">
+                        <li class="m"><span class="g">~</span><span class="nm">Содержимое карточки change</span><span class="k">изменено</span>
+                          <span class="sc p">+ сценарий «Время изменения» · + сценарий «Переход к артефакту с карточки»</span></li>
+                        <li class="m"><span class="g">~</span><span class="nm">Операции над change с доски</span><span class="k">изменено</span>
+                          <span class="sc p">+ сценарий «Подтверждение показывает изменения спеков» · +2</span></li>
+                        <li class="a"><span class="g">+</span><span class="nm">Раскладка доски в узкой панели</span><span class="k">добавлено</span></li>
+                        <li class="a"><span class="g">+</span><span class="nm">Панель деталей change</span><span class="k">добавлено</span></li>
+                        <li class="a"><span class="g">+</span><span class="nm">Живое обновление доски</span><span class="k">добавлено</span></li>
+                      </ul>
+                      <span class="lnk">▸ Строки <code>openspec/specs/workflow-board/spec.md</code>: +64 −3</span>
+                    </div>
+
+                    <div class="specp">
+                      <header>
+                        <span class="cap">archive-preview</span><span class="chip on">новая</span>
+                        <span class="cnt"><span class="a">+4</span></span>
+                        <span class="spacer"></span><span class="btn">Открыть сравнение</span>
+                      </header>
+                      <ul class="rq">
+                        <li class="a"><span class="g">+</span><span class="nm">Прогон архивации на временной копии</span><span class="k">добавлено</span></li>
+                        <li class="a"><span class="g">+</span><span class="nm">Исход предпросмотра</span><span class="k">добавлено</span></li>
+                      </ul>
+                    </div>
+
+                    <p class="lnk" style="margin:0 0 10px;color:var(--muted)">ещё 2 capability: <code>spec-delta-viewer</code> +1 · <code>vscode-extension</code> +1 ~1</p>
+                    <div style="display:flex;gap:6px"><span class="btn primary">Архивировать</span><span class="btn">Отмена</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="vsc-group">
+              <div class="vsc-tabs">
+                <span class="vsc-tab on">workflow-board/spec.md: сейчас ↔ после архивации <span class="ro">только чтение</span></span>
+              </div>
+              <div class="sbs">
+                <div>
+                  <div class="l"><span>41</span><span class="h">### Requirement: Содержимое карточки change</span></div>
+                  <div class="l"><span>42</span><span></span></div>
+                  <div class="l"><span>43</span><span>Карточка change ДОЛЖНА (SHALL) показывать имя…</span></div>
+                  <div class="l"><span>44</span><span>валидации и время последнего изменения файлов.</span></div>
+                  <div class="l e"><span></span><span></span></div>
+                  <div class="l e"><span></span><span></span></div>
+                  <div class="l"><span>45</span><span></span></div>
+                  <div class="l"><span>46</span><span class="h">#### Scenario: Карточка с ошибками валидации</span></div>
+                  <div class="l"><span>…</span><span></span></div>
+                  <div class="l"><span>58</span><span class="h">### Requirement: Операции над change с доски</span></div>
+                  <div class="l m"><span>61</span><span>соответствующими командами CLI OpenSpec.</span></div>
+                  <div class="l e"><span></span><span></span></div>
+                  <div class="l e"><span></span><span></span></div>
+                  <div class="l e"><span></span><span></span></div>
+                </div>
+                <div>
+                  <div class="l"><span>41</span><span class="h">### Requirement: Содержимое карточки change</span></div>
+                  <div class="l"><span>42</span><span></span></div>
+                  <div class="l"><span>43</span><span>Карточка change ДОЛЖНА (SHALL) показывать имя…</span></div>
+                  <div class="l"><span>44</span><span>валидации и время последнего изменения файлов.</span></div>
+                  <div class="l p"><span>45</span><span>Метка созданного артефакта на карточке ДОЛЖНА</span></div>
+                  <div class="l p"><span>46</span><span>открывать его файл: в VS Code — в редакторе…</span></div>
+                  <div class="l"><span>47</span><span></span></div>
+                  <div class="l"><span>48</span><span class="h">#### Scenario: Карточка с ошибками валидации</span></div>
+                  <div class="l"><span>…</span><span></span></div>
+                  <div class="l"><span>72</span><span class="h">### Requirement: Операции над change с доски</span></div>
+                  <div class="l p"><span>75</span><span>соответствующими командами CLI OpenSpec, а не…</span></div>
+                  <div class="l p"><span>76</span><span>Подтверждение архивации ДОЛЖНО показывать</span></div>
+                  <div class="l p"><span>77</span><span>предпросмотр изменений основных спеков до того,</span></div>
+                  <div class="l p"><span>78</span><span>как пользователь подтвердит операцию…</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="vsc-status"><span>⑂ main</span><span>openspec archive — на временной копии, проект не тронут</span><span class="spacer"></span><span>+64 −3</span></div>
+      </div>
+    </div>
+
+    <div class="note-row" style="margin-top:22px">
+      <div class="window" style="margin-top:0">
+        <div class="chrome">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="addr">когда CLI откажет — кнопка недоступна, причина видна</div>
+        </div>
+        <div style="padding:12px 14px">
+          <div class="confirm" style="margin:0">
+            <p class="pane-title">Архивация и изменения основных спеков</p>
+            <div class="outcome bad">
+              <b>CLI отклонит архивацию</b>
+              <p>data-export MODIFIED failed for header «### Requirement: Выгрузка данных» — current spec contains scenario(s) not present in the modified block: «Пустой набор данных».</p>
+              <p class="fix">Fix the change delta specs and rerun. No files were changed.</p>
+            </div>
+            <div style="display:flex;gap:6px"><span class="btn primary" disabled>Архивировать</span><span class="btn">Отмена</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal">
+        <h5>Архивировать change «add-data-export»?</h5>
+        <pre>Не выполнено пунктов: 1.
+
+Основные спеки изменятся так:
+data-export — новая: +2
+identity/user-auth — изменится: ~1 →1 −1
+
++ добавлено · ~ изменено · → переименовано · − удалено</pre>
+        <div class="mb"><span class="btn">Отмена</span><span class="btn">Показать изменения спеков</span><span class="btn primary">Архивировать</span></div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Что станет с основными спеками — до архивации, а не после</h3>
+        <p>
+          У <code>openspec archive</code> нет режима «показать, но не делать», а своя
+          реализация слияния дельт разошлась бы с CLI при первом обновлении. Поэтому IDE
+          прогоняет настоящий <code>openspec archive --yes --json</code> на временной копии
+          <code>openspec/</code> и сравнивает получившиеся спеки с текущими. Проект не
+          меняется, копия удаляется.
+        </p>
+        <p>
+          Итог виден по capability: новая или изменится, какие требования добавятся,
+          изменятся, переименуются и пропадут, какие сценарии появятся и потеряются, и
+          построчное сравнение файла. В VS Code «Открыть сравнение» показывает то же во
+          встроенном редакторе diff — справа документ только для чтения. Если CLI
+          откажет, кнопка «Архивировать» недоступна и рядом его сообщение; если остановит
+          проверка — видно, какими станут спеки после исправления ошибок.
+        </p>
+        <p>
+          Команда «Архивировать change» из палитры показывает ту же сводку в модальном
+          окне; вкладка «После архивации» есть и в разделе «Дельты».
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Прогон архивации на временной копии <code>archive-preview</code></li>
+          <li>Исход предпросмотра <code>archive-preview</code></li>
+          <li>Изменения основных спеков <code>archive-preview</code></li>
+          <li>Операции над change с доски <code>workflow-board</code></li>
+          <li>Вкладка «После архивации» <code>spec-delta-viewer</code></li>
+          <li>Предпросмотр архивации в редакторе сравнения <code>vscode-extension</code></li>
+          <li>Команды и строка состояния <code>vscode-extension</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <p class="foot-note">
-    <span>Макеты к change <code>add-openspec-ide</code></span>
+    <span>Макеты к changes <code>add-openspec-ide</code> и <code>rework-board-archive-preview</code></span>
     <span>Схема workflow <code>spec-driven</code></span>
     <span>Данные на экранах — примеры, не реальные замеры</span>
     <span>Схема <code>team-flow</code> — иллюстрация собственного процесса</span>

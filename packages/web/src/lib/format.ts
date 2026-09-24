@@ -47,3 +47,19 @@ export function formatDuration(ms: number | null): string {
 export function formatShare(share: number | null): string {
   return share === null ? '—' : `${Math.round(share * 100)} %`;
 }
+
+/**
+ * Давность изменения: `только что`, `5 мин назад`, `3 ч назад`, `2 дн назад`;
+ * `null` или неразбираемая дата — `null`.
+ */
+export function formatAge(iso: string | null, now: number = Date.now()): string | null {
+  if (iso === null) return null;
+  const time = Date.parse(iso);
+  if (Number.isNaN(time)) return null;
+  const minutes = Math.floor(Math.max(0, now - time) / 60_000);
+  if (minutes < 1) return 'только что';
+  if (minutes < 60) return `${minutes} мин назад`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ч назад`;
+  return `${Math.floor(hours / 24)} дн назад`;
+}

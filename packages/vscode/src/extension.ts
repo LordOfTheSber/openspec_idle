@@ -1,11 +1,19 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PanelSection, PanelSelection } from '@openspec-ide/core';
-import { type EmbeddedBackend, type ValidationRun, createEmbeddedBackend } from '@openspec-ide/server';
+import {
+  type ArchivePreview,
+  type EmbeddedBackend,
+  type SpecPreview,
+  type ValidationRun,
+  createEmbeddedBackend,
+} from '@openspec-ide/server';
 import * as vscode from 'vscode';
+import { archiveSummary, specLine } from './archiveSummary.js';
 import { resolvePanelPath } from './bridge.js';
 import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
 import { SectionPanel } from './panel.js';
+import { PREVIEW_SCHEME, PreviewDocuments } from './previewDocuments.js';
 import { pickWorkspaceRoot } from './root.js';
 import { type TreeNode, type WorkspaceState, buildTreeNodes, statusText } from './treeModel.js';
 import { OPEN_NODE_COMMAND, WorkspaceTreeProvider } from './treeProvider.js';
@@ -16,6 +24,7 @@ export const COMMANDS = {
   newChange: 'openspec.newChange',
   validateChange: 'openspec.validateChange',
   archiveChange: 'openspec.archiveChange',
+  previewArchive: 'openspec.previewArchive',
   openBoard: 'openspec.openBoard',
   openDeltas: 'openspec.openDeltas',
   openMetrics: 'openspec.openMetrics',
@@ -49,6 +58,7 @@ class OpenspecController implements vscode.Disposable {
   readonly #diagnostics = vscode.languages.createDiagnosticCollection('openspec');
   readonly #status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   readonly #panel: SectionPanel;
+  readonly #previews = new PreviewDocuments();
   /** Файлы, на которые легли диагностики каждого change, — чтобы снимать устаревшие. */
   readonly #diagnosed = new Map<string, vscode.Uri[]>();
 
@@ -65,6 +75,7 @@ class OpenspecController implements vscode.Disposable {
       extensionUri: context.extensionUri,
       backend: () => this.#backend,
       openFile: (path, line, fromPanel) => this.openFile(path, line, fromPanel),
+      previewArchive: (change, capability) => this.previewArchive(change, capability),
     });
     this.#status.command = COMMANDS.openBoard;
   }
@@ -85,6 +96,8 @@ class OpenspecController implements vscode.Disposable {
       vscode.commands.registerCommand(COMMANDS.newChange, () => this.newChange()),
       vscode.commands.registerCommand(COMMANDS.validateChange, (node?: TreeNode) => this.validateCommand(node)),
       vscode.commands.registerCommand(COMMANDS.archiveChange, (node?: TreeNode) => this.archiveChange(node)),
+      vscode.commands.registerCommand(COMMANDS.previewArchive, (node?: TreeNode) => this.previewArchiveCommand(node)),
+      vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, this.#previews),
       ...SECTION_COMMANDS.map(([command, section]) =>
         vscode.commands.registerCommand(command, (node?: TreeNode) => this.openSection(section, node)),
       ),
@@ -99,6 +112,7 @@ class OpenspecController implements vscode.Disposable {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#panel.dispose();
+    this.#previews.dispose();
     this.#tree.dispose();
     this.#diagnostics.dispose();
     this.#status.dispose();
@@ -288,18 +302,128 @@ class OpenspecController implements vscode.Disposable {
   async archiveChange(node?: TreeNode): Promise<void> {
     const change = node?.change ?? (await this.#pickChange('Архивировать change'));
     if (change === undefined) return;
+
+    // Сначала — что станет со спеками: архивацию, которую CLI отклонит, не
+    // предлагаем вовсе, а согласие даётся уже на известный результат.
+    const preview = await this.#fetchPreview(change);
+    if (preview === null) return;
+    const summary = archiveSummary(preview, this.#unfinished(change));
+    const compare = 'Показать изменения спеков';
+
+    if (!summary.archivable) {
+      const answer = await vscode.window.showErrorMessage(
+        summary.message,
+        { modal: true, detail: summary.detail },
+        ...(preview.specs.length > 0 ? [compare] : []),
+      );
+      if (answer === compare) await this.#openDiffs(preview, preview.specs);
+      return;
+    }
+
     const answer = await vscode.window.showWarningMessage(
-      `Архивировать change «${change}»? Его дельты будут перенесены в основные спеки.`,
-      { modal: true },
+      summary.message,
+      { modal: true, detail: summary.detail },
       'Архивировать',
+      ...(preview.specs.length > 0 ? [compare] : []),
     );
+    if (answer === compare) {
+      await this.#openDiffs(preview, preview.specs);
+      return;
+    }
     if (answer !== 'Архивировать') return;
     const archived = await this.#request('POST', '/api/archive', { name: change });
     if (archived === null) return;
-    for (const uri of this.#diagnosed.get(change) ?? []) this.#diagnostics.delete(uri);
-    this.#diagnosed.delete(change);
+    this.#forgetDiagnostics(change);
     void vscode.window.showInformationMessage(`Change «${change}» архивирован.`);
     await this.refresh();
+  }
+
+  async previewArchiveCommand(node?: TreeNode): Promise<void> {
+    const change = node?.change ?? (await this.#pickChange('Предпросмотр архивации'));
+    if (change === undefined) return;
+    await this.previewArchive(change, null);
+  }
+
+  /**
+   * Открывает предпросмотр архивации в редакторе сравнения: слева текущий
+   * спек, справа — спек после архивации. Без capability предлагает выбрать
+   * одну или все.
+   */
+  async previewArchive(change: string, capability: string | null): Promise<void> {
+    const preview = await this.#fetchPreview(change);
+    if (preview === null) return;
+
+    if (preview.outcome === 'refused') {
+      const summary = archiveSummary(preview);
+      void vscode.window.showErrorMessage(summary.message, { modal: true, detail: summary.detail });
+      return;
+    }
+    if (preview.specs.length === 0) {
+      void vscode.window.showInformationMessage(`Архивация «${change}» не изменит основные спеки.`);
+      return;
+    }
+    if (preview.outcome === 'validation-failed') {
+      void vscode.window.showWarningMessage(
+        `Архивацию «${change}» сейчас остановит проверка. В сравнении — спеки после исправления ошибок.`,
+      );
+    }
+
+    let specs: readonly SpecPreview[] = preview.specs;
+    if (capability !== null) {
+      specs = preview.specs.filter((spec) => spec.capability === capability);
+    } else if (preview.specs.length > 1) {
+      const all = 'Все capability';
+      const picked = await vscode.window.showQuickPick(
+        [
+          { label: all, description: `${preview.specs.length} шт.` },
+          ...preview.specs.map((spec) => ({ label: spec.capability, description: specLine(spec).split(' — ')[1] ?? '' })),
+        ],
+        { title: `Что изменит архивация «${change}»` },
+      );
+      if (picked === undefined) return;
+      specs = picked.label === all ? preview.specs : preview.specs.filter((spec) => spec.capability === picked.label);
+    }
+    await this.#openDiffs(preview, specs);
+  }
+
+  async #openDiffs(preview: ArchivePreview, specs: readonly SpecPreview[]): Promise<void> {
+    for (const spec of specs) {
+      const right = this.#previews.put(preview.change, spec.capability, 'after', spec.after);
+      const absolute = spec.before === null ? null : resolvePanelPath(this.root, spec.path);
+      const left =
+        absolute !== null && existsSync(absolute)
+          ? vscode.Uri.file(absolute)
+          : this.#previews.put(preview.change, spec.capability, 'before', '');
+      await vscode.commands.executeCommand(
+        'vscode.diff',
+        left,
+        right,
+        `${spec.capability}: сейчас ↔ после архивации «${preview.change}»`,
+        { preview: specs.length === 1 },
+      );
+    }
+  }
+
+  async #fetchPreview(change: string): Promise<ArchivePreview | null> {
+    return vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Предпросмотр архивации «${change}»: openspec archive на временной копии…`,
+      },
+      async () =>
+        (await this.#request('GET', `/api/archive/preview?change=${encodeURIComponent(change)}`)) as ArchivePreview | null,
+    );
+  }
+
+  #unfinished(change: string): number {
+    if (this.#workspace?.state !== 'ready') return 0;
+    const progress = this.#workspace.tree.changes.find((item) => item.name === change)?.progress;
+    return progress === null || progress === undefined ? 0 : progress.total - progress.complete;
+  }
+
+  #forgetDiagnostics(change: string): void {
+    for (const uri of this.#diagnosed.get(change) ?? []) this.#diagnostics.delete(uri);
+    this.#diagnosed.delete(change);
   }
 
   async openSection(section: PanelSection, node?: TreeNode): Promise<void> {
@@ -353,6 +477,13 @@ class OpenspecController implements vscode.Disposable {
     const reply = await this.#request('GET', '/api/workspace', undefined, { quiet: true });
     const workspace = (reply ?? { state: 'not-initialized' }) as WorkspaceState;
     this.#workspace = workspace;
+    // Change, архивированный с доски или из терминала, уносит свои замечания.
+    if (workspace.state === 'ready') {
+      const active = new Set(workspace.tree.changes.map((change) => change.name));
+      for (const change of [...this.#diagnosed.keys()]) {
+        if (!active.has(change)) this.#forgetDiagnostics(change);
+      }
+    }
     await vscode.commands.executeCommand('setContext', 'openspec.state', workspace.state);
     this.#tree.set(buildTreeNodes(workspace));
     const status = statusText(workspace);

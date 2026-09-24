@@ -282,14 +282,60 @@ describe('расширение VS Code: валидация и команды', (
     await until(() => findNode(topNodes(state), 'change:add-thing') !== undefined, 'change в дереве');
   });
 
-  it('архивирует change из палитры с выбором и подтверждением', async () => {
+  it('архивирует change из палитры: подтверждение перечисляет изменения спеков', async () => {
     const root = copyFixture('full-change');
     const state = await activate([root]);
 
     state.answers.push('full-feature', 'Архивировать');
     await command(state, 'openspec.archiveChange');
 
+    const confirm = state.messages.find((message) => message.text.startsWith('Архивировать change'));
+    expect(confirm?.detail).toContain('data-export — новая: +1');
+    expect(confirm?.buttons).toEqual(['Архивировать', 'Показать изменения спеков']);
     expect(existsSync(join(root, 'openspec', 'changes', 'full-feature'))).toBe(false);
+    expect(existsSync(join(root, 'openspec', 'specs', 'data-export', 'spec.md'))).toBe(true);
     expect(findNode(topNodes(state), 'change:full-feature')).toBeUndefined();
+  });
+
+  it('архивацию, которую CLI отклонит, не предлагает и объясняет', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+
+    await command(state, 'openspec.archiveChange', findNode(topNodes(state), 'change:rework-export'));
+
+    const refusal = state.messages.find((message) => message.level === 'error');
+    expect(refusal?.text).toContain('CLI отклонит');
+    expect(refusal?.detail).toContain('Пустой набор данных');
+    expect(refusal?.buttons).not.toContain('Архивировать');
+    expect(existsSync(join(root, 'openspec', 'changes', 'rework-export'))).toBe(true);
+  });
+
+  it('предпросмотр архивации открывает сравнение: слева пусто, справа спек после архивации', async () => {
+    const root = copyFixture('full-change');
+    const state = await activate([root]);
+
+    await command(state, 'openspec.previewArchive', findNode(topNodes(state), 'change:full-feature'));
+
+    expect(state.diffs).toHaveLength(1);
+    const [diff] = state.diffs;
+    const provider = state.contentProviders.get('openspec-preview');
+    expect(diff?.left.scheme).toBe('openspec-preview');
+    expect(provider?.provideTextDocumentContent(diff!.left)).toBe('');
+    expect(provider?.provideTextDocumentContent(diff!.right)).toContain('### Requirement: Выгрузка данных');
+    expect(diff?.title).toContain('data-export');
+    // Файлы проекта предпросмотр не трогает.
+    expect(existsSync(join(root, 'openspec', 'changes', 'full-feature'))).toBe(true);
+    expect(existsSync(join(root, 'openspec', 'specs', 'data-export'))).toBe(false);
+  });
+
+  it('панель просит сравнение по имени capability — расширение строит его само', async () => {
+    const state = await activate([copyFixture('full-change')]);
+    await command(state, 'openspec.openBoard');
+    const panel = lastPanel(state);
+
+    panel.webview.receive({ kind: 'preview-archive', change: 'full-feature', capability: 'data-export' });
+    await until(() => state.diffs.length === 1, 'сравнение из панели');
+
+    expect(state.diffs[0]?.right.path).toBe('/full-feature/data-export/spec.md');
   });
 });

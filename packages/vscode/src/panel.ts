@@ -21,6 +21,7 @@ export interface SectionPanelDeps {
   readonly extensionUri: vscode.Uri;
   readonly backend: () => EmbeddedBackend | null;
   readonly openFile: (path: string, line: number | null, fromPanel: boolean) => Promise<void>;
+  readonly previewArchive: (change: string, capability: string | null) => Promise<void>;
 }
 
 /**
@@ -96,6 +97,7 @@ export class SectionPanel implements vscode.Disposable {
       },
       post: (reply) => panel.webview.postMessage(reply),
       openFile: (path, line) => this.#deps.openFile(path, line, true),
+      previewArchive: (change, capability) => this.#deps.previewArchive(change, capability),
       onReady: () => {
         this.#ready = true;
         if (this.#last !== null) void panel.webview.postMessage(this.#last);

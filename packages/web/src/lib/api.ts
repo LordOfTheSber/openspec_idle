@@ -12,6 +12,7 @@ import type {
   DeltaView,
   RequirementComparison,
   SearchHit,
+  SpecChange,
   WorkspaceTree,
 } from '@openspec-ide/core';
 import { apiTransport, pageToken } from './transport.js';
@@ -229,6 +230,42 @@ export function archiveChange(name: string): Promise<{ archived: string }> {
   return send<{ archived: string }>('/api/archive', 'POST', { name });
 }
 
+/** Основной спек, который архивация создаст или изменит. */
+export interface SpecPreview extends SpecChange {
+  readonly capability: string;
+  readonly path: string;
+  readonly before: string | null;
+  readonly after: string;
+}
+
+/** Исход предпросмотра архивации. */
+export type ArchiveOutcome = 'ready' | 'validation-failed' | 'refused';
+
+/** Предпросмотр архивации change, как его отдаёт сервер. */
+export interface ArchivePreviewResponse {
+  readonly change: string;
+  readonly outcome: ArchiveOutcome;
+  readonly problems: readonly {
+    readonly code: string | null;
+    readonly message: string;
+    readonly fix: string | null;
+  }[];
+  readonly output: string;
+  readonly warnings: readonly string[];
+  readonly totals: {
+    readonly added: number;
+    readonly modified: number;
+    readonly removed: number;
+    readonly renamed: number;
+  } | null;
+  readonly specs: readonly SpecPreview[];
+}
+
+/** Строит предпросмотр архивации: прогон CLI на временной копии проекта. */
+export function fetchArchivePreview(change: string): Promise<ArchivePreviewResponse> {
+  return get<ArchivePreviewResponse>(`/api/archive/preview?change=${encodeURIComponent(change)}`);
+}
+
 /** Пункты отслеживаемого артефакта change. */
 export interface TrackedItemsResponse {
   readonly change: string;
@@ -240,6 +277,7 @@ export interface TrackedItemsResponse {
     readonly group: number;
     readonly done: boolean;
   }[];
+  readonly groups: readonly { readonly number: number; readonly title: string }[];
   readonly complete: number;
   readonly total: number;
 }

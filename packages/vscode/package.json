@@ -77,6 +77,12 @@
         "icon": "$(check)"
       },
       {
+        "command": "openspec.previewArchive",
+        "title": "Предпросмотр архивации",
+        "category": "OpenSpec",
+        "icon": "$(git-compare)"
+      },
+      {
         "command": "openspec.archiveChange",
         "title": "Архивировать change",
         "category": "OpenSpec",
@@ -206,9 +212,14 @@
           "group": "operations@1"
         },
         {
-          "command": "openspec.archiveChange",
+          "command": "openspec.previewArchive",
           "when": "view == openspec.workspace && viewItem == change",
           "group": "operations@2"
+        },
+        {
+          "command": "openspec.archiveChange",
+          "when": "view == openspec.workspace && viewItem == change",
+          "group": "operations@3"
         }
       ]
     }

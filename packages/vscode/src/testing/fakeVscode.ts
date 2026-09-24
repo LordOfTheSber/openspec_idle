@@ -28,10 +28,19 @@ export class EventEmitter<T> {
 }
 
 export class Uri {
-  private constructor(readonly fsPath: string) {}
+  private constructor(
+    readonly fsPath: string,
+    readonly scheme: string = 'file',
+    readonly path: string = fsPath,
+    readonly query: string = '',
+  ) {}
 
   static file(path: string): Uri {
     return new Uri(path);
+  }
+
+  static from(parts: { scheme: string; path: string; query?: string }): Uri {
+    return new Uri(parts.path, parts.scheme, parts.path, parts.query ?? '');
   }
 
   static joinPath(base: Uri, ...segments: string[]): Uri {
@@ -39,6 +48,7 @@ export class Uri {
   }
 
   toString(): string {
+    if (this.scheme !== 'file') return `${this.scheme}:${this.path}${this.query === '' ? '' : `?${this.query}`}`;
     return pathToFileURL(this.fsPath).href;
   }
 }
@@ -113,6 +123,12 @@ export enum StatusBarAlignment {
   Right = 2,
 }
 
+export enum ProgressLocation {
+  SourceControl = 1,
+  Window = 10,
+  Notification = 15,
+}
+
 export enum ViewColumn {
   Active = -1,
   Beside = -2,
@@ -174,7 +190,11 @@ export interface FakeState {
   readonly treeViews: Map<string, { treeDataProvider: unknown }>;
   readonly panels: FakeWebviewPanel[];
   readonly shownDocuments: { path: string; line: number | null }[];
-  readonly messages: { level: 'info' | 'warning' | 'error'; text: string }[];
+  readonly messages: { level: 'info' | 'warning' | 'error'; text: string; detail?: string; buttons: string[] }[];
+  /** Открытые сравнения `vscode.diff`: левая и правая стороны и заголовок. */
+  readonly diffs: { left: Uri; right: Uri; title: string }[];
+  /** Провайдеры виртуальных документов по схеме. */
+  readonly contentProviders: Map<string, { provideTextDocumentContent(uri: Uri): string }>;
   readonly diagnostics: Map<string, Diagnostic[]>;
   readonly statusBar: { text: string; tooltip?: string; command?: string };
   /** Очередь ответов на showInputBox / showQuickPick / модальные вопросы. */
@@ -190,6 +210,8 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
     panels: [],
     shownDocuments: [],
     messages: [],
+    diffs: [],
+    contentProviders: new Map(),
     diagnostics: new Map(),
     statusBar: { text: '' },
     answers: [],
@@ -203,8 +225,10 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
   const message =
     (level: 'info' | 'warning' | 'error') =>
     async (text: string, ...rest: unknown[]): Promise<unknown> => {
-      state.messages.push({ level, text });
-      const modal = typeof rest[0] === 'object' && rest[0] !== null && (rest[0] as { modal?: boolean }).modal;
+      const options = typeof rest[0] === 'object' && rest[0] !== null ? (rest[0] as { modal?: boolean; detail?: string }) : null;
+      const buttons = rest.filter((item): item is string => typeof item === 'string');
+      state.messages.push({ level, text, ...(options?.detail === undefined ? {} : { detail: options.detail }), buttons });
+      const modal = options?.modal;
       return modal === true && rest.length > 1 ? answer() : undefined;
     };
 
@@ -221,7 +245,10 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
     DiagnosticSeverity,
     StatusBarAlignment,
     ViewColumn,
+    ProgressLocation,
     window: {
+      withProgress: async (_options: unknown, task: (progress: { report(): void }) => Promise<unknown>) =>
+        task({ report: () => undefined }),
       createStatusBarItem: () =>
         Object.assign(state.statusBar, { show: () => undefined, dispose: () => undefined }),
       createTreeView: (id: string, options: { treeDataProvider: unknown }) => {
@@ -254,6 +281,13 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
       },
       onDidChangeWorkspaceFolders: folderEvents.event,
       openTextDocument: async (uri: Uri) => ({ uri }),
+      registerTextDocumentContentProvider: (
+        scheme: string,
+        provider: { provideTextDocumentContent(uri: Uri): string },
+      ) => {
+        state.contentProviders.set(scheme, provider);
+        return { dispose: () => state.contentProviders.delete(scheme) };
+      },
     },
     languages: {
       createDiagnosticCollection: () => ({
@@ -270,6 +304,10 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
       executeCommand: async (id: string, ...args: unknown[]) => {
         if (id === 'setContext') {
           state.context.set(args[0] as string, args[1]);
+          return undefined;
+        }
+        if (id === 'vscode.diff') {
+          state.diffs.push({ left: args[0] as Uri, right: args[1] as Uri, title: args[2] as string });
           return undefined;
         }
         return state.commands.get(id)?.(...args);

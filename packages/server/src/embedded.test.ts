@@ -75,6 +75,19 @@ describe('встроенный бэкенд', () => {
     expect((reply.body as { error: string }).error).toContain('Не указано имя изменения');
   });
 
+  it('отдаёт предпросмотр архивации и 404 для неизвестного change', async () => {
+    backend = await createEmbeddedBackend({ root: copyFixture('full-change'), watch: false });
+
+    const reply = await backend.request('GET', '/api/archive/preview?change=full-feature');
+    expect(reply.status).toBe(200);
+    const body = reply.body as { outcome: string; specs: { capability: string; status: string }[] };
+    expect(body.outcome).toBe('ready');
+    expect(body.specs).toEqual([expect.objectContaining({ capability: 'data-export', status: 'created' })]);
+
+    const missing = await backend.request('GET', '/api/archive/preview?change=no-such-change');
+    expect(missing.status).toBe(404);
+  });
+
   it('доставляет событие изменения файла подписчику', async () => {
     const project = copyFixture('empty');
     backend = await createEmbeddedBackend({ root: project, debounceMs: 50 });

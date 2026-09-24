@@ -48,6 +48,15 @@ export { injectToken, placeholderPage, readBuiltPage } from './http/page.js';
 export { WorkspaceWatcher, type FileChangeBatch } from './watcher.js';
 export { WorkspaceReader } from './workspace.js';
 export {
+  ArchivePreviewService,
+  PREVIEW_DIR_PREFIX,
+  UnknownChangeError,
+  type ArchiveOutcome,
+  type ArchivePreview,
+  type ArchiveProblem,
+  type SpecPreview,
+} from './archivePreview.js';
+export {
   CONFIG_FILE,
   IDE_DIR,
   SECRET_FIELDS,

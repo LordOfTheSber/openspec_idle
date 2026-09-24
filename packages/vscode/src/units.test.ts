@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { canonicalize } from '@openspec-ide/server';
+import type { ArchivePreview, SpecPreview } from '@openspec-ide/server';
+import { archiveSummary, specLine } from './archiveSummary.js';
 import { handleViewMessage, resolvePanelPath } from './bridge.js';
 import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
 import { renderPanelHtml } from './panelHtml.js';
@@ -132,11 +134,13 @@ describe('мост панели', () => {
   function deps() {
     const posted: unknown[] = [];
     const opened: { path: string; line: number | null }[] = [];
+    const previews: { change: string; capability: string | null }[] = [];
     const warnings: string[] = [];
     let ready = 0;
     return {
       posted,
       opened,
+      previews,
       warnings,
       get ready() {
         return ready;
@@ -148,6 +152,9 @@ describe('мост панели', () => {
         post: (message: unknown) => posted.push(message),
         openFile: async (path: string, line: number | null) => {
           opened.push({ path, line });
+        },
+        previewArchive: async (change: string, capability: string | null) => {
+          previews.push({ change, capability });
         },
         onReady: () => {
           ready += 1;
@@ -188,6 +195,85 @@ describe('мост панели', () => {
     await handleViewMessage({ kind: 'ready' }, context.value);
     expect(context.opened).toEqual([{ path: 'openspec/a.md', line: 4 }]);
     expect(context.ready).toBe(1);
+  });
+
+  it('просьба о сравнении архивации передаёт только имена, текст из панели не принимается', async () => {
+    const context = deps();
+    await handleViewMessage({ kind: 'preview-archive', change: 'add-x', capability: 'data-export' }, context.value);
+    await handleViewMessage({ kind: 'preview-archive', change: '../x', capability: null }, context.value);
+    expect(context.previews).toEqual([{ change: 'add-x', capability: 'data-export' }]);
+    expect(context.warnings).toHaveLength(1);
+  });
+});
+
+describe('сводка подтверждения архивации', () => {
+  function spec(overrides: Partial<SpecPreview> = {}): SpecPreview {
+    return {
+      capability: 'data-export',
+      path: 'openspec/specs/data-export/spec.md',
+      before: null,
+      after: '# data-export\n',
+      status: 'created',
+      requirements: [],
+      removed: [],
+      counts: { added: 2, modified: 0, renamed: 0, removed: 0 },
+      diff: { hunks: [], added: 1, removed: 0, approximate: false },
+      ...overrides,
+    };
+  }
+
+  function preview(overrides: Partial<ArchivePreview> = {}): ArchivePreview {
+    return {
+      change: 'add-export',
+      outcome: 'ready',
+      problems: [],
+      output: '',
+      warnings: [],
+      totals: { added: 2, modified: 0, removed: 0, renamed: 0 },
+      specs: [spec()],
+      ...overrides,
+    };
+  }
+
+  it('новая capability перечислена с числом добавленных требований', () => {
+    const summary = archiveSummary(preview(), 2);
+
+    expect(summary.archivable).toBe(true);
+    expect(summary.message).toBe('Архивировать change «add-export»?');
+    expect(summary.detail).toContain('Не выполнено пунктов: 2.');
+    expect(summary.detail).toContain('data-export — новая: +2');
+  });
+
+  it('изменяемая capability несёт все виды операций', () => {
+    expect(
+      specLine(spec({ status: 'updated', counts: { added: 1, modified: 2, renamed: 1, removed: 1 } })),
+    ).toBe('data-export — изменится: +1 ~2 →1 −1');
+  });
+
+  it('отказ CLI не предлагает архивацию и показывает причину с подсказкой', () => {
+    const summary = archiveSummary(
+      preview({
+        outcome: 'refused',
+        specs: [],
+        totals: null,
+        problems: [{ code: 'archive_spec_update_failed', message: 'потерян сценарий «Пусто»', fix: 'обновите дельту' }],
+      }),
+    );
+
+    expect(summary.archivable).toBe(false);
+    expect(summary.message).toContain('CLI отклонит');
+    expect(summary.detail).toContain('потерян сценарий «Пусто»');
+    expect(summary.detail).toContain('Как исправить: обновите дельту');
+  });
+
+  it('отказ проверкой не предлагает архивацию, но показывает спеки после исправления', () => {
+    const summary = archiveSummary(
+      preview({ outcome: 'validation-failed', problems: [{ code: 'archive_validation_failed', message: 'Validation failed', fix: null }] }),
+    );
+
+    expect(summary.archivable).toBe(false);
+    expect(summary.detail).toContain('После исправления ошибок');
+    expect(summary.detail).toContain('data-export — новая');
   });
 });
 

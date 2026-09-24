@@ -48,6 +48,12 @@ export type ViewMessage =
       readonly body?: unknown;
     }
   | { readonly kind: 'open-file'; readonly path: string; readonly line: number | null }
+  /**
+   * Открыть предпросмотр архивации в редакторе сравнения VS Code. Панель
+   * передаёт только имена: текст спека после архивации расширение получает от
+   * бэкенда само, чтобы панель не могла подсунуть в редактор произвольный текст.
+   */
+  | { readonly kind: 'preview-archive'; readonly change: string; readonly capability: string | null }
   | { readonly kind: 'ready' };
 
 /** Сообщения расширения панели. */
@@ -142,9 +148,34 @@ export function parseViewMessage(value: unknown): Parsed<ViewMessage> {
       return { ok: true, message: { kind: 'open-file', path, line: typeof line === 'number' ? line : null } };
     }
 
+    case 'preview-archive': {
+      const { change, capability } = value;
+      if (typeof change !== 'string' || !isSafeName(change)) {
+        return { ok: false, reason: 'Некорректное имя change' };
+      }
+      if (capability !== null && capability !== undefined && (typeof capability !== 'string' || !isSafeCapability(capability))) {
+        return { ok: false, reason: 'Некорректный путь capability' };
+      }
+      return {
+        ok: true,
+        message: { kind: 'preview-archive', change, capability: typeof capability === 'string' ? capability : null },
+      };
+    }
+
     default:
       return { ok: false, reason: `Неизвестный вид сообщения «${String(value['kind'])}»` };
   }
+}
+
+/** Имя change: один сегмент пути без переходов наверх. */
+function isSafeName(name: string): boolean {
+  return name !== '' && !/[\\/]/.test(name) && !name.startsWith('.');
+}
+
+/** Путь capability: сегменты через `/`, без пустых, `.` и `..`. */
+function isSafeCapability(path: string): boolean {
+  if (path === '' || path.includes('\\')) return false;
+  return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
 }
 
 /** Разбирает сообщение, пришедшее от расширения. */

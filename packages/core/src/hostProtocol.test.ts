@@ -64,6 +64,24 @@ describe('протокол панели: сообщения панели', () =>
     expect(parseViewMessage({ kind: 'open-file', path: 'a.md', line: 0 }).ok).toBe(false);
     expect(parseViewMessage({ kind: 'open-file', path: '', line: 1 }).ok).toBe(false);
   });
+
+  it('принимает запрос сравнения архивации по имени change и capability', () => {
+    expect(parseViewMessage({ kind: 'preview-archive', change: 'add-x', capability: 'identity/user-auth' })).toEqual({
+      ok: true,
+      message: { kind: 'preview-archive', change: 'add-x', capability: 'identity/user-auth' },
+    });
+    expect(parseViewMessage({ kind: 'preview-archive', change: 'add-x' })).toEqual({
+      ok: true,
+      message: { kind: 'preview-archive', change: 'add-x', capability: null },
+    });
+  });
+
+  it('отклоняет запрос сравнения с путями наружу и с текстом вместо имён', () => {
+    expect(parseViewMessage({ kind: 'preview-archive', change: '../x', capability: null }).ok).toBe(false);
+    expect(parseViewMessage({ kind: 'preview-archive', change: 'a', capability: '../../etc' }).ok).toBe(false);
+    expect(parseViewMessage({ kind: 'preview-archive', change: 'a', capability: { after: '# spec' } }).ok).toBe(false);
+    expect(parseViewMessage({ kind: 'preview-archive', change: '' }).ok).toBe(false);
+  });
 });
 
 describe('протокол панели: пути API', () => {

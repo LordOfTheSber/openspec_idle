@@ -39,6 +39,8 @@ export interface CliRunOptions {
   readonly timeoutMs?: number;
   /** Сигнал отмены: прерывает выполняющийся процесс. */
   readonly signal?: AbortSignal;
+  /** Переменные окружения поверх окружения процесса IDE. */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -66,7 +68,7 @@ export async function runCli(options: CliRunOptions, args: readonly string[]): P
         cwd: options.cwd,
         timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         maxBuffer: MAX_OUTPUT_BYTES,
-        env: { ...process.env, NO_COLOR: '1' },
+        env: { ...process.env, NO_COLOR: '1', ...options.env },
         windowsHide: true,
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },

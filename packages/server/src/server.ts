@@ -12,6 +12,7 @@ import { WorkspaceWatcher } from './watcher.js';
 import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
 import { BoardService, ChangeOperationError } from './board.js';
+import { ArchivePreviewService, UnknownChangeError } from './archivePreview.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
 import { MetricsService, UnknownItemError } from './metrics.js';
@@ -104,6 +105,8 @@ export function createApp(options: ServerOptions): AppParts {
       : new BoardService(client, reader, schemaReader, location.bin);
   const schemas =
     client === null || location?.kind !== 'found' ? null : new SchemaRegistry(client, location.bin);
+  const archivePreview =
+    root === null || location?.kind !== 'found' ? null : new ArchivePreviewService(root, location.bin);
   const metrics =
     root === null || board === null || reader === null
       ? null
@@ -159,7 +162,7 @@ export function createApp(options: ServerOptions): AppParts {
       await reply.code(400).send({ error: error.message });
       return;
     }
-    if (error instanceof UnknownItemError) {
+    if (error instanceof UnknownItemError || error instanceof UnknownChangeError) {
       await reply.code(404).send({ error: error.message });
       return;
     }
@@ -267,6 +270,15 @@ export function createApp(options: ServerOptions): AppParts {
     }
     await board.archiveChange(body.name.trim());
     return { archived: body.name.trim() };
+  });
+
+  app.get('/api/archive/preview', async (request) => {
+    if (archivePreview === null) throw new Error('CLI OpenSpec недоступен');
+    const change = (request.query as { change?: string }).change;
+    if (typeof change !== 'string' || change.trim() === '') {
+      throw new ChangeOperationError('Не указано имя изменения', '');
+    }
+    return archivePreview.preview(change.trim());
   });
 
   const needSchemas = (): SchemaRegistry => {

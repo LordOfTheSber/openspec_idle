@@ -22,7 +22,7 @@ export interface BoardCard {
   readonly schema: string;
   /** Колонка, в которой карточка находится. */
   readonly column: string;
-  readonly artifacts: readonly { readonly id: string; readonly done: boolean }[];
+  readonly artifacts: readonly BoardArtifact[];
   readonly progress: { readonly complete: number; readonly total: number } | null;
   readonly errorCount: number;
   /** Валидация ни разу не выполнялась. */
@@ -30,6 +30,17 @@ export interface BoardCard {
   readonly lastModified: string | null;
   /** Действующие отказы схемы от правил SDD — признак на карточке. */
   readonly waivers: readonly SchemaWaiverNote[];
+}
+
+/** Артефакт change на карточке. */
+export interface BoardArtifact {
+  readonly id: string;
+  readonly done: boolean;
+  /**
+   * Путь первого файла артефакта относительно корня рабочего пространства —
+   * чтобы с карточки открыть его в редакторе; `null`, если файла нет.
+   */
+  readonly path?: string | null;
 }
 
 /** Действующий отказ схемы от правила SDD. */
@@ -58,7 +69,7 @@ export interface BoardSchema {
 export interface BoardChange {
   readonly name: string;
   readonly schema: string;
-  readonly artifacts: readonly { readonly id: string; readonly done: boolean }[];
+  readonly artifacts: readonly BoardArtifact[];
   readonly progress: { readonly complete: number; readonly total: number } | null;
   readonly errorCount: number;
   readonly validationUnknown: boolean;
