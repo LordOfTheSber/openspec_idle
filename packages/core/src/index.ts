@@ -1,6 +1,6 @@
 export const CORE_VERSION = '0.1.0';
 
-export { OPENSPEC_DIR } from './constants.js';
+export { API_REVISION, OPENSPEC_DIR, isStaleBackend } from './constants.js';
 
 export {
   parseSpecMarkdown,

@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { API_REVISION } from '@openspec-ide/core';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { loadConfig, saveConfig, SecretInConfigError } from './config.js';
@@ -201,6 +202,7 @@ export function createApp(options: ServerOptions): AppParts {
 
   app.get('/api/health', async () => ({
     status: 'ok' as const,
+    apiRevision: API_REVISION,
     root,
     dev: options.dev,
   }));

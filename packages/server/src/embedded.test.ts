@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { FIXTURES_ROOT } from '../../../tests/fixtures.js';
 import { type EmbeddedBackend, createEmbeddedBackend } from './embedded.js';
 import { canonicalize } from './fs/workspace.js';
+import { isStaleBackend } from '@openspec-ide/core';
 
 let root: string | null = null;
 let backend: EmbeddedBackend | null = null;
@@ -73,6 +74,14 @@ describe('встроенный бэкенд', () => {
 
     expect(reply.status).toBe(400);
     expect((reply.body as { error: string }).error).toContain('Не указано имя изменения');
+  });
+
+  it('сообщает ревизию API, по которой панель узнаёт устаревший бэкенд', async () => {
+    backend = await createEmbeddedBackend({ root: copyFixture('empty'), watch: false });
+
+    const reply = await backend.request('GET', '/api/health');
+
+    expect(isStaleBackend(reply.body)).toBe(false);
   });
 
   it('отдаёт предпросмотр архивации и 404 для неизвестного change', async () => {

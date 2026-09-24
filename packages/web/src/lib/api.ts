@@ -102,6 +102,11 @@ function get<T>(path: string): Promise<T> {
   return call<T>('GET', path);
 }
 
+/** Состояние бэкенда: по ревизии API видно, не старше ли он интерфейса. */
+export function fetchHealth(): Promise<{ status: 'ok'; apiRevision?: number }> {
+  return get<{ status: 'ok'; apiRevision?: number }>('/api/health');
+}
+
 export function fetchWorkspace(): Promise<WorkspaceResponse> {
   return get<WorkspaceResponse>('/api/workspace');
 }

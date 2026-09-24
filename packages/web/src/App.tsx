@@ -12,7 +12,8 @@ import { AGENT_EVENT_TYPES, publishAgentEvent } from './lib/agentFeed.js';
 import { SpecView } from './components/SpecView.js';
 import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
-import { eventsUrl, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
+import { isStaleBackend } from '@openspec-ide/core';
+import { eventsUrl, fetchHealth, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
 import {
   type ConnectionState,
   WorkspaceConnection,
@@ -69,6 +70,15 @@ export function App() {
   // Строка, к которой перейти во встроенном редакторе после перехода с доски.
   const [revealLine, setRevealLine] = useState<number | null>(null);
   const connectionRef = useRef<WorkspaceConnection | null>(null);
+  // Бэкенд старше интерфейса — в VS Code так бывает до перезагрузки окна
+  // после установки новой сборки.
+  const [staleBackend, setStaleBackend] = useState(false);
+
+  useEffect(() => {
+    void fetchHealth()
+      .then((health) => setStaleBackend(isStaleBackend(health)))
+      .catch(() => undefined);
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -217,6 +227,20 @@ export function App() {
           )}
 
           <div className="pane">
+            {staleBackend && (
+              <div className="notice error" role="alert" data-testid="stale-backend">
+                <p>
+                  Бэкенд расширения старее интерфейса панели: новая сборка установлена, но в
+                  VS Code ещё работает прежняя. Часть разделов будет отвечать ошибками.
+                </p>
+                <p>
+                  Перезагрузите окно: палитра команд → <code>Developer: Reload Window</code>. Если
+                  не помогло — закройте все окна VS Code и откройте проект заново, затем проверьте
+                  версию расширения OpenSpec IDE в разделе «Расширения».
+                </p>
+              </div>
+            )}
+
             {loadError !== null && (
               <p className="notice error" role="alert">
                 {loadError}

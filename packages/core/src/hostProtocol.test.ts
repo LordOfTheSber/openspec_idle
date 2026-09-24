@@ -128,3 +128,14 @@ describe('протокол панели: сообщения расширения
     ).toBe(false);
   });
 });
+
+describe('сверка ревизии API', () => {
+  it('бэкенд без ревизии или со старой ревизией считается устаревшим', async () => {
+    const { API_REVISION, isStaleBackend } = await import('./constants.js');
+
+    expect(isStaleBackend({ status: 'ok' })).toBe(true);
+    expect(isStaleBackend({ status: 'ok', apiRevision: API_REVISION - 1 })).toBe(true);
+    expect(isStaleBackend({ status: 'ok', apiRevision: API_REVISION })).toBe(false);
+    expect(isStaleBackend(null)).toBe(false);
+  });
+});
