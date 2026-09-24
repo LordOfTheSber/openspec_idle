@@ -47,7 +47,7 @@ describe('критерий приёмки из формулировки пунк
     const { fileURLToPath } = await import('node:url');
     const text = readFileSync(
       fileURLToPath(
-        new URL('../../../openspec/changes/add-openspec-ide/tasks.md', import.meta.url),
+        new URL('../../../openspec/changes/archive/2026-09-24-add-openspec-ide/tasks.md', import.meta.url),
       ),
       'utf8',
     );

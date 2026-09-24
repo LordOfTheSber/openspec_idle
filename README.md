@@ -13,9 +13,11 @@
 Раньше IDE была отдельной web-средой с бинарём `openspec-ide` и вкладкой
 браузера. Теперь это расширение: артефакты правятся в редакторе VS Code, а
 бэкенд работает внутри процесса расширения, без сетевого порта. Решение и план
-переезда — в [`openspec/changes/add-vscode-extension/`](openspec/changes/add-vscode-extension/),
+переезда — в архивном change
+[`add-vscode-extension`](openspec/changes/archive/2026-09-24-add-vscode-extension/),
 исходные требования IDE — в
-[`openspec/changes/add-openspec-ide/`](openspec/changes/add-openspec-ide/).
+[`add-openspec-ide`](openspec/changes/archive/2026-09-24-add-openspec-ide/). Действующие
+требования — основные спеки в [`openspec/specs/`](openspec/specs/).
 
 ## Требования
 
@@ -330,21 +332,16 @@ npx openspec validate add-vscode-extension --strict
 
 ## Состояние
 
-Доска и предпросмотр архивации
-([`rework-board-archive-preview`](openspec/changes/rework-board-archive-preview/tasks.md)):
-все задачи выполнены. Макеты — экраны «Доска» и «Архивация» в
-[`docs/mockups/openspec-ide.html`](docs/mockups/openspec-ide.html).
+Все три change реализованы и заархивированы, их требования перенесены в основные
+спеки [`openspec/specs/`](openspec/specs/) (11 capability):
 
-Переезд в VS Code
-([`add-vscode-extension`](openspec/changes/add-vscode-extension/tasks.md)):
-группы 1–4 выполнены — встроенный бэкенд, транспорт интерфейса, расширение,
-упразднение бинаря `openspec-ide`. Осталась **5.1** — ручная приёмка сценариев
-спеки в настоящем VS Code.
-
-Исходный план IDE
-([`add-openspec-ide`](openspec/changes/add-openspec-ide/tasks.md)): выполнено 61
-из 66 задач. Осталось **10.1** — записать `--help` установленной сборки GigaCode
-CLI (см. «Сверка с установленной сборкой») и **11.1–11.4** — приёмка.
+- [`add-openspec-ide`](openspec/changes/archive/2026-09-24-add-openspec-ide/tasks.md) —
+  исходный план IDE;
+- [`add-vscode-extension`](openspec/changes/archive/2026-09-24-add-vscode-extension/tasks.md) —
+  переезд в расширение VS Code;
+- [`rework-board-archive-preview`](openspec/changes/archive/2026-09-24-rework-board-archive-preview/tasks.md) —
+  доска в VS Code и предпросмотр архивации. Макеты — экраны «Доска» и
+  «Архивация» в [`docs/mockups/openspec-ide.html`](docs/mockups/openspec-ide.html).
 
 ## Лицензия
 
