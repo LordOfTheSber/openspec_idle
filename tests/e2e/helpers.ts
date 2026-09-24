@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const CLI = fileURLToPath(new URL('../../packages/cli/bin/openspec-ide.js', import.meta.url));
+// Интерфейс проверяется в HTTP-режиме бэкенда: та же сборка открывается и в
+// панели VS Code, отличается только транспорт, который покрыт своими тестами.
+const SERVE = fileURLToPath(new URL('../../scripts/serve.mjs', import.meta.url));
 
 /** Запущенный для теста экземпляр IDE. */
 export interface LaunchedIde {
@@ -33,7 +35,7 @@ export async function launchIde(
   if (temporary !== null) cpSync(source, temporary, { recursive: true });
   const root = temporary ?? source;
   if (temporary !== null) options.prepare?.(temporary);
-  const child: ChildProcess = spawn(process.execPath, [CLI, root, '--no-open'], {
+  const child: ChildProcess = spawn(process.execPath, [SERVE, root], {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, ...options.env },
   });

@@ -1,4 +1,5 @@
 import type {
+  ApiMethod,
   AgentEvent,
   Board,
   RunOutcome,
@@ -13,6 +14,7 @@ import type {
   SearchHit,
   WorkspaceTree,
 } from '@openspec-ide/core';
+import { apiTransport, pageToken } from './transport.js';
 
 /** Состояние рабочего пространства, отданное сервером. */
 export type WorkspaceResponse =
@@ -33,30 +35,41 @@ export type WorkspaceResponse =
       readonly errors: readonly string[];
     };
 
-const TOKEN_META = 'openspec-ide-token';
-
 /** Токен сессии, встроенный сервером в отданную страницу. */
-export function sessionToken(): string {
-  const meta = document.querySelector(`meta[name="${TOKEN_META}"]`);
-  return meta?.getAttribute('content') ?? '';
+export const sessionToken = pageToken;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(path, {
-    headers: { 'x-openspec-ide-token': sessionToken() },
-  });
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | ({ error?: string; details?: string[]; output?: string } & Record<string, unknown>)
-      | null;
-    throw new ApiError(
-      payload?.error ?? `Запрос ${path} завершился с кодом ${response.status}`,
-      payload?.details ?? [],
-      payload?.output ?? '',
-      payload ?? {},
-    );
+/**
+ * Выполняет запрос текущим транспортом и разбирает отказ.
+ *
+ * 409 с версией с диска — конфликт записи файла; прочие 409 (например,
+ * занятый запуском change) — обычный отказ с пояснением.
+ */
+async function call<T>(method: ApiMethod, path: string, body?: unknown): Promise<T> {
+  const response = await apiTransport().request(method, path, body);
+  if (response.status >= 200 && response.status < 300) return response.body as T;
+
+  const payload = isRecord(response.body) ? response.body : null;
+  const disk = payload?.['disk'] as ArtifactFile | undefined;
+  const filePath = payload?.['path'];
+  if (response.status === 409 && disk !== undefined && typeof filePath === 'string') {
+    throw new StaleWriteConflict(filePath, disk, typeof payload?.['error'] === 'string' ? payload['error'] : '');
   }
-  return (await response.json()) as T;
+  const details = payload?.['details'];
+  const output = payload?.['output'];
+  throw new ApiError(
+    typeof payload?.['error'] === 'string' ? payload['error'] : `Запрос ${path} завершился с кодом ${response.status}`,
+    Array.isArray(details) ? details.filter((item): item is string => typeof item === 'string') : [],
+    typeof output === 'string' ? output : '',
+    payload ?? {},
+  );
+}
+
+function get<T>(path: string): Promise<T> {
+  return call<T>('GET', path);
 }
 
 export function fetchWorkspace(): Promise<WorkspaceResponse> {
@@ -93,33 +106,8 @@ export class StaleWriteConflict extends Error {
   }
 }
 
-async function send<T>(path: string, method: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method,
-    headers: { 'x-openspec-ide-token': sessionToken(), 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | ({ error?: string; details?: string[]; output?: string; path?: string; disk?: ArtifactFile } & Record<
-          string,
-          unknown
-        >)
-      | null;
-    // 409 с версией с диска — конфликт записи файла; прочие 409 (например,
-    // занятый запуском change) — обычный отказ с пояснением.
-    if (response.status === 409 && payload?.disk !== undefined && payload.path !== undefined) {
-      throw new StaleWriteConflict(payload.path, payload.disk, payload.error ?? '');
-    }
-    throw new ApiError(
-      payload?.error ?? `Запрос ${path} завершился с кодом ${response.status}`,
-      payload?.details ?? [],
-      payload?.output ?? '',
-      payload ?? {},
-    );
-  }
-  return (await response.json()) as T;
+function send<T>(path: string, method: 'POST' | 'PUT' | 'DELETE', body: unknown): Promise<T> {
+  return call<T>(method, path, body);
 }
 
 /** Отказ сервера с пояснениями — например, перечнем нарушений схемы. */

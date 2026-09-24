@@ -46,6 +46,12 @@ export interface ServerOptions {
   readonly debounceMs?: number;
   /** Каталог собранной страницы SPA; по умолчанию — dist пакета web. */
   readonly webDist?: string;
+  /**
+   * Отдавать ли собранную страницу. По умолчанию — везде, кроме режима
+   * разработки. Встроенному в расширение бэкенду страница не нужна: панель
+   * загружает интерфейс из файлов расширения.
+   */
+  readonly serveUi?: boolean;
 }
 
 /** Запущенный сервер. */
@@ -69,7 +75,8 @@ export class PortInUseError extends Error {
   }
 }
 
-interface AppParts {
+/** Части собранного приложения. */
+export interface AppParts {
   readonly app: FastifyInstance;
   readonly token: SessionToken;
   readonly events: EventBus;
@@ -590,7 +597,7 @@ export function createApp(options: ServerOptions): AppParts {
 
   // Страница отдаётся только в собранном виде: в режиме разработки её отдаёт
   // Vite, а сервер занимается одним API.
-  if (!options.dev) {
+  if (options.serveUi ?? !options.dev) {
     const distDir =
       options.webDist ??
       fileURLToPath(new URL('../../web/dist/', import.meta.url));

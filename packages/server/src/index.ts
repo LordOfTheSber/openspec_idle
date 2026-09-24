@@ -12,9 +12,16 @@ export {
   PortInUseError,
   createApp,
   startServer,
+  type AppParts,
   type RunningServer,
   type ServerOptions,
 } from './server.js';
+export {
+  createEmbeddedBackend,
+  type ApiReply,
+  type EmbeddedBackend,
+  type EmbeddedBackendOptions,
+} from './embedded.js';
 
 export { runCli, runCliJson, type CliFailure, type CliResult, type CliRunOptions } from './openspec/exec.js';
 export { OpenspecClient, type OpenspecClientOptions } from './openspec/client.js';

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Поднимает сервер и Vite одной командой: сервер отдаёт API, Vite — страницу с HMR.
+// Разработка интерфейса в браузере: бэкенд отдаёт API, Vite — страницу с HMR.
+// Сервер собирается заранее (npm run build), --watch перезапускает его при
+// пересборке пакета server.
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 
@@ -33,5 +35,5 @@ function shutdown(code) {
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
-run('server', 'node', ['--watch', 'packages/cli/bin/openspec-ide.js', '--no-open', '--dev']);
+run('server', 'node', ['--watch', 'scripts/serve.mjs', '--dev']);
 run('web', 'npm', ['run', 'dev', '-w', '@openspec-ide/web']);

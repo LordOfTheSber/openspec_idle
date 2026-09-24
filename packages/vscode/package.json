@@ -1,0 +1,227 @@
+{
+  "name": "openspec-ide",
+  "displayName": "OpenSpec IDE",
+  "description": "Работа по методологии OpenSpec в VS Code: дерево changes и спеков, валидация, доска, дельты, метрики, конструктор процессов и агент GigaCode CLI",
+  "version": "0.1.0",
+  "publisher": "openspec-ide",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LordOfTheSber/openspec_idle.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "openspec",
+    "sdd",
+    "specification",
+    "gigacode"
+  ],
+  "main": "./dist/extension.cjs",
+  "activationEvents": [
+    "workspaceContains:openspec/config.yaml"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "openspec",
+          "title": "OpenSpec",
+          "icon": "media/openspec.svg"
+        }
+      ]
+    },
+    "views": {
+      "openspec": [
+        {
+          "id": "openspec.workspace",
+          "name": "Рабочее пространство",
+          "icon": "media/openspec.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "openspec.workspace",
+        "contents": "В этой рабочей области и выше по дереву нет каталога openspec/.\nЗаведите проект в терминале командой `openspec init`.\n[Обновить](command:openspec.refresh)",
+        "when": "openspec.state == 'not-initialized'"
+      },
+      {
+        "view": "openspec.workspace",
+        "contents": "Не найден CLI OpenSpec — все операции над проектом идут через него.\nУстановите его в проект: `npm install -D @fission-ai/openspec`.\n[Обновить](command:openspec.refresh)",
+        "when": "openspec.state == 'cli-missing'"
+      }
+    ],
+    "commands": [
+      {
+        "command": "openspec.refresh",
+        "title": "Обновить",
+        "category": "OpenSpec",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openspec.newChange",
+        "title": "Создать change",
+        "category": "OpenSpec",
+        "icon": "$(add)"
+      },
+      {
+        "command": "openspec.validateChange",
+        "title": "Проверить change",
+        "category": "OpenSpec",
+        "icon": "$(check)"
+      },
+      {
+        "command": "openspec.archiveChange",
+        "title": "Архивировать change",
+        "category": "OpenSpec",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "openspec.openBoard",
+        "title": "Доска",
+        "category": "OpenSpec",
+        "icon": "$(project)"
+      },
+      {
+        "command": "openspec.openDeltas",
+        "title": "Дельты",
+        "category": "OpenSpec",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "openspec.openMetrics",
+        "title": "Метрики",
+        "category": "OpenSpec",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "openspec.openAgent",
+        "title": "Агент",
+        "category": "OpenSpec",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "openspec.openProcesses",
+        "title": "Процессы",
+        "category": "OpenSpec",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "openspec.openSettings",
+        "title": "Настройки агента",
+        "category": "OpenSpec",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "openspec.openSearch",
+        "title": "Поиск по требованиям",
+        "category": "OpenSpec",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openspec.openNode",
+        "title": "Открыть",
+        "category": "OpenSpec"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "openspec.openNode",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "openspec.newChange",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openspec.openBoard",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openspec.openSearch",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "navigation@3"
+        },
+        {
+          "command": "openspec.refresh",
+          "when": "view == openspec.workspace",
+          "group": "navigation@4"
+        },
+        {
+          "command": "openspec.openProcesses",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "sections@1"
+        },
+        {
+          "command": "openspec.openDeltas",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "sections@2"
+        },
+        {
+          "command": "openspec.openSettings",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "sections@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "openspec.validateChange",
+          "when": "view == openspec.workspace && viewItem == change",
+          "group": "inline@1"
+        },
+        {
+          "command": "openspec.openMetrics",
+          "when": "view == openspec.workspace && viewItem == change",
+          "group": "sections@1"
+        },
+        {
+          "command": "openspec.openDeltas",
+          "when": "view == openspec.workspace && viewItem =~ /^(change|capability)$/",
+          "group": "sections@2"
+        },
+        {
+          "command": "openspec.openAgent",
+          "when": "view == openspec.workspace && viewItem == change",
+          "group": "sections@3"
+        },
+        {
+          "command": "openspec.openBoard",
+          "when": "view == openspec.workspace && viewItem == change",
+          "group": "sections@4"
+        },
+        {
+          "command": "openspec.validateChange",
+          "when": "view == openspec.workspace && viewItem == change",
+          "group": "operations@1"
+        },
+        {
+          "command": "openspec.archiveChange",
+          "when": "view == openspec.workspace && viewItem == change",
+          "group": "operations@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "package": "node build.mjs && vsce package --no-dependencies --out dist/openspec-ide.vsix"
+  },
+  "devDependencies": {
+    "@openspec-ide/core": "0.1.0",
+    "@openspec-ide/server": "0.1.0",
+    "@types/vscode": "~1.90.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.2"
+  }
+}

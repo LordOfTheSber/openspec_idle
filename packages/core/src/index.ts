@@ -151,3 +151,18 @@ export {
   type RunEnding,
   type RunTally,
 } from './agentStream.js';
+
+export {
+  API_METHODS,
+  PANEL_SECTIONS,
+  isPanelApiPath,
+  parseHostMessage,
+  parseViewMessage,
+  type ApiMethod,
+  type HostEvent,
+  type HostMessage,
+  type PanelSection,
+  type PanelSelection,
+  type Parsed,
+  type ViewMessage,
+} from './hostProtocol.js';

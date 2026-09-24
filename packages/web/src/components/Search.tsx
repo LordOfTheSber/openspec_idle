@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { SearchHit, SearchKind } from '@openspec-ide/core';
 import { fetchSearch } from '../lib/api.js';
+import { inVsCode, openInEditor } from '../lib/host.js';
 
 const KIND_LABEL: Record<SearchKind, string> = {
   change: 'изменение',
@@ -90,7 +91,17 @@ export function Search() {
               <li key={`${hit.kind}-${hit.owner}-${hit.line ?? position}`}>
                 <span className="kind">{KIND_LABEL[hit.kind]}</span>
                 <span>
-                  {hit.title}
+                  {hit.file !== null && inVsCode() ? (
+                    <button
+                      type="button"
+                      className="linklike"
+                      onClick={() => openInEditor(hit.file ?? '', hit.line)}
+                    >
+                      {hit.title}
+                    </button>
+                  ) : (
+                    hit.title
+                  )}
                   <span className="where">
                     {hit.owner}
                     {hit.file === null ? '' : ` · ${hit.file}`}
