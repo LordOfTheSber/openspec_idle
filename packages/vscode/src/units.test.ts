@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { canonicalize } from '@openspec-ide/server';
 import type { ArchivePreview, SpecPreview } from '@openspec-ide/server';
 import { archiveSummary, specLine } from './archiveSummary.js';
+import { structureDiagnostics } from './structureModel.js';
 import { handleViewMessage, resolvePanelPath } from './bridge.js';
 import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
 import { renderPanelHtml } from './panelHtml.js';
@@ -288,5 +289,34 @@ describe('пути, которые панели разрешено открыт�
     expect(resolvePanelPath(root, '../../etc/passwd')).toBeNull();
     expect(resolvePanelPath(root, 'openspec/escape/secret.md')).toBeNull();
     expect(resolvePanelPath(null, 'openspec/a.md')).toBeNull();
+  });
+});
+
+describe('диагностики структуры папок', () => {
+  const base = { configured: true, path: 'openspec/structure.yaml', errors: [], tree: [], ok: false };
+
+  it('лишний файл — на самом файле, остальное — на строке правила', () => {
+    const result = structureDiagnostics({
+      ...base,
+      issues: [
+        { kind: 'unexpected', path: 'docs/context/draft.txt', expected: null, actual: 'file', line: 9, message: 'Лишний файл docs/context/draft.txt' },
+        { kind: 'unexpected', path: 'docs/context/tmp', expected: null, actual: 'dir', line: 9, message: 'Лишняя папка docs/context/tmp' },
+        { kind: 'missing', path: 'docs/context/README.md', expected: 'file', actual: null, line: 10, message: 'Нет обязательного файла' },
+      ],
+    });
+
+    expect(result.get('docs/context/draft.txt')).toEqual([
+      { line: 0, message: 'Лишний файл docs/context/draft.txt (правило — openspec/structure.yaml:9)' },
+    ]);
+    expect(result.get('openspec/structure.yaml')).toEqual([
+      { line: 8, message: 'Лишняя папка docs/context/tmp' },
+      { line: 9, message: 'Нет обязательного файла' },
+    ]);
+  });
+
+  it('ошибки описания — на своих строках, без описания — ничего', () => {
+    const result = structureDiagnostics({ ...base, errors: [{ message: 'Неизвестное правило', line: 4 }], issues: [] });
+    expect(result.get('openspec/structure.yaml')).toEqual([{ line: 3, message: 'Описание структуры: Неизвестное правило' }]);
+    expect(structureDiagnostics({ ...base, configured: false, ok: true, issues: [] }).size).toBe(0);
   });
 });

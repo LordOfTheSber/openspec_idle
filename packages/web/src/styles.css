@@ -2984,3 +2984,78 @@ table.m td.task {
   background: var(--vscode-list-inactiveSelectionBackground, var(--accent-soft));
   border-color: var(--vscode-focusBorder, var(--accent-line));
 }
+
+/* ---------- структура папок ---------- */
+
+.structure {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 980px;
+}
+
+.structure-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.structure-issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.structure-issues li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.structure-issues .body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.structure-issues .where {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.structure-tree,
+.structure-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.structure-tree ul {
+  padding-left: 18px;
+  border-left: 1px dashed var(--border);
+  margin-left: 3px;
+}
+
+.structure-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.structure-node .rule {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.structure-node[data-state='missing'] .nm,
+.structure-node[data-state='wrong-type'] .nm {
+  color: var(--removed);
+}

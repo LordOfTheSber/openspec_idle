@@ -5,6 +5,7 @@ import {
   type ArchivePreview,
   type EmbeddedBackend,
   type SpecPreview,
+  type StructureReport,
   type ValidationRun,
   createEmbeddedBackend,
 } from '@openspec-ide/server';
@@ -14,6 +15,7 @@ import { resolvePanelPath } from './bridge.js';
 import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
 import { SectionPanel } from './panel.js';
 import { PREVIEW_SCHEME, PreviewDocuments } from './previewDocuments.js';
+import { structureDiagnostics } from './structureModel.js';
 import { pickWorkspaceRoot } from './root.js';
 import { type TreeNode, type WorkspaceState, buildTreeNodes, statusText } from './treeModel.js';
 import { OPEN_NODE_COMMAND, WorkspaceTreeProvider } from './treeProvider.js';
@@ -25,6 +27,8 @@ export const COMMANDS = {
   validateChange: 'openspec.validateChange',
   archiveChange: 'openspec.archiveChange',
   previewArchive: 'openspec.previewArchive',
+  checkStructure: 'openspec.checkStructure',
+  openStructure: 'openspec.openStructure',
   openBoard: 'openspec.openBoard',
   openDeltas: 'openspec.openDeltas',
   openMetrics: 'openspec.openMetrics',
@@ -43,6 +47,7 @@ const SECTION_COMMANDS: readonly (readonly [string, PanelSection])[] = [
   [COMMANDS.openProcesses, 'processes'],
   [COMMANDS.openSettings, 'settings'],
   [COMMANDS.openSearch, 'search'],
+  [COMMANDS.openStructure, 'structure'],
 ];
 
 /** Разделы, которые показывают данные одного change. */
@@ -59,6 +64,9 @@ class OpenspecController implements vscode.Disposable {
   readonly #status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   readonly #panel: SectionPanel;
   readonly #previews = new PreviewDocuments();
+  /** Замечания структуры папок — отдельно: они снимаются и ставятся целиком. */
+  readonly #structure = vscode.languages.createDiagnosticCollection('openspec-structure');
+  #structureTimer: NodeJS.Timeout | null = null;
   /** Файлы, на которые легли диагностики каждого change, — чтобы снимать устаревшие. */
   readonly #diagnosed = new Map<string, vscode.Uri[]>();
 
@@ -98,6 +106,10 @@ class OpenspecController implements vscode.Disposable {
       vscode.commands.registerCommand(COMMANDS.archiveChange, (node?: TreeNode) => this.archiveChange(node)),
       vscode.commands.registerCommand(COMMANDS.previewArchive, (node?: TreeNode) => this.previewArchiveCommand(node)),
       vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, this.#previews),
+      vscode.commands.registerCommand(COMMANDS.checkStructure, () => this.checkStructure(true)),
+      // Лишний файл может появиться где угодно в рабочей области, а не только
+      // в openspec/, за которым следит бэкенд.
+      ...this.#watchFiles(),
       ...SECTION_COMMANDS.map(([command, section]) =>
         vscode.commands.registerCommand(command, (node?: TreeNode) => this.openSection(section, node)),
       ),
@@ -113,6 +125,8 @@ class OpenspecController implements vscode.Disposable {
     this.#disposed = true;
     this.#panel.dispose();
     this.#previews.dispose();
+    this.#structure.dispose();
+    if (this.#structureTimer !== null) clearTimeout(this.#structureTimer);
     this.#tree.dispose();
     this.#diagnostics.dispose();
     this.#status.dispose();
@@ -481,6 +495,69 @@ class OpenspecController implements vscode.Disposable {
     this.#diagnosed.delete(change);
   }
 
+  /**
+   * Проверяет структуру папок и раскладывает нарушения в панель «Проблемы».
+   * Без описания структуры замечаний нет.
+   */
+  async checkStructure(notify: boolean): Promise<StructureReport | null> {
+    const report = (await this.#request('GET', '/api/structure', undefined, { quiet: !notify })) as StructureReport | null;
+    this.#structure.clear();
+    const root = this.root;
+    if (report === null || root === null) return report;
+
+    for (const [path, list] of structureDiagnostics(report)) {
+      this.#structure.set(
+        vscode.Uri.file(join(root, path)),
+        list.map((item) => {
+          const diagnostic = new vscode.Diagnostic(
+            new vscode.Range(item.line, 0, item.line, Number.MAX_SAFE_INTEGER),
+            item.message,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diagnostic.source = 'openspec-structure';
+          return diagnostic;
+        }),
+      );
+    }
+
+    if (notify) {
+      if (!report.configured) {
+        const create = 'Открыть раздел «Структура»';
+        const answer = await vscode.window.showInformationMessage(
+          `Структура папок не задана: нет ${report.path}.`,
+          create,
+        );
+        if (answer === create) await this.#panel.show('structure', null);
+      } else if (report.errors.length > 0) {
+        void vscode.window.showErrorMessage(`В описании структуры ошибок: ${report.errors.length}. Подробности — в панели «Проблемы».`);
+      } else if (report.ok) {
+        void vscode.window.showInformationMessage('Структура папок соответствует описанию.');
+      } else {
+        void vscode.window.showWarningMessage(
+          `Нарушений структуры папок: ${report.issues.length}. Подробности — в панели «Проблемы».`,
+        );
+      }
+    }
+    return report;
+  }
+
+  #scheduleStructureCheck(): void {
+    if (this.#structureTimer !== null) clearTimeout(this.#structureTimer);
+    this.#structureTimer = setTimeout(() => {
+      this.#structureTimer = null;
+      void this.checkStructure(false);
+    }, 500);
+  }
+
+  #watchFiles(): vscode.Disposable[] {
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, true, false);
+    return [
+      watcher,
+      watcher.onDidCreate(() => this.#scheduleStructureCheck()),
+      watcher.onDidDelete(() => this.#scheduleStructureCheck()),
+    ];
+  }
+
   async openSection(section: PanelSection, node?: TreeNode): Promise<void> {
     let selection: PanelSelection | null = null;
     if (node?.change !== undefined) {
@@ -507,6 +584,7 @@ class OpenspecController implements vscode.Disposable {
       this.#panel.postEvent({ type: event.type, payload: event.payload ?? null });
       if (event.type === 'workspace-changed') {
         void this.refresh();
+        this.#scheduleStructureCheck();
         const paths = (event.payload as { paths?: readonly string[] } | undefined)?.paths ?? [];
         for (const change of changesTouched(paths)) void this.validate(change);
       }
@@ -514,6 +592,7 @@ class OpenspecController implements vscode.Disposable {
     });
 
     await this.refresh();
+    void this.checkStructure(false);
     // Замечания всех активных changes видны сразу, а не после первой правки.
     if (this.#workspace?.state === 'ready') {
       for (const change of this.#workspace.tree.changes) void this.validate(change.name);

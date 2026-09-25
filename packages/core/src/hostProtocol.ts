@@ -16,6 +16,7 @@ export const PANEL_SECTIONS = [
   'processes',
   'settings',
   'search',
+  'structure',
 ] as const;
 
 export type PanelSection = (typeof PANEL_SECTIONS)[number];

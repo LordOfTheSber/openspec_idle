@@ -10,6 +10,7 @@ import { Processes } from './components/Processes.js';
 import { Settings } from './components/Settings.js';
 import { AGENT_EVENT_TYPES, publishAgentEvent } from './lib/agentFeed.js';
 import { SpecView } from './components/SpecView.js';
+import { Structure } from './components/Structure.js';
 import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
 import { isStaleBackend } from '@openspec-ide/core';
@@ -21,7 +22,16 @@ import {
 } from './lib/connection.js';
 import { messageStreamTransport, onNavigate, openInEditor, vscodeHost } from './lib/host.js';
 
-type Section = 'explorer' | 'deltas' | 'board' | 'metrics' | 'agent' | 'settings' | 'processes' | 'search';
+type Section =
+  | 'explorer'
+  | 'deltas'
+  | 'board'
+  | 'metrics'
+  | 'agent'
+  | 'settings'
+  | 'processes'
+  | 'search'
+  | 'structure';
 
 const SECTION_TITLE: Record<Section, string> = {
   explorer: 'Обозреватель',
@@ -32,6 +42,7 @@ const SECTION_TITLE: Record<Section, string> = {
   settings: 'Настройки',
   processes: 'Процессы',
   search: 'Поиск',
+  structure: 'Структура',
 };
 
 const RAIL: readonly { section: Section; short: string }[] = [
@@ -43,10 +54,11 @@ const RAIL: readonly { section: Section; short: string }[] = [
   { section: 'settings', short: 'Нс' },
   { section: 'processes', short: 'Пр' },
   { section: 'search', short: 'По' },
+  { section: 'structure', short: 'Ст' },
 ];
 
 /** Разделы на всю ширину, без дерева рабочего пространства слева. */
-const FULL_WIDTH: ReadonlySet<Section> = new Set(['processes', 'settings', 'board']);
+const FULL_WIDTH: ReadonlySet<Section> = new Set(['processes', 'settings', 'board', 'structure']);
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
   connecting: 'подключение…',
@@ -300,6 +312,10 @@ export function App() {
             ) : section === 'processes' ? (
               workspace?.state === 'ready' ? (
                 <Processes revision={revision} onChanged={() => void reload()} />
+              ) : null
+            ) : section === 'structure' ? (
+              workspace?.state === 'ready' ? (
+                <Structure revision={revision} />
               ) : null
             ) : section === 'search' ? (
               <Search />

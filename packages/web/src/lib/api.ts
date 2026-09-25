@@ -13,6 +13,9 @@ import type {
   RequirementComparison,
   SearchHit,
   SpecChange,
+  StructureIssue,
+  StructureNode,
+  StructureSpecError,
   WorkspaceTree,
 } from '@openspec-ide/core';
 import { apiTransport, pageToken } from './transport.js';
@@ -262,6 +265,25 @@ export function createChange(name: string, schema?: string): Promise<{ created: 
 
 export function archiveChange(name: string): Promise<{ archived: string }> {
   return send<{ archived: string }>('/api/archive', 'POST', { name });
+}
+
+/** Итог проверки структуры папок, как его отдаёт сервер. */
+export interface StructureReport {
+  readonly configured: boolean;
+  readonly path: string;
+  readonly errors: readonly StructureSpecError[];
+  readonly issues: readonly StructureIssue[];
+  readonly tree: readonly StructureNode[];
+  readonly ok: boolean;
+}
+
+export function fetchStructure(): Promise<StructureReport> {
+  return get<StructureReport>('/api/structure');
+}
+
+/** Создаёт `openspec/structure.yaml` по текущей раскладке `openspec/`. */
+export function initStructure(): Promise<StructureReport> {
+  return send<StructureReport>('/api/structure/init', 'POST', {});
 }
 
 /** Основной спек, который архивация создаст или изменит. */

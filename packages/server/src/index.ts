@@ -48,6 +48,13 @@ export { injectToken, placeholderPage, readBuiltPage } from './http/page.js';
 export { WorkspaceWatcher, type FileChangeBatch } from './watcher.js';
 export { WorkspaceReader } from './workspace.js';
 export {
+  StructureExistsError,
+  StructureService,
+  parseStructureYaml,
+  watchedStructureDirs,
+  type StructureReport,
+} from './structure.js';
+export {
   ArchivePreviewService,
   PREVIEW_DIR_PREFIX,
   UnknownChangeError,

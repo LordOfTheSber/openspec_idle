@@ -191,3 +191,25 @@ export {
   type RequirementChangeKind,
   type SpecChange,
 } from './specChange.js';
+
+export {
+  DEFAULT_STRUCTURE_IGNORE,
+  STRUCTURE_FILE,
+  checkStructure,
+  matchesName,
+  parseStructureSpec,
+  topLevelDirs,
+  type DirEntry,
+  type LineOf,
+  type ReadDir,
+  type StructureCheck,
+  type StructureEntry,
+  type StructureIssue,
+  type StructureIssueKind,
+  type StructureNode,
+  type StructureNodeState,
+  type StructureRule,
+  type StructureSpec,
+  type StructureSpecError,
+  type StructureSpecResult,
+} from './structure.js';

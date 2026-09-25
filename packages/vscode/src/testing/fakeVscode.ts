@@ -193,6 +193,8 @@ export interface FakeState {
   readonly messages: { level: 'info' | 'warning' | 'error'; text: string; detail?: string; buttons: string[] }[];
   /** Открытые сравнения `vscode.diff`: левая и правая стороны и заголовок. */
   readonly diffs: { left: Uri; right: Uri; title: string }[];
+  /** Наблюдатели за файлами рабочей области: тест сообщает о создании и удалении. */
+  readonly fileWatchers: { created: EventEmitter<Uri>; deleted: EventEmitter<Uri> }[];
   /** Провайдеры виртуальных документов по схеме. */
   readonly contentProviders: Map<string, { provideTextDocumentContent(uri: Uri): string }>;
   readonly diagnostics: Map<string, Diagnostic[]>;
@@ -211,6 +213,7 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
     shownDocuments: [],
     messages: [],
     diffs: [],
+    fileWatchers: [],
     contentProviders: new Map(),
     diagnostics: new Map(),
     statusBar: { text: '' },
@@ -281,7 +284,13 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
       },
       onDidChangeWorkspaceFolders: folderEvents.event,
       openTextDocument: async (uri: Uri) => ({ uri }),
-      registerTextDocumentContentProvider: (
+      createFileSystemWatcher: () => {
+        const created = new EventEmitter<Uri>();
+        const deleted = new EventEmitter<Uri>();
+        state.fileWatchers.push({ created, deleted });
+        return { onDidCreate: created.event, onDidDelete: deleted.event, onDidChange: new EventEmitter<Uri>().event, dispose: () => undefined };
+      },
+            registerTextDocumentContentProvider: (
         scheme: string,
         provider: { provideTextDocumentContent(uri: Uri): string },
       ) => {
@@ -290,11 +299,28 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
       },
     },
     languages: {
-      createDiagnosticCollection: () => ({
-        set: (uri: Uri, list: Diagnostic[]) => state.diagnostics.set(uri.fsPath, list),
-        delete: (uri: Uri) => state.diagnostics.delete(uri.fsPath),
-        dispose: () => state.diagnostics.clear(),
-      }),
+      // Коллекции пишут в общую таблицу, но снимают только свои замечания.
+      createDiagnosticCollection: () => {
+        const own = new Set<string>();
+        return {
+          set: (uri: Uri, list: Diagnostic[]) => {
+            own.add(uri.fsPath);
+            state.diagnostics.set(uri.fsPath, list);
+          },
+          delete: (uri: Uri) => {
+            own.delete(uri.fsPath);
+            state.diagnostics.delete(uri.fsPath);
+          },
+          clear: () => {
+            for (const path of own) state.diagnostics.delete(path);
+            own.clear();
+          },
+          dispose: () => {
+            for (const path of own) state.diagnostics.delete(path);
+            own.clear();
+          },
+        };
+      },
     },
     commands: {
       registerCommand: (id: string, handler: (...args: unknown[]) => unknown) => {

@@ -2,7 +2,7 @@
   "name": "openspec-ide",
   "displayName": "OpenSpec IDE",
   "description": "Работа по методологии OpenSpec в VS Code: дерево changes и спеков, валидация, доска, дельты, метрики, конструктор процессов и агент GigaCode CLI",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "openspec-ide",
   "private": true,
   "license": "MIT",
@@ -131,6 +131,18 @@
         "icon": "$(search)"
       },
       {
+        "command": "openspec.checkStructure",
+        "title": "Проверить структуру папок",
+        "category": "OpenSpec",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "openspec.openStructure",
+        "title": "Структура папок",
+        "category": "OpenSpec",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "openspec.openNode",
         "title": "Открыть",
         "category": "OpenSpec"
@@ -178,6 +190,16 @@
           "command": "openspec.openSettings",
           "when": "view == openspec.workspace && openspec.state == 'ready'",
           "group": "sections@3"
+        },
+        {
+          "command": "openspec.openStructure",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "sections@4"
+        },
+        {
+          "command": "openspec.checkStructure",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "sections@5"
         }
       ],
       "view/item/context": [

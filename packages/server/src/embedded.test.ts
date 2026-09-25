@@ -76,6 +76,16 @@ describe('встроенный бэкенд', () => {
     expect((reply.body as { error: string }).error).toContain('Не указано имя изменения');
   });
 
+  it('проверяет структуру папок и создаёт описание, повторно — 409', async () => {
+    backend = await createEmbeddedBackend({ root: copyFixture('full-change'), watch: false });
+
+    expect((await backend.request('GET', '/api/structure')).body).toMatchObject({ configured: false });
+    const created = await backend.request('POST', '/api/structure/init');
+    expect(created.status).toBe(200);
+    expect(created.body).toMatchObject({ configured: true, ok: true });
+    expect((await backend.request('POST', '/api/structure/init')).status).toBe(409);
+  });
+
   it('сообщает ревизию API, по которой панель узнаёт устаревший бэкенд', async () => {
     backend = await createEmbeddedBackend({ root: copyFixture('empty'), watch: false });
 

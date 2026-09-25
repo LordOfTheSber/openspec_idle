@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -377,3 +377,41 @@ describe('расширение VS Code: валидация и команды', (
     expect(state.diffs[0]?.right.path).toBe('/full-feature/data-export/spec.md');
   });
 });
+
+describe('расширение VS Code: структура папок', () => {
+  const DESCRIPTION = 'version: 1\nstructure:\n  docs:\n    context:\n      README.md: file\n      adr: "*"\n';
+
+  it('лишний файл — на файле, отсутствующий — на строке правила; исправленное исчезает', async () => {
+    const root = copyFixture('full-change');
+    writeFileSync(join(root, 'openspec', 'structure.yaml'), DESCRIPTION);
+    mkdirSync(join(root, 'docs', 'context', 'adr'), { recursive: true });
+    writeFileSync(join(root, 'docs', 'context', 'draft.txt'), 'x');
+    const state = await activate([root]);
+
+    await command(state, 'openspec.checkStructure');
+
+    const onFile = state.diagnostics.get(join(root, 'docs', 'context', 'draft.txt'));
+    expect(onFile?.[0]?.message).toContain('Лишний файл docs/context/draft.txt');
+    const onRule = state.diagnostics.get(join(root, 'openspec', 'structure.yaml'));
+    expect(onRule?.[0]?.message).toBe('Нет обязательного файла docs/context/README.md');
+    expect(onRule?.[0]?.range.start.line).toBe(4);
+    expect(state.messages.at(-1)?.text).toContain('Нарушений структуры папок: 2');
+
+    rmSync(join(root, 'docs', 'context', 'draft.txt'));
+    writeFileSync(join(root, 'docs', 'context', 'README.md'), '# Контекст');
+    state.fileWatchers[0]?.deleted.fire(Uri.file(join(root, 'docs', 'context', 'draft.txt')));
+    await until(() => !state.diagnostics.has(join(root, 'docs', 'context', 'draft.txt')), 'снятие замечания');
+    expect(state.diagnostics.has(join(root, 'openspec', 'structure.yaml'))).toBe(false);
+  });
+
+  it('без описания структуры замечаний нет', async () => {
+    const root = copyFixture('full-change');
+    const state = await activate([root]);
+
+    await command(state, 'openspec.checkStructure');
+
+    expect([...state.diagnostics.keys()].some((path) => path.endsWith('structure.yaml'))).toBe(false);
+    expect(state.messages.at(-1)?.text).toContain('Структура папок не задана');
+  });
+});
+

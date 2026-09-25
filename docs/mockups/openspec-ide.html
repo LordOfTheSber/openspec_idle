@@ -1423,9 +1423,9 @@
     валидацией, дельты читаются как требования, а не как markdown, процесс виден на доске,
     каждый пункт плана несёт метрики, и агент запускается через GigaCode CLI с бюджетом.
     Сам процесс при этом собирается под команду — но только такой, который остаётся
-    спек-ориентированным. Восемь экранов ниже — макеты к 47 требованиям исходного change;
-    экраны «Доска» и «Архивация» уже показывают IDE внутри VS Code — с предпросмотром того,
-    что архивация сделает с основными спеками.
+    спек-ориентированным. Девять экранов ниже — макеты к 47 требованиям исходного change;
+    экраны «Доска», «Архивация» и «Структура» уже показывают IDE внутри VS Code — с
+    предпросмотром архивации и проверкой структуры папок.
   </p>
 
   <dl class="facts">
@@ -1446,6 +1446,7 @@
       <button role="tab" aria-selected="false" data-screen="s6"><span class="num">06</span> Настройки</button>
       <button role="tab" aria-selected="false" data-screen="s7"><span class="num">07</span> Процессы</button>
       <button role="tab" aria-selected="false" data-screen="s8"><span class="num">08</span> Архивация</button>
+      <button role="tab" aria-selected="false" data-screen="s9"><span class="num">09</span> Структура</button>
     </div>
     <button class="theme-btn" id="theme">Тема</button>
   </div>
@@ -2801,6 +2802,101 @@ identity/user-auth — изменится: ~1 →1 −1
           <li>Вкладка «После архивации» <code>spec-delta-viewer</code></li>
           <li>Предпросмотр архивации в редакторе сравнения <code>vscode-extension</code></li>
           <li>Команды и строка состояния <code>vscode-extension</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 9 ================= -->
+  <section id="s9" class="screen" hidden>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">openspec_idle — Visual Studio Code · структура папок по openspec/structure.yaml</div>
+      </div>
+      <div class="vsc no-side">
+        <nav class="vsc-act"><i>⧉</i><i>⌕</i><i>⑂</i><i class="on">OS</i></nav>
+        <div class="vsc-main">
+          <div class="vsc-groups split">
+            <div class="vsc-group">
+              <div class="vsc-tabs"><span class="vsc-tab on">OpenSpec: Структура</span></div>
+              <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span class="crumbs">openspec/structure.yaml</span><span class="spacer"></span>
+                  <span class="btn">Открыть описание</span><span class="btn">Проверить</span>
+                </div>
+                <div class="outcome bad" style="margin:0"><b>3 нарушения структуры папок</b></div>
+                <ul class="problems">
+                  <li><span class="sev e">НЕТ</span><div>Нет обязательного файла docs/context/glossary.md<span class="where">правило — строка 12 · К правилу</span></div></li>
+                  <li><span class="sev e">ЛИШНЕЕ</span><div>Лишний файл docs/context/draft.txt: в docs/context разрешены только README.md, glossary.md, *.md, adr/<span class="where">правило — строка 10 · Открыть файл</span></div></li>
+                  <li><span class="sev w">ТИП</span><div>docs/context/adr должен быть папкой, а это файл<span class="where">правило — строка 14 · К правилу</span></div></li>
+                </ul>
+                <p class="pane-title" style="margin:4px 0 0">Описание</p>
+                <ul class="tree">
+                  <li><div class="node"><span class="dot ok"></span><span class="nm mono">openspec/</span><span class="tail">строгая папка</span></div>
+                    <ul>
+                      <li><div class="node"><span class="dot ok"></span><span class="nm mono">config.yaml</span><span class="tail">файл</span></div></li>
+                      <li><div class="node"><span class="dot ok"></span><span class="nm mono">specs/</span><span class="tail">папка, внутри — любая структура</span></div></li>
+                      <li><div class="node"><span class="dot none"></span><span class="nm mono">schemas/?</span><span class="tail">нет, необязателен</span></div></li>
+                    </ul>
+                  </li>
+                  <li><div class="node"><span class="dot warn"></span><span class="nm mono">docs/context/</span><span class="tail">строгая папка</span></div>
+                    <ul>
+                      <li><div class="node"><span class="dot ok"></span><span class="nm mono">README.md</span><span class="tail">файл</span></div></li>
+                      <li><div class="node"><span class="dot err"></span><span class="nm mono">glossary.md</span><span class="tail">файл · нет</span></div></li>
+                      <li><div class="node"><span class="dot ok"></span><span class="nm mono">*.md</span><span class="tail">шаблон · совпадений 4</span></div></li>
+                      <li><div class="node"><span class="dot err"></span><span class="nm mono">adr/</span><span class="tail">не тот тип</span></div></li>
+                    </ul>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="vsc-group">
+              <div class="vsc-tabs"><span class="vsc-tab on">structure.yaml</span></div>
+              <pre class="code" style="padding:8px 0"><span class="ln"><span>1</span><span class="sq"># Структура папок проекта для контекста и спецификаций.</span></span><span class="ln"><span>2</span><span><span class="h2">version</span>: 1</span></span><span class="ln"><span>3</span><span><span class="h2">structure</span>:</span></span><span class="ln"><span>4</span><span>  <span class="h3">openspec</span>:</span></span><span class="ln"><span>5</span><span>    config.yaml: <span class="kw">file</span></span></span><span class="ln"><span>6</span><span>    specs: <span class="kw">"*"</span>        <span class="sq"># дальше — свободно</span></span></span><span class="ln"><span>7</span><span>    changes: <span class="kw">"*"</span></span></span><span class="ln"><span>8</span><span>    schemas?: <span class="kw">"*"</span></span></span><span class="ln"><span>9</span><span>  <span class="h3">docs</span>:</span></span><span class="ln bad"><span>10</span><span>    <span class="h3 err-u">context</span>:        <span class="sq"># строго</span></span></span><span class="ln"><span>11</span><span>      README.md: <span class="kw">file</span></span></span><span class="ln bad"><span>12</span><span>      <span class="err-u">glossary.md</span>: <span class="kw">file</span></span></span><span class="ln"><span>13</span><span>      "*.md": <span class="kw">file</span></span></span><span class="ln bad"><span>14</span><span>      <span class="err-u">adr</span>: <span class="kw">"*"</span></span></span></pre>
+              <div style="border-top:1px solid var(--border);padding:8px 12px;margin-top:auto">
+                <p class="pane-title" style="margin-bottom:6px">Проблемы <span class="count">3</span></p>
+                <ul class="problems">
+                  <li><span class="sev e">ОШ</span><div>Лишний файл docs/context/draft.txt (правило — openspec/structure.yaml:10)<span class="where">docs/context/draft.txt · openspec-structure</span></div></li>
+                  <li><span class="sev e">ОШ</span><div>Нет обязательного файла docs/context/glossary.md<span class="where">openspec/structure.yaml:12 · openspec-structure</span></div></li>
+                  <li><span class="sev e">ОШ</span><div>docs/context/adr должен быть папкой, а это файл<span class="where">openspec/structure.yaml:14 · openspec-structure</span></div></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="vsc-status"><span>⑂ main</span><span>✕ 3 структура</span><span class="spacer"></span><span>OpenSpec: Проверить структуру папок</span></div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>
+        <h3>Одна структура папок на проект — и её проверка</h3>
+        <p>
+          Структура папок для контекста и спецификаций записана в
+          <code>openspec/structure.yaml</code> и ревьюится вместе с кодом. Дерево в файле
+          повторяет то, что видно в проводнике: <code>имя: file</code> — обязательный файл,
+          вложенный перечень — строгая папка, где всё неописанное лишнее,
+          <code>имя: "*"</code> — граница жёсткости: до этой папки путь зафиксирован, а внутри
+          допустима любая структура. <code>?</code> делает элемент необязательным, шаблон
+          <code>"*.md"</code> пропускает сколько угодно подходящих файлов.
+        </p>
+        <p>
+          Нарушения трёх видов — нет, лишнее, не тот тип — показываются в разделе
+          «Структура» и в панели «Проблемы» VS Code: лишний файл подсвечен на самом файле,
+          остальное — на строке правила, из-за которого нарушение возникло. Проверка идёт
+          при активации, при создании и удалении файлов и по команде.
+        </p>
+      </div>
+      <div class="reqs">
+        <h4>Требования экрана</h4>
+        <ul>
+          <li>Описание структуры папок <code>structure-conformance</code></li>
+          <li>Ошибки описания структуры <code>structure-conformance</code></li>
+          <li>Проверка соответствия <code>structure-conformance</code></li>
+          <li>Раздел «Структура» <code>structure-conformance</code></li>
+          <li>Нарушения структуры в панели «Проблемы» <code>vscode-extension</code></li>
         </ul>
       </div>
     </div>

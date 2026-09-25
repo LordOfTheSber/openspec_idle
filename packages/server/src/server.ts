@@ -14,6 +14,7 @@ import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
 import { BoardService, ChangeOperationError } from './board.js';
 import { ArchivePreviewService, UnknownChangeError } from './archivePreview.js';
+import { StructureExistsError, StructureService, watchedStructureDirs } from './structure.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
 import { MetricsService, UnknownItemError } from './metrics.js';
@@ -108,6 +109,8 @@ export function createApp(options: ServerOptions): AppParts {
     client === null || location?.kind !== 'found' ? null : new SchemaRegistry(client, location.bin);
   const archivePreview =
     root === null || location?.kind !== 'found' ? null : new ArchivePreviewService(root, location.bin);
+  // Структуре папок CLI не нужен: она проверяется по файлам.
+  const structure = root === null ? null : new StructureService(root);
   const metrics =
     root === null || board === null || reader === null
       ? null
@@ -157,6 +160,10 @@ export function createApp(options: ServerOptions): AppParts {
     }
     if (error instanceof WriteFailedError) {
       await reply.code(500).send({ error: error.message, path: error.path });
+      return;
+    }
+    if (error instanceof StructureExistsError) {
+      await reply.code(409).send({ error: error.message });
       return;
     }
     if (error instanceof ArtifactCreationError) {
@@ -272,6 +279,16 @@ export function createApp(options: ServerOptions): AppParts {
     }
     await board.archiveChange(body.name.trim());
     return { archived: body.name.trim() };
+  });
+
+  app.get('/api/structure', async () => {
+    if (structure === null) throw new Error('Рабочее пространство не определено');
+    return structure.check();
+  });
+
+  app.post('/api/structure/init', async () => {
+    if (structure === null) throw new Error('Рабочее пространство не определено');
+    return structure.init();
   });
 
   app.get('/api/archive/preview', async (request) => {
@@ -634,9 +651,13 @@ export function createApp(options: ServerOptions): AppParts {
   const watcher =
     root !== null && options.watch !== false
       ? new WorkspaceWatcher(
-          options.debounceMs === undefined
-            ? { root }
-            : { root, debounceMs: options.debounceMs },
+          {
+            root,
+            // Папки верхнего уровня из описания структуры: лишний файл в
+            // docs/ должен замечаться так же, как правка в openspec/.
+            extraDirs: watchedStructureDirs(root),
+            ...(options.debounceMs === undefined ? {} : { debounceMs: options.debounceMs }),
+          },
           (batch) => {
             client?.invalidate();
             schemaReader?.invalidate();

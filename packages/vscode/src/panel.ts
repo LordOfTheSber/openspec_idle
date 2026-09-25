@@ -14,6 +14,7 @@ export const SECTION_TITLE: Record<PanelSection, string> = {
   processes: 'Процессы',
   settings: 'Настройки агента',
   search: 'Поиск',
+  structure: 'Структура',
 };
 
 /** Что панели нужно от расширения. */
