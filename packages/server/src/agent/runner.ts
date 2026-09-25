@@ -15,7 +15,7 @@ import {
 import { type IdeConfig, loadConfig } from '../config.js';
 import type { EventBus } from '../events.js';
 import type { MetricsService } from '../metrics.js';
-import { killTree, spawnTree, toPosixPath } from '../process/platform.js';
+import { UnsafeShellArgumentError, killTree, spawnTree, toPosixPath } from '../process/platform.js';
 import { type AgentConfig, buildArgs, displayCommand, parseDuration } from './launch.js';
 import { type ProbeResult, probeAgent } from './probe.js';
 import type { BuiltPrompt, RunTarget } from './prompt.js';
@@ -96,6 +96,11 @@ export interface AgentServiceOptions {
 }
 
 const STDERR_TAIL = 8000;
+/**
+ * Промпт в аргументе, когда настоящий идёт на стандартный ввод. Только ASCII:
+ * обёртка `.cmd` читает строку запуска в кодовой странице консоли.
+ */
+const STDIN_PROMPT = 'Follow the task given on standard input.';
 
 /**
  * Запуск агента через GigaCode CLI как управляемая операция: с проверкой
@@ -221,8 +226,11 @@ export class AgentService {
       [...(agent.credentialsEnv === null ? [] : [agent.credentialsEnv]), ...agent.secretEnvs],
       this.#env,
     );
+    // Через cmd.exe многострочный промпт не проходит: он идёт на стандартный
+    // ввод, а в аргументе остаётся однострочная отсылка к нему — CLI, как и
+    // Qwen Code, соединяет ввод с промптом из аргумента.
     const args = buildArgs(agent.launch.args, {
-      prompt: request.prompt,
+      prompt: probe.promptViaStdin ? STDIN_PROMPT : request.prompt,
       format,
       approvalMode: mode,
       maxWallTime: agent.maxWallTime,
@@ -263,7 +271,17 @@ export class AgentService {
     };
 
     // Своя группа процессов (на POSIX): остановка снимает и дочерние процессы агента.
-    const child = spawnTree(probe.bin as string, args, { cwd: this.#options.root, env: this.#env });
+    let child: ChildProcess;
+    try {
+      child = spawnTree(probe.bin as string, args, {
+        cwd: this.#options.root,
+        env: this.#env,
+        ...(probe.promptViaStdin ? { stdin: request.prompt } : {}),
+      });
+    } catch (problem) {
+      if (problem instanceof UnsafeShellArgumentError) throw new AgentBlockedError(problem.message);
+      throw problem;
+    }
     const run: ActiveRun = { record, child, tally: emptyTally(), stoppedByUser: false, watchdogFired: false, killTimer: null };
     this.#active.set(change, run);
     this.#options.events.emit({ type: 'agent-started', payload: record });

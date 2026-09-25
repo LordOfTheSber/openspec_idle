@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { resolveCommand } from '../process/platform.js';
+import { spawnPlan } from '../process/platform.js';
 
 /** Успешный вызов CLI с разобранным JSON. */
 export interface CliSuccess<T> {
@@ -58,11 +58,17 @@ interface RawRun {
 /** Запускает CLI и возвращает сырой результат, не интерпретируя его. */
 export async function runCli(options: CliRunOptions, args: readonly string[]): Promise<RawRun> {
   // На Windows `openspec` из npm — обёртка `.cmd`: запускается её скрипт.
-  const { command, prefix } = resolveCommand(options.bin);
+  let plan;
+  try {
+    plan = spawnPlan(options.bin, args);
+  } catch (problem) {
+    const error = problem as NodeJS.ErrnoException;
+    return { code: null, stdout: '', stderr: error.message, spawnError: error, timedOut: false, aborted: false };
+  }
   return new Promise<RawRun>((resolve) => {
     execFile(
-      command,
-      [...prefix, ...args],
+      plan.command,
+      [...plan.args],
       // windowsHide: без него на Windows мелькает окно консоли на каждый вызов.
       {
         cwd: options.cwd,
@@ -70,6 +76,7 @@ export async function runCli(options: CliRunOptions, args: readonly string[]): P
         maxBuffer: MAX_OUTPUT_BYTES,
         env: { ...process.env, NO_COLOR: '1', ...options.env },
         windowsHide: true,
+        windowsVerbatimArguments: plan.verbatim,
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
       (error, stdout, stderr) => {

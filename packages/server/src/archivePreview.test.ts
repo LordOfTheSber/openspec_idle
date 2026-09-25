@@ -9,11 +9,13 @@ import { canonicalize } from './fs/workspace.js';
 const OPENSPEC_BIN = fileURLToPath(new URL('../../../node_modules/.bin/openspec', import.meta.url));
 
 let root: string;
+/** Свой каталог для копий: общий tmp меняют параллельные тесты. */
+let sandboxes: string;
 
 function project(fixture: string): ArchivePreviewService {
   const source = fileURLToPath(new URL(`../../../tests/fixtures/${fixture}`, import.meta.url));
   cpSync(source, root, { recursive: true });
-  return new ArchivePreviewService(root, OPENSPEC_BIN);
+  return new ArchivePreviewService(root, OPENSPEC_BIN, sandboxes);
 }
 
 /** Снимок всех файлов `openspec/` проекта: путь → содержимое. */
@@ -31,15 +33,17 @@ function snapshot(): Map<string, string> {
 }
 
 function previewDirs(): string[] {
-  return readdirSync(tmpdir()).filter((name) => name.startsWith(PREVIEW_DIR_PREFIX));
+  return readdirSync(sandboxes).filter((name) => name.startsWith(PREVIEW_DIR_PREFIX));
 }
 
 beforeEach(() => {
   root = canonicalize(mkdtempSync(join(tmpdir(), 'osi-preview-')));
+  sandboxes = mkdtempSync(join(tmpdir(), 'osi-preview-sandboxes-'));
 });
 
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
+  rmSync(sandboxes, { recursive: true, force: true });
 });
 
 describe('предпросмотр архивации', () => {

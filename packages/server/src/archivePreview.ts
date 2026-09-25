@@ -101,10 +101,13 @@ type SandboxRun =
 export class ArchivePreviewService {
   readonly #root: string;
   readonly #bin: string;
+  readonly #tempRoot: string;
 
-  constructor(root: string, bin: string) {
+  /** `tempRoot` — где создавать копию проекта; тестам нужен свой каталог. */
+  constructor(root: string, bin: string, tempRoot: string = tmpdir()) {
     this.#root = root;
     this.#bin = bin;
+    this.#tempRoot = tempRoot;
   }
 
   async preview(change: string): Promise<ArchivePreview> {
@@ -171,7 +174,7 @@ export class ArchivePreviewService {
   }
 
   async #runInSandbox(change: string, extra: readonly string[]): Promise<SandboxRun> {
-    const sandbox = await mkdtemp(join(tmpdir(), PREVIEW_DIR_PREFIX));
+    const sandbox = await mkdtemp(join(this.#tempRoot, PREVIEW_DIR_PREFIX));
     try {
       await copyForArchive(join(this.#root, OPENSPEC_DIR), join(sandbox, OPENSPEC_DIR), change);
 
