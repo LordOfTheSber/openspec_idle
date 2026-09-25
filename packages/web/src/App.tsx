@@ -281,10 +281,28 @@ export function App() {
             )}
 
             {workspace?.state === 'cli-missing' && (
-              <p className="notice error" data-testid="cli-missing">
-                {workspace.notice.title}. Установите <code>{workspace.notice.tool}</code>:{' '}
-                <code>{workspace.notice.install}</code>.
-              </p>
+              <div className="notice error" data-testid="cli-missing">
+                <p>
+                  {workspace.notice.title}.
+                  {workspace.notice.configured === null && (
+                    <>
+                      {' '}
+                      Установите <code>{workspace.notice.tool}</code>: <code>{workspace.notice.install}</code>.
+                    </>
+                  )}
+                </p>
+                <p data-testid="cli-missing-hint">{workspace.notice.hint}</p>
+                {workspace.notice.searched.length > 0 && (
+                  <details>
+                    <summary>Где искали ({workspace.notice.searched.length})</summary>
+                    <ul className="failure-details mono">
+                      {workspace.notice.searched.map((path) => (
+                        <li key={path}>{path}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
             )}
 
             {workspace?.state === 'ready' &&

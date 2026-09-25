@@ -2,7 +2,7 @@
   "name": "openspec-ide",
   "displayName": "OpenSpec IDE",
   "description": "Работа по методологии OpenSpec в VS Code: дерево changes и спеков, валидация, доска, дельты, метрики, конструктор процессов и агент GigaCode CLI",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "openspec-ide",
   "private": true,
   "license": "MIT",
@@ -45,6 +45,17 @@
         }
       ]
     },
+    "configuration": {
+      "title": "OpenSpec IDE",
+      "properties": {
+        "openspec.cliPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Путь к CLI OpenSpec — к исполняемому файлу или каталогу с ним. Пусто — искать в `node_modules/.bin` проекта, в PATH и в каталогах глобальной установки npm. Подойдёт вывод `which openspec` из Git Bash или `where openspec` из cmd."
+        }
+      }
+    },
     "viewsWelcome": [
       {
         "view": "openspec.workspace",
@@ -53,7 +64,7 @@
       },
       {
         "view": "openspec.workspace",
-        "contents": "Не найден CLI OpenSpec — все операции над проектом идут через него.\nУстановите его в проект: `npm install -D @fission-ai/openspec`.\n[Обновить](command:openspec.refresh)",
+        "contents": "Не найден CLI OpenSpec — все операции над проектом идут через него.\nУстановите его в проект: `npm install -D @fission-ai/openspec`.\nЕсли `openspec` работает в терминале, а здесь не виден, перезапустите VS Code полностью или укажите путь из `which openspec` (Git Bash) или `where openspec` (cmd).\n[Указать путь к CLI](command:workbench.action.openSettings?%22openspec.cliPath%22)\n[Обновить](command:openspec.refresh)",
         "when": "openspec.state == 'cli-missing'"
       }
     ],

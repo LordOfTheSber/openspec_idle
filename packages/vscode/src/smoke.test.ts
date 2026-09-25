@@ -56,8 +56,9 @@ function copyFixture(name: string): string {
 }
 
 /** Загружает свежую копию бандла с подменой `vscode` и активирует её. */
-async function activate(folders: readonly string[]): Promise<FakeState> {
+async function activate(folders: readonly string[], settings: Record<string, unknown> = {}): Promise<FakeState> {
   const fake = createFakeVscode(folders);
+  for (const [key, value] of Object.entries(settings)) fake.state.settings.set(key, value);
   const moduleApi = Module as unknown as { _load: (request: string, ...rest: unknown[]) => unknown };
   const original = moduleApi._load;
   moduleApi._load = function load(this: unknown, request: string, ...rest: unknown[]) {
@@ -147,6 +148,20 @@ describe('расширение VS Code: активация', () => {
     expect(topNodes(state)).toEqual([]);
     await command(state, 'openspec.newChange');
     expect(state.messages.at(-1)?.text).toContain('openspec init');
+  });
+
+  it('путь к CLI из настройки: неверный — «нет CLI» с подсказкой, исправленный подхватывается без перезапуска', async () => {
+    const root = copyFixture('full-change');
+    const state = await activate([root], { 'openspec.cliPath': join(root, 'нет-такого', 'openspec') });
+
+    expect(state.context.get('openspec.state')).toBe('cli-missing');
+    expect(state.statusBar.tooltip).toContain('по заданному пути');
+    await command(state, 'openspec.newChange');
+    expect(state.messages.at(-1)?.text).toContain('openspec.cliPath');
+    expect(state.messages.at(-1)?.buttons).toEqual(['Указать путь к CLI']);
+
+    state.setSetting('openspec.cliPath', join(EXTENSION_DIR, '..', '..', 'node_modules', '.bin'));
+    await expect.poll(() => state.context.get('openspec.state'), { timeout: 20_000 }).toBe('ready');
   });
 });
 

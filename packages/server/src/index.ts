@@ -25,7 +25,7 @@ export {
 
 export { runCli, runCliJson, type CliFailure, type CliResult, type CliRunOptions } from './openspec/exec.js';
 export { OpenspecClient, type OpenspecClientOptions } from './openspec/client.js';
-export { locateOpenspecCli, missingCliNotice, type CliLocation } from './openspec/locate.js';
+export { CLI_ENV, CLI_SETTING, locateOpenspecCli, missingCliNotice, type CliLocation, type CliSource } from './openspec/locate.js';
 export type {
   ArtifactInstructions,
   ChangeStatus,

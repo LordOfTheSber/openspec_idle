@@ -29,6 +29,9 @@ export type WorkspaceResponse =
         readonly title: string;
         readonly tool: string;
         readonly install: string;
+        /** Что делать, если CLI установлен, но IDE его не видит. */
+        readonly hint: string;
+        readonly configured: string | null;
         readonly searched: readonly string[];
       };
     }

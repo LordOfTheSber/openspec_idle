@@ -55,6 +55,12 @@ export interface ServerOptions {
    * загружает интерфейс из файлов расширения.
    */
   readonly serveUi?: boolean;
+  /**
+   * Путь к CLI OpenSpec из настроек — к исполняемому файлу или каталогу с ним.
+   * Задан — CLI ищется только там; иначе — в проекте, PATH и глобальных
+   * каталогах npm.
+   */
+  readonly cliPath?: string | null;
 }
 
 /** Запущенный сервер. */
@@ -93,7 +99,7 @@ export function createApp(options: ServerOptions): AppParts {
   const events = new EventBus();
   const { root } = options;
 
-  const location = root === null ? null : locateOpenspecCli(root);
+  const location = root === null ? null : locateOpenspecCli(root, { configured: options.cliPath ?? null });
   const client =
     root !== null && location?.kind === 'found'
       ? new OpenspecClient({ root, bin: location.bin })

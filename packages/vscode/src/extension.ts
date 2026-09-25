@@ -7,6 +7,7 @@ import {
   type SpecPreview,
   type StructureReport,
   type ValidationRun,
+  CLI_SETTING,
   createEmbeddedBackend,
 } from '@openspec-ide/server';
 import * as vscode from 'vscode';
@@ -99,7 +100,7 @@ class OpenspecController implements vscode.Disposable {
         treeDataProvider: this.#tree,
         showCollapseAll: true,
       }),
-      vscode.commands.registerCommand(COMMANDS.refresh, () => this.refresh()),
+      vscode.commands.registerCommand(COMMANDS.refresh, () => this.refreshCommand()),
       vscode.commands.registerCommand(COMMANDS.openNode, (node: TreeNode) => this.openNode(node)),
       vscode.commands.registerCommand(COMMANDS.newChange, () => this.newChange()),
       vscode.commands.registerCommand(COMMANDS.validateChange, (node?: TreeNode) => this.validateCommand(node)),
@@ -114,6 +115,9 @@ class OpenspecController implements vscode.Disposable {
         vscode.commands.registerCommand(command, (node?: TreeNode) => this.openSection(section, node)),
       ),
       vscode.workspace.onDidChangeWorkspaceFolders(() => void this.#restart()),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration(CLI_SETTING)) void this.#restart();
+      }),
     );
 
     this.#status.show();
@@ -131,6 +135,15 @@ class OpenspecController implements vscode.Disposable {
     this.#diagnostics.dispose();
     this.#status.dispose();
     await this.#stopBackend();
+  }
+
+  /**
+   * «Обновить» из дерева и палитры. Без CLI бэкенд поднимается заново: поиск
+   * CLI идёт при запуске, а его могли поставить после.
+   */
+  async refreshCommand(): Promise<void> {
+    if (this.#workspace?.state === 'cli-missing') await this.#restart();
+    else await this.refresh();
   }
 
   /** Перечитывает дерево. Запросы, пришедшие во время чтения, сливаются в одно повторное. */
@@ -578,7 +591,8 @@ class OpenspecController implements vscode.Disposable {
     const picked = pickWorkspaceRoot(folders);
     const root = picked.kind === 'found' ? picked.root : null;
 
-    const backend = await createEmbeddedBackend({ root });
+    const cliPath = vscode.workspace.getConfiguration().get<string>(CLI_SETTING, '').trim();
+    const backend = await createEmbeddedBackend({ root, cliPath: cliPath === '' ? null : cliPath });
     this.#backend = backend;
     this.#unsubscribe = backend.subscribe((event) => {
       this.#panel.postEvent({ type: event.type, payload: event.payload ?? null });
@@ -626,13 +640,25 @@ class OpenspecController implements vscode.Disposable {
   }
 
   #requireReady(): boolean {
-    if (this.#workspace?.state === 'ready') return true;
-    void vscode.window.showWarningMessage(
-      this.#workspace?.state === 'cli-missing'
-        ? 'Не найден CLI OpenSpec. Установите его: npm install -D @fission-ai/openspec'
-        : 'Проект OpenSpec не инициализирован. Выполните в терминале: openspec init',
-    );
+    const workspace = this.#workspace;
+    if (workspace?.state === 'ready') return true;
+    if (workspace?.state === 'cli-missing') {
+      void this.#reportMissingCli(workspace.notice);
+      return false;
+    }
+    void vscode.window.showWarningMessage('Проект OpenSpec не инициализирован. Выполните в терминале: openspec init');
     return false;
+  }
+
+  async #reportMissingCli(notice: Extract<WorkspaceState, { state: 'cli-missing' }>['notice']): Promise<void> {
+    const text =
+      notice === undefined
+        ? 'Не найден CLI OpenSpec. Установите его: npm install -D @fission-ai/openspec'
+        : `${notice.title}. ${notice.configured === null ? 'Установите его: npm install -D @fission-ai/openspec. ' : ''}${notice.hint}`;
+    const choice = await vscode.window.showWarningMessage(text, CLI_SETTING_BUTTON);
+    if (choice === CLI_SETTING_BUTTON) {
+      await vscode.commands.executeCommand('workbench.action.openSettings', CLI_SETTING);
+    }
   }
 
   async #pickChange(title: string): Promise<string | undefined> {
@@ -683,6 +709,8 @@ class OpenspecController implements vscode.Disposable {
     return null;
   }
 }
+
+const CLI_SETTING_BUTTON = 'Указать путь к CLI';
 
 let controller: OpenspecController | null = null;
 

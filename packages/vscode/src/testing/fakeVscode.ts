@@ -202,6 +202,10 @@ export interface FakeState {
   /** Очередь ответов на showInputBox / showQuickPick / модальные вопросы. */
   readonly answers: unknown[];
   workspaceFolders: { uri: Uri }[];
+  /** Настройки пользователя по полному ключу (`openspec.cliPath`). */
+  readonly settings: Map<string, unknown>;
+  /** Меняет настройку и сообщает об этом, как VS Code. */
+  setSetting(key: string, value: unknown): void;
 }
 
 export function createFakeVscode(folders: readonly string[]): { module: Record<string, unknown>; state: FakeState } {
@@ -219,7 +223,13 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
     statusBar: { text: '' },
     answers: [],
     workspaceFolders: folders.map((folder) => ({ uri: Uri.file(folder) })),
+    settings: new Map(),
+    setSetting: (key, value) => {
+      state.settings.set(key, value);
+      configurationEvents.fire({ affectsConfiguration: (section: string) => key === section || key.startsWith(`${section}.`) });
+    },
   };
+  const configurationEvents = new EventEmitter<{ affectsConfiguration(section: string): boolean }>();
   const folderEvents = new EventEmitter<void>();
   const disposable = { dispose: () => undefined };
 
@@ -283,6 +293,13 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
         return state.workspaceFolders;
       },
       onDidChangeWorkspaceFolders: folderEvents.event,
+      onDidChangeConfiguration: configurationEvents.event,
+      getConfiguration: (section?: string) => ({
+        get: <T>(key: string, fallback?: T): T | undefined => {
+          const full = section === undefined || section === '' ? key : `${section}.${key}`;
+          return state.settings.has(full) ? (state.settings.get(full) as T) : fallback;
+        },
+      }),
       openTextDocument: async (uri: Uri) => ({ uri }),
       createFileSystemWatcher: () => {
         const created = new EventEmitter<Uri>();
