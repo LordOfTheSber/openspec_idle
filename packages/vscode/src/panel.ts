@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import type { HostEvent, HostMessage, PanelSection, PanelSelection } from '@openspec-ide/core';
+import type { AgentIntent, HostEvent, HostMessage, PanelSection, PanelSelection } from '@openspec-ide/core';
 import type { EmbeddedBackend } from '@openspec-ide/server';
 import * as vscode from 'vscode';
 import { handleViewMessage } from './bridge.js';
@@ -14,6 +14,7 @@ export const SECTION_TITLE: Record<PanelSection, string> = {
   processes: 'Процессы',
   settings: 'Настройки агента',
   search: 'Поиск',
+  structure: 'Структура',
 };
 
 /** Что панели нужно от расширения. */
@@ -21,6 +22,7 @@ export interface SectionPanelDeps {
   readonly extensionUri: vscode.Uri;
   readonly backend: () => EmbeddedBackend | null;
   readonly openFile: (path: string, line: number | null, fromPanel: boolean) => Promise<void>;
+  readonly previewArchive: (change: string, capability: string | null) => Promise<void>;
 }
 
 /**
@@ -44,8 +46,9 @@ export class SectionPanel implements vscode.Disposable {
     return this.#panel !== null;
   }
 
-  async show(section: PanelSection, selection: PanelSelection | null): Promise<void> {
-    const navigate: HostMessage = { kind: 'navigate', section, selection };
+  async show(section: PanelSection, selection: PanelSelection | null, agent: AgentIntent | null = null): Promise<void> {
+    const navigate: HostMessage =
+      agent === null ? { kind: 'navigate', section, selection } : { kind: 'navigate', section, selection, agent };
     this.#last = navigate;
 
     if (this.#panel === null) {
@@ -96,6 +99,7 @@ export class SectionPanel implements vscode.Disposable {
       },
       post: (reply) => panel.webview.postMessage(reply),
       openFile: (path, line) => this.#deps.openFile(path, line, true),
+      previewArchive: (change, capability) => this.#deps.previewArchive(change, capability),
       onReady: () => {
         this.#ready = true;
         if (this.#last !== null) void panel.webview.postMessage(this.#last);

@@ -2,7 +2,17 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executableCandidates, resolveCommand, shimTarget, spawnShell, spawnTree, toPosixPath } from './platform.js';
+import {
+  UnsafeShellArgumentError,
+  executableCandidates,
+  parseShim,
+  resolveCommand,
+  shimTarget,
+  spawnPlan,
+  spawnShell,
+  spawnTree,
+  toPosixPath,
+} from './platform.js';
 
 /** Обёртка, которую npm (cmd-shim) кладёт в node_modules/.bin на Windows. */
 const NPM_BIN_SHIM = `@ECHO off
@@ -52,6 +62,62 @@ describe('запуск на Windows', () => {
     expect(shimTarget('C:\\x\\tool.cmd', '@echo off\r\ntool.exe %*')).toBeNull();
   });
 
+  it('обёртка установщика со своим node.exe и %~dp0 без косой черты', () => {
+    const shim = '@echo off\r\nsetlocal\r\n"%~dp0node\\node.exe" --no-warnings "%~dp0lib\\cli.js" --channel stable %*\r\n';
+    expect(parseShim('C:\\Program Files\\GigaCLI\\gigacode.cmd', shim)).toEqual({
+      kind: 'node',
+      node: 'C:\\Program Files\\GigaCLI\\node\\node.exe',
+      args: ['--no-warnings', 'C:\\Program Files\\GigaCLI\\lib\\cli.js', '--channel', 'stable'],
+    });
+  });
+
+  it('переменные из SET и путь без кавычек', () => {
+    const shim = [
+      '@ECHO OFF',
+      'SET "GIGA_HOME=%~dp0"',
+      'set NODE_EXE=%GIGA_HOME%\\runtime\\node.exe',
+      'REM запуск',
+      '%NODE_EXE% %GIGA_HOME%\\app\\index.mjs %*',
+    ].join('\r\n');
+    expect(parseShim('C:\\Tools\\Giga\\gigacode.cmd', shim)).toEqual({
+      kind: 'node',
+      node: 'C:\\Tools\\Giga\\runtime\\node.exe',
+      args: ['C:\\Tools\\Giga\\app\\index.mjs'],
+    });
+  });
+
+  it('обёртка, вызывающая .exe, запускает его напрямую', () => {
+    const shim = '@echo off\r\ncall "%~dp0bin\\gigacode.exe" %*\r\nexit /b %ERRORLEVEL%';
+    expect(parseShim('C:\\Program Files\\GigaCLI\\gigacode.cmd', shim)).toEqual({
+      kind: 'exe',
+      exe: 'C:\\Program Files\\GigaCLI\\bin\\gigacode.exe',
+      args: [],
+    });
+  });
+
+  it('скрипт через node из PATH и неизвестная переменная', () => {
+    expect(parseShim('C:\\g\\g.cmd', 'node "%~dp0\\dist\\cli.cjs" %*')).toEqual({
+      kind: 'node',
+      node: null,
+      args: ['C:\\g\\dist\\cli.cjs'],
+    });
+    expect(parseShim('C:\\g\\g.cmd', '"%UNKNOWN_HOME%\\cli.js" %*')).toBeNull();
+    expect(parseShim('C:\\g\\g.cmd', 'powershell -File "%~dp0g.ps1" %*')).toBeNull();
+  });
+
+  it('нераспознанная обёртка запускается через cmd.exe с закавыченными аргументами', () => {
+    dir = mkdtempSync(join(tmpdir(), 'osi-shim-'));
+    const shim = join(dir, 'odd tool.cmd');
+    writeFileSync(shim, '@echo off\r\npowershell -File "%~dp0g.ps1" %*\r\n');
+
+    const plan = spawnPlan(shim, ['Follow the task.', '--approval-mode', 'plan', 'a&b'], 'win32');
+    expect(plan.verbatim).toBe(true);
+    expect(plan.args.slice(0, 3)).toEqual(['/d', '/s', '/c']);
+    expect(plan.args[3]).toBe(`""${shim}" "Follow the task." --approval-mode plan "a&b""`);
+    expect(() => spawnPlan(shim, ['строка 1\nстрока 2'], 'win32')).toThrow(UnsafeShellArgumentError);
+    expect(() => spawnPlan(shim, ['100%'], 'win32')).toThrow(UnsafeShellArgumentError);
+  });
+
   it('имя дополняется расширениями PATHEXT, файл без расширения не предлагается', () => {
     expect(executableCandidates('C:\\bin', 'gigacode', 'win32', '.EXE;.CMD')).toEqual([
       'C:\\bin\\gigacode.exe',
@@ -86,6 +152,17 @@ describe('запуск на любой платформе', () => {
     child.stdout?.on('data', (chunk: Buffer) => (out += chunk.toString()));
     await new Promise((resolve) => child.on('close', resolve));
     expect(JSON.parse(out)).toEqual(['строка 1\nстрока "2"', '--flag']);
+  });
+
+  it('текст для стандартного ввода доходит до программы целиком', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'osi-spawn-'));
+    const script = join(dir, 'cat.mjs');
+    writeFileSync(script, 'let t = "";process.stdin.on("data", (c) => (t += c)).on("end", () => process.stdout.write(t));');
+    const child = spawnTree(script, [], { cwd: dir, env: process.env, stdin: 'строка 1\nстрока "2" 100%' });
+    let out = '';
+    child.stdout?.on('data', (chunk: Buffer) => (out += chunk.toString()));
+    await new Promise((resolve) => child.on('close', resolve));
+    expect(out).toBe('строка 1\nстрока "2" 100%');
   });
 
   it('команда оболочки выполняется оболочкой платформы', async () => {

@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { API_REVISION } from '@openspec-ide/core';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { loadConfig, saveConfig, SecretInConfigError } from './config.js';
@@ -12,6 +13,8 @@ import { WorkspaceWatcher } from './watcher.js';
 import { WorkspaceReader } from './workspace.js';
 import { DeltaReader } from './deltas.js';
 import { BoardService, ChangeOperationError } from './board.js';
+import { ArchivePreviewService, UnknownChangeError } from './archivePreview.js';
+import { StructureExistsError, StructureService, watchedStructureDirs } from './structure.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
 import { MetricsService, UnknownItemError } from './metrics.js';
@@ -19,7 +22,7 @@ import { MetricsStore } from './metricsStore.js';
 import { ArtifactCreationError, SNIPPETS, createArtifact } from './artifacts.js';
 import { StaleWriteError, WriteFailedError, readArtifactFile, saveArtifactFile } from './files.js';
 import { ValidationRunner } from './validation.js';
-import { PromptBuilder, PromptError, type RunTarget } from './agent/prompt.js';
+import { PromptBuilder, PromptError, type RunTarget, normalizeBrief } from './agent/prompt.js';
 import {
   APPROVAL_MODES,
   AgentBlockedError,
@@ -52,6 +55,12 @@ export interface ServerOptions {
    * загружает интерфейс из файлов расширения.
    */
   readonly serveUi?: boolean;
+  /**
+   * Путь к CLI OpenSpec из настроек — к исполняемому файлу или каталогу с ним.
+   * Задан — CLI ищется только там; иначе — в проекте, PATH и глобальных
+   * каталогах npm.
+   */
+  readonly cliPath?: string | null;
 }
 
 /** Запущенный сервер. */
@@ -90,7 +99,7 @@ export function createApp(options: ServerOptions): AppParts {
   const events = new EventBus();
   const { root } = options;
 
-  const location = root === null ? null : locateOpenspecCli(root);
+  const location = root === null ? null : locateOpenspecCli(root, { configured: options.cliPath ?? null });
   const client =
     root !== null && location?.kind === 'found'
       ? new OpenspecClient({ root, bin: location.bin })
@@ -104,6 +113,10 @@ export function createApp(options: ServerOptions): AppParts {
       : new BoardService(client, reader, schemaReader, location.bin);
   const schemas =
     client === null || location?.kind !== 'found' ? null : new SchemaRegistry(client, location.bin);
+  const archivePreview =
+    root === null || location?.kind !== 'found' ? null : new ArchivePreviewService(root, location.bin);
+  // Структуре папок CLI не нужен: она проверяется по файлам.
+  const structure = root === null ? null : new StructureService(root);
   const metrics =
     root === null || board === null || reader === null
       ? null
@@ -155,11 +168,15 @@ export function createApp(options: ServerOptions): AppParts {
       await reply.code(500).send({ error: error.message, path: error.path });
       return;
     }
+    if (error instanceof StructureExistsError) {
+      await reply.code(409).send({ error: error.message });
+      return;
+    }
     if (error instanceof ArtifactCreationError) {
       await reply.code(400).send({ error: error.message });
       return;
     }
-    if (error instanceof UnknownItemError) {
+    if (error instanceof UnknownItemError || error instanceof UnknownChangeError) {
       await reply.code(404).send({ error: error.message });
       return;
     }
@@ -198,6 +215,7 @@ export function createApp(options: ServerOptions): AppParts {
 
   app.get('/api/health', async () => ({
     status: 'ok' as const,
+    apiRevision: API_REVISION,
     root,
     dev: options.dev,
   }));
@@ -267,6 +285,25 @@ export function createApp(options: ServerOptions): AppParts {
     }
     await board.archiveChange(body.name.trim());
     return { archived: body.name.trim() };
+  });
+
+  app.get('/api/structure', async () => {
+    if (structure === null) throw new Error('Рабочее пространство не определено');
+    return structure.check();
+  });
+
+  app.post('/api/structure/init', async () => {
+    if (structure === null) throw new Error('Рабочее пространство не определено');
+    return structure.init();
+  });
+
+  app.get('/api/archive/preview', async (request) => {
+    if (archivePreview === null) throw new Error('CLI OpenSpec недоступен');
+    const change = (request.query as { change?: string }).change;
+    if (typeof change !== 'string' || change.trim() === '') {
+      throw new ChangeOperationError('Не указано имя изменения', '');
+    }
+    return archivePreview.preview(change.trim());
   });
 
   const needSchemas = (): SchemaRegistry => {
@@ -492,9 +529,10 @@ export function createApp(options: ServerOptions): AppParts {
     return { agent, prompts };
   };
   const readTarget = (value: unknown): RunTarget => {
-    const target = (value ?? {}) as { kind?: string; artifact?: string; key?: string };
+    const target = (value ?? {}) as { kind?: string; artifact?: string; key?: string; brief?: unknown };
     if (target.kind === 'artifact' && typeof target.artifact === 'string') {
-      return { kind: 'artifact', artifact: target.artifact };
+      const brief = normalizeBrief(target.brief);
+      return brief === undefined ? { kind: 'artifact', artifact: target.artifact } : { kind: 'artifact', artifact: target.artifact, brief };
     }
     if (target.kind === 'item' && typeof target.key === 'string') return { kind: 'item', key: target.key };
     throw new PromptError('Не указана цель запуска: артефакт или пункт плана');
@@ -619,9 +657,13 @@ export function createApp(options: ServerOptions): AppParts {
   const watcher =
     root !== null && options.watch !== false
       ? new WorkspaceWatcher(
-          options.debounceMs === undefined
-            ? { root }
-            : { root, debounceMs: options.debounceMs },
+          {
+            root,
+            // Папки верхнего уровня из описания структуры: лишний файл в
+            // docs/ должен замечаться так же, как правка в openspec/.
+            extraDirs: watchedStructureDirs(root),
+            ...(options.debounceMs === undefined ? {} : { debounceMs: options.debounceMs }),
+          },
           (batch) => {
             client?.invalidate();
             schemaReader?.invalidate();

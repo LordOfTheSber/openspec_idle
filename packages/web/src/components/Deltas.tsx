@@ -5,6 +5,7 @@ import type {
   RequirementComparison,
 } from '@openspec-ide/core';
 import { fetchComparison, fetchDeltas } from '../lib/api.js';
+import { ArchivePreview } from './ArchivePreview.js';
 
 const OPERATION_LABEL: Record<string, string> = {
   ADDED: 'Добавлено',
@@ -27,7 +28,48 @@ const OPERATION_CLASS: Record<string, string> = {
   RENAMED: 'renamed',
 };
 
-export function Deltas({ change }: { readonly change: string }) {
+type DeltasTab = 'deltas' | 'after-archive';
+
+/**
+ * Раздел дельт change: что change объявляет и — на второй вкладке — что станет
+ * с основными спеками после архивации. Предпросмотр строится только при
+ * открытии своей вкладки: это прогон CLI на временной копии проекта.
+ */
+export function Deltas({ change, revision }: { readonly change: string; readonly revision: number }) {
+  const [tab, setTab] = useState<DeltasTab>('deltas');
+
+  return (
+    <div className="deltas-section">
+      <div className="tabs" role="tablist" aria-label="Вид дельт">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'deltas'}
+          onClick={() => setTab('deltas')}
+          data-testid="tab-deltas"
+        >
+          Дельты
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'after-archive'}
+          onClick={() => setTab('after-archive')}
+          data-testid="tab-after-archive"
+        >
+          После архивации
+        </button>
+      </div>
+      {tab === 'deltas' ? (
+        <DeltaList change={change} revision={revision} />
+      ) : (
+        <ArchivePreview change={change} revision={revision} />
+      )}
+    </div>
+  );
+}
+
+function DeltaList({ change, revision }: { readonly change: string; readonly revision: number }) {
   const [views, setViews] = useState<readonly DeltaView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<{
@@ -48,7 +90,7 @@ export function Deltas({ change }: { readonly change: string }) {
     return () => {
       current = false;
     };
-  }, [change]);
+  }, [change, revision]);
 
   const openComparison = useCallback(
     async (capability: string, requirement: DeltaRequirement) => {

@@ -25,7 +25,7 @@ export {
 
 export { runCli, runCliJson, type CliFailure, type CliResult, type CliRunOptions } from './openspec/exec.js';
 export { OpenspecClient, type OpenspecClientOptions } from './openspec/client.js';
-export { locateOpenspecCli, missingCliNotice, type CliLocation } from './openspec/locate.js';
+export { CLI_ENV, CLI_SETTING, locateOpenspecCli, missingCliNotice, type CliLocation, type CliSource } from './openspec/locate.js';
 export type {
   ArtifactInstructions,
   ChangeStatus,
@@ -47,6 +47,22 @@ export { OutsideWorkspaceError, resolveInsideWorkspace } from './http/paths.js';
 export { injectToken, placeholderPage, readBuiltPage } from './http/page.js';
 export { WorkspaceWatcher, type FileChangeBatch } from './watcher.js';
 export { WorkspaceReader } from './workspace.js';
+export {
+  StructureExistsError,
+  StructureService,
+  parseStructureYaml,
+  watchedStructureDirs,
+  type StructureReport,
+} from './structure.js';
+export {
+  ArchivePreviewService,
+  PREVIEW_DIR_PREFIX,
+  UnknownChangeError,
+  type ArchiveOutcome,
+  type ArchivePreview,
+  type ArchiveProblem,
+  type SpecPreview,
+} from './archivePreview.js';
 export {
   CONFIG_FILE,
   IDE_DIR,

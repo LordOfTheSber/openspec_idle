@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPanelApiPath, parseHostMessage, parseViewMessage } from './hostProtocol.js';
+import { MAX_INTENT_BRIEF, isPanelApiPath, parseHostMessage, parseViewMessage } from './hostProtocol.js';
 
 describe('протокол панели: сообщения панели', () => {
   it('принимает запрос к API с телом', () => {
@@ -64,6 +64,24 @@ describe('протокол панели: сообщения панели', () =>
     expect(parseViewMessage({ kind: 'open-file', path: 'a.md', line: 0 }).ok).toBe(false);
     expect(parseViewMessage({ kind: 'open-file', path: '', line: 1 }).ok).toBe(false);
   });
+
+  it('принимает запрос сравнения архивации по имени change и capability', () => {
+    expect(parseViewMessage({ kind: 'preview-archive', change: 'add-x', capability: 'identity/user-auth' })).toEqual({
+      ok: true,
+      message: { kind: 'preview-archive', change: 'add-x', capability: 'identity/user-auth' },
+    });
+    expect(parseViewMessage({ kind: 'preview-archive', change: 'add-x' })).toEqual({
+      ok: true,
+      message: { kind: 'preview-archive', change: 'add-x', capability: null },
+    });
+  });
+
+  it('отклоняет запрос сравнения с путями наружу и с текстом вместо имён', () => {
+    expect(parseViewMessage({ kind: 'preview-archive', change: '../x', capability: null }).ok).toBe(false);
+    expect(parseViewMessage({ kind: 'preview-archive', change: 'a', capability: '../../etc' }).ok).toBe(false);
+    expect(parseViewMessage({ kind: 'preview-archive', change: 'a', capability: { after: '# spec' } }).ok).toBe(false);
+    expect(parseViewMessage({ kind: 'preview-archive', change: '' }).ok).toBe(false);
+  });
 });
 
 describe('протокол панели: пути API', () => {
@@ -108,5 +126,55 @@ describe('протокол панели: сообщения расширения
     expect(
       parseHostMessage({ kind: 'navigate', section: 'board', selection: { kind: 'file', id: 'x' } }).ok,
     ).toBe(false);
+  });
+
+  it('принимает навигацию к агенту с артефактом и замыслом', () => {
+    expect(
+      parseHostMessage({
+        kind: 'navigate',
+        section: 'agent',
+        selection: { kind: 'change', id: 'add-export' },
+        agent: { artifact: 'proposal', brief: 'Выгрузка в CSV' },
+      }),
+    ).toEqual({
+      ok: true,
+      message: {
+        kind: 'navigate',
+        section: 'agent',
+        selection: { kind: 'change', id: 'add-export' },
+        agent: { artifact: 'proposal', brief: 'Выгрузка в CSV' },
+      },
+    });
+    const withoutBrief = parseHostMessage({
+      kind: 'navigate',
+      section: 'agent',
+      selection: { kind: 'change', id: 'a' },
+      agent: { artifact: 'design', brief: '  ' },
+    });
+    expect(withoutBrief.ok && withoutBrief.message.kind === 'navigate' && withoutBrief.message.agent).toEqual({
+      artifact: 'design',
+      brief: null,
+    });
+  });
+
+  it('отклоняет навигацию к агенту с путём наружу, нестроковым или слишком длинным замыслом', () => {
+    const base = { kind: 'navigate', section: 'agent', selection: { kind: 'change', id: 'a' } };
+    expect(parseHostMessage({ ...base, agent: { artifact: '../x', brief: null } }).ok).toBe(false);
+    expect(parseHostMessage({ ...base, agent: { artifact: 'proposal', brief: 42 } }).ok).toBe(false);
+    expect(parseHostMessage({ ...base, agent: { artifact: 'proposal', brief: 'а'.repeat(MAX_INTENT_BRIEF + 1) } }).ok).toBe(
+      false,
+    );
+    expect(parseHostMessage({ ...base, agent: 'proposal' }).ok).toBe(false);
+  });
+});
+
+describe('сверка ревизии API', () => {
+  it('бэкенд без ревизии или со старой ревизией считается устаревшим', async () => {
+    const { API_REVISION, isStaleBackend } = await import('./constants.js');
+
+    expect(isStaleBackend({ status: 'ok' })).toBe(true);
+    expect(isStaleBackend({ status: 'ok', apiRevision: API_REVISION - 1 })).toBe(true);
+    expect(isStaleBackend({ status: 'ok', apiRevision: API_REVISION })).toBe(false);
+    expect(isStaleBackend(null)).toBe(false);
   });
 });

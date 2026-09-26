@@ -1,4 +1,5 @@
 import {
+  type AgentIntent,
   type HostMessage,
   type PanelSection,
   type PanelSelection,
@@ -127,13 +128,26 @@ export function openInEditor(path: string, line: number | null = null): boolean 
   return true;
 }
 
+/**
+ * Просит VS Code открыть предпросмотр архивации в редакторе сравнения.
+ *
+ * Передаются только имена: текст спека после архивации расширение получает
+ * от бэкенда само. Вне VS Code возвращает `false`.
+ */
+export function previewArchiveInEditor(change: string, capability: string | null): boolean {
+  const host = vscodeHost();
+  if (host === null) return false;
+  host.post({ kind: 'preview-archive', change, capability });
+  return true;
+}
+
 /** Подписка на команды навигации от расширения. */
 export function onNavigate(
-  handler: (section: PanelSection, selection: PanelSelection | null) => void,
+  handler: (section: PanelSection, selection: PanelSelection | null, agent: AgentIntent | null) => void,
 ): () => void {
   const host = vscodeHost();
   if (host === null) return () => undefined;
   return host.subscribe((message) => {
-    if (message.kind === 'navigate') handler(message.section, message.selection);
+    if (message.kind === 'navigate') handler(message.section, message.selection, message.agent ?? null);
   });
 }

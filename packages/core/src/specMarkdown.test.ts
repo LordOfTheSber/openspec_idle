@@ -116,7 +116,7 @@ describe('разбор структуры спека', () => {
   it('разбирает настоящую дельту этого проекта без структурных нарушений', () => {
     const path = fileURLToPath(
       new URL(
-        '../../../openspec/changes/add-openspec-ide/specs/sdd-conformance/spec.md',
+        '../../../openspec/changes/archive/2026-09-24-add-openspec-ide/specs/sdd-conformance/spec.md',
         import.meta.url,
       ),
     );

@@ -284,7 +284,7 @@ test.describe('назначение схемы', () => {
     await page.getByRole('button', { name: 'Доска' }).click();
     const card = page.getByTestId('card-team-feature');
     await expect(card.getByTestId('card-waiver')).toBeVisible();
-    await card.click();
+    await page.getByTestId('card-open-team-feature').click();
     await expect(page.getByTestId('change-waivers')).toContainText('Исследование заменяет предложение');
   });
 });

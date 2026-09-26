@@ -12,6 +12,10 @@ import type {
   DeltaView,
   RequirementComparison,
   SearchHit,
+  SpecChange,
+  StructureIssue,
+  StructureNode,
+  StructureSpecError,
   WorkspaceTree,
 } from '@openspec-ide/core';
 import { apiTransport, pageToken } from './transport.js';
@@ -25,6 +29,9 @@ export type WorkspaceResponse =
         readonly title: string;
         readonly tool: string;
         readonly install: string;
+        /** Что делать, если CLI установлен, но IDE его не видит. */
+        readonly hint: string;
+        readonly configured: string | null;
         readonly searched: readonly string[];
       };
     }
@@ -60,6 +67,9 @@ async function call<T>(method: ApiMethod, path: string, body?: unknown): Promise
   }
   const details = payload?.['details'];
   const output = payload?.['output'];
+  if (isUnknownRoute(response.status, payload)) {
+    throw new ApiError(unknownRouteMessage(path), [], '', payload ?? {});
+  }
   throw new ApiError(
     typeof payload?.['error'] === 'string' ? payload['error'] : `Запрос ${path} завершился с кодом ${response.status}`,
     Array.isArray(details) ? details.filter((item): item is string => typeof item === 'string') : [],
@@ -68,8 +78,39 @@ async function call<T>(method: ApiMethod, path: string, body?: unknown): Promise
   );
 }
 
+/**
+ * Бэкенд не знает маршрута — это стандартный 404 Fastify, а не отказ самого
+ * маршрута (у тех всегда своё пояснение).
+ *
+ * На практике так бывает в VS Code, когда .vsix той же версии поставлен
+ * поверх прежнего: панель загружает новый интерфейс с диска, а хост
+ * расширений до перезагрузки окна держит в памяти старый бэкенд.
+ */
+function isUnknownRoute(status: number, payload: Record<string, unknown> | null): boolean {
+  return (
+    status === 404 &&
+    payload?.['error'] === 'Not Found' &&
+    typeof payload['message'] === 'string' &&
+    payload['message'].startsWith('Route ')
+  );
+}
+
+function unknownRouteMessage(path: string): string {
+  const route = path.split('?')[0] ?? path;
+  return (
+    `Бэкенд не знает маршрута ${route}: интерфейс новее запущенного бэкенда. ` +
+    'Если расширение только что обновлено, перезагрузите окно VS Code ' +
+    '(команда «Developer: Reload Window»).'
+  );
+}
+
 function get<T>(path: string): Promise<T> {
   return call<T>('GET', path);
+}
+
+/** Состояние бэкенда: по ревизии API видно, не старше ли он интерфейса. */
+export function fetchHealth(): Promise<{ status: 'ok'; apiRevision?: number }> {
+  return get<{ status: 'ok'; apiRevision?: number }>('/api/health');
 }
 
 export function fetchWorkspace(): Promise<WorkspaceResponse> {
@@ -229,6 +270,61 @@ export function archiveChange(name: string): Promise<{ archived: string }> {
   return send<{ archived: string }>('/api/archive', 'POST', { name });
 }
 
+/** Итог проверки структуры папок, как его отдаёт сервер. */
+export interface StructureReport {
+  readonly configured: boolean;
+  readonly path: string;
+  readonly errors: readonly StructureSpecError[];
+  readonly issues: readonly StructureIssue[];
+  readonly tree: readonly StructureNode[];
+  readonly ok: boolean;
+}
+
+export function fetchStructure(): Promise<StructureReport> {
+  return get<StructureReport>('/api/structure');
+}
+
+/** Создаёт `openspec/structure.yaml` по текущей раскладке `openspec/`. */
+export function initStructure(): Promise<StructureReport> {
+  return send<StructureReport>('/api/structure/init', 'POST', {});
+}
+
+/** Основной спек, который архивация создаст или изменит. */
+export interface SpecPreview extends SpecChange {
+  readonly capability: string;
+  readonly path: string;
+  readonly before: string | null;
+  readonly after: string;
+}
+
+/** Исход предпросмотра архивации. */
+export type ArchiveOutcome = 'ready' | 'validation-failed' | 'refused';
+
+/** Предпросмотр архивации change, как его отдаёт сервер. */
+export interface ArchivePreviewResponse {
+  readonly change: string;
+  readonly outcome: ArchiveOutcome;
+  readonly problems: readonly {
+    readonly code: string | null;
+    readonly message: string;
+    readonly fix: string | null;
+  }[];
+  readonly output: string;
+  readonly warnings: readonly string[];
+  readonly totals: {
+    readonly added: number;
+    readonly modified: number;
+    readonly removed: number;
+    readonly renamed: number;
+  } | null;
+  readonly specs: readonly SpecPreview[];
+}
+
+/** Строит предпросмотр архивации: прогон CLI на временной копии проекта. */
+export function fetchArchivePreview(change: string): Promise<ArchivePreviewResponse> {
+  return get<ArchivePreviewResponse>(`/api/archive/preview?change=${encodeURIComponent(change)}`);
+}
+
 /** Пункты отслеживаемого артефакта change. */
 export interface TrackedItemsResponse {
   readonly change: string;
@@ -240,6 +336,7 @@ export interface TrackedItemsResponse {
     readonly group: number;
     readonly done: boolean;
   }[];
+  readonly groups: readonly { readonly number: number; readonly title: string }[];
   readonly complete: number;
   readonly total: number;
 }
@@ -440,7 +537,9 @@ export interface AgentStatus {
   readonly effective: EffectiveLaunch;
 }
 
-export type RunTarget = { readonly kind: 'artifact'; readonly artifact: string } | { readonly kind: 'item'; readonly key: string };
+export type RunTarget =
+  | { readonly kind: 'artifact'; readonly artifact: string; readonly brief?: string }
+  | { readonly kind: 'item'; readonly key: string };
 
 export interface AgentRunRecord {
   readonly runId: string;

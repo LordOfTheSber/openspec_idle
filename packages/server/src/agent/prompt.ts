@@ -6,8 +6,23 @@ import type { SchemaReader } from '../schemaDefinition.js';
 
 /** Цель запуска: артефакт схемы или пункт плана. */
 export type RunTarget =
-  | { readonly kind: 'artifact'; readonly artifact: string }
+  | {
+      readonly kind: 'artifact';
+      readonly artifact: string;
+      /** Замысел автора: что должно получиться в артефакте. */
+      readonly brief?: string;
+    }
   | { readonly kind: 'item'; readonly key: string };
+
+/** Предел длины замысла: больше — это уже артефакт, а не замысел. */
+export const MAX_BRIEF_LENGTH = 4000;
+
+/** Замысел, как он попадает в промпт: без пробелов по краям и не длиннее предела; пустой — `undefined`. */
+export function normalizeBrief(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim().slice(0, MAX_BRIEF_LENGTH).trim();
+  return trimmed === '' ? undefined : trimmed;
+}
 
 /** Отказ в сборке промпта; `output` — вывод команды OpenSpec, если он был. */
 export class PromptError extends Error {
@@ -102,10 +117,12 @@ export class PromptBuilder {
   }
 
   async build(change: string, target: RunTarget): Promise<BuiltPrompt> {
-    return target.kind === 'artifact' ? this.#forArtifact(change, target.artifact) : this.#forItem(change, target.key);
+    return target.kind === 'artifact'
+      ? this.#forArtifact(change, target.artifact, normalizeBrief(target.brief))
+      : this.#forItem(change, target.key);
   }
 
-  async #forArtifact(change: string, artifact: string): Promise<BuiltPrompt> {
+  async #forArtifact(change: string, artifact: string, brief: string | undefined): Promise<BuiltPrompt> {
     this.#client.invalidate();
     const result = await this.#client.instructions(artifact, change);
     if (!result.ok) {
@@ -126,6 +143,9 @@ export class PromptBuilder {
     const sections = [
       `# Артефакт «${artifact}» изменения «${change}»`,
       data.description === undefined ? '' : data.description,
+      // Инструкция схемы говорит, как писать артефакт, но не о чём: это
+      // знает только автор изменения.
+      brief === undefined ? '' : `## Замысел автора\n\n${brief}`,
       `## Инструкция схемы «${data.schemaName ?? ''}»\n\n${instruction}`,
       output === null ? '' : `## Куда писать\n\nСоздай или обнови файл \`${rel(this.#root, output)}\`.`,
       (data.dependencies ?? []).length === 0
@@ -141,7 +161,7 @@ export class PromptBuilder {
 
     return {
       change,
-      target: { kind: 'artifact', artifact },
+      target: brief === undefined ? { kind: 'artifact', artifact } : { kind: 'artifact', artifact, brief },
       label: `артефакт ${artifact}`,
       prompt: sections.filter((section) => section !== '').join('\n\n'),
     };

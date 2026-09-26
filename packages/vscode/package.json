@@ -2,7 +2,7 @@
   "name": "openspec-ide",
   "displayName": "OpenSpec IDE",
   "description": "Работа по методологии OpenSpec в VS Code: дерево changes и спеков, валидация, доска, дельты, метрики, конструктор процессов и агент GigaCode CLI",
-  "version": "0.1.0",
+  "version": "0.3.2",
   "publisher": "openspec-ide",
   "private": true,
   "license": "MIT",
@@ -45,6 +45,17 @@
         }
       ]
     },
+    "configuration": {
+      "title": "OpenSpec IDE",
+      "properties": {
+        "openspec.cliPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Путь к CLI OpenSpec — к исполняемому файлу или каталогу с ним. Пусто — искать в `node_modules/.bin` проекта, в PATH и в каталогах глобальной установки npm. Подойдёт вывод `which openspec` из Git Bash или `where openspec` из cmd."
+        }
+      }
+    },
     "viewsWelcome": [
       {
         "view": "openspec.workspace",
@@ -53,7 +64,7 @@
       },
       {
         "view": "openspec.workspace",
-        "contents": "Не найден CLI OpenSpec — все операции над проектом идут через него.\nУстановите его в проект: `npm install -D @fission-ai/openspec`.\n[Обновить](command:openspec.refresh)",
+        "contents": "Не найден CLI OpenSpec — все операции над проектом идут через него.\nУстановите его в проект: `npm install -D @fission-ai/openspec`.\nЕсли `openspec` работает в терминале, а здесь не виден, перезапустите VS Code полностью или укажите путь из `which openspec` (Git Bash) или `where openspec` (cmd).\n[Указать путь к CLI](command:workbench.action.openSettings?%22openspec.cliPath%22)\n[Обновить](command:openspec.refresh)",
         "when": "openspec.state == 'cli-missing'"
       }
     ],
@@ -75,6 +86,12 @@
         "title": "Проверить change",
         "category": "OpenSpec",
         "icon": "$(check)"
+      },
+      {
+        "command": "openspec.previewArchive",
+        "title": "Предпросмотр архивации",
+        "category": "OpenSpec",
+        "icon": "$(git-compare)"
       },
       {
         "command": "openspec.archiveChange",
@@ -125,6 +142,18 @@
         "icon": "$(search)"
       },
       {
+        "command": "openspec.checkStructure",
+        "title": "Проверить структуру папок",
+        "category": "OpenSpec",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "openspec.openStructure",
+        "title": "Структура папок",
+        "category": "OpenSpec",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "openspec.openNode",
         "title": "Открыть",
         "category": "OpenSpec"
@@ -172,6 +201,16 @@
           "command": "openspec.openSettings",
           "when": "view == openspec.workspace && openspec.state == 'ready'",
           "group": "sections@3"
+        },
+        {
+          "command": "openspec.openStructure",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "sections@4"
+        },
+        {
+          "command": "openspec.checkStructure",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "sections@5"
         }
       ],
       "view/item/context": [
@@ -206,9 +245,14 @@
           "group": "operations@1"
         },
         {
-          "command": "openspec.archiveChange",
+          "command": "openspec.previewArchive",
           "when": "view == openspec.workspace && viewItem == change",
           "group": "operations@2"
+        },
+        {
+          "command": "openspec.archiveChange",
+          "when": "view == openspec.workspace && viewItem == change",
+          "group": "operations@3"
         }
       ]
     }

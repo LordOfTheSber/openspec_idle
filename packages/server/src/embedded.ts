@@ -11,6 +11,8 @@ export interface EmbeddedBackendOptions {
   readonly watch?: boolean;
   /** Окно объединения событий наблюдателя, мс. */
   readonly debounceMs?: number;
+  /** Путь к CLI OpenSpec из настроек расширения. */
+  readonly cliPath?: string | null;
 }
 
 /** Ответ бэкенда — те же код и тело, что и в HTTP-режиме. */
@@ -45,6 +47,7 @@ export async function createEmbeddedBackend(options: EmbeddedBackendOptions): Pr
     serveUi: false,
     ...(options.watch === undefined ? {} : { watch: options.watch }),
     ...(options.debounceMs === undefined ? {} : { debounceMs: options.debounceMs }),
+    cliPath: options.cliPath ?? null,
   });
 
   await app.ready();

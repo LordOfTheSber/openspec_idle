@@ -48,7 +48,11 @@ export interface TreeNode {
 /** Состояние, в котором дерево отдал бэкенд. */
 export type WorkspaceState =
   | { readonly state: 'not-initialized' }
-  | { readonly state: 'cli-missing' }
+  | {
+      readonly state: 'cli-missing';
+      /** Есть у ответа бэкенда; в тестах и старых ответах может не быть. */
+      readonly notice?: { readonly title: string; readonly hint: string; readonly configured: string | null };
+    }
   | {
       readonly state: 'ready';
       readonly root: string;
@@ -264,7 +268,10 @@ export function statusText(workspace: WorkspaceState | null): { readonly text: s
     case 'not-initialized':
       return { text: '$(circle-slash) OpenSpec', tooltip: 'OpenSpec: проект не инициализирован' };
     case 'cli-missing':
-      return { text: '$(warning) OpenSpec: нет CLI', tooltip: 'Не найден CLI OpenSpec' };
+      return {
+        text: '$(warning) OpenSpec: нет CLI',
+        tooltip: workspace.notice === undefined ? 'Не найден CLI OpenSpec' : `${workspace.notice.title}\n${workspace.notice.hint}`,
+      };
     case 'ready':
       return {
         text: `$(git-pull-request) ${workspace.tree.changes.length} · $(book) ${countSpecs(workspace.tree.capabilities)}`,

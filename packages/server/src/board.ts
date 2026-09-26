@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  OPENSPEC_DIR,
   type Board,
   type BoardChange,
   type BoardSchema,
@@ -39,6 +40,8 @@ export interface TrackedItemsView {
     readonly index: number;
     readonly done: boolean;
   }[];
+  /** Заголовки групп пунктов (`## 1. …`) — чтобы показать пункты по группам. */
+  readonly groups: readonly { readonly number: number; readonly title: string }[];
   readonly complete: number;
   readonly total: number;
 }
@@ -88,6 +91,10 @@ export class BoardService {
       artifacts: change.artifacts.map((artifact) => ({
         id: artifact.id,
         done: artifact.state === 'done' || artifact.state === 'draft',
+        path:
+          artifact.files[0] === undefined
+            ? null
+            : `${OPENSPEC_DIR}/changes/${change.name}/${artifact.files[0]}`,
       })),
       progress: change.progress,
       errorCount: change.errorCount,
@@ -135,14 +142,14 @@ export class BoardService {
   async readTrackedItems(change: string): Promise<TrackedItemsView> {
     const location = await this.#trackedPath(change);
     if (location === null) {
-      return { change, path: null, items: [], complete: 0, total: 0 };
+      return { change, path: null, items: [], groups: [], complete: 0, total: 0 };
     }
 
     let text: string;
     try {
       text = await readFile(location.absolute, 'utf8');
     } catch {
-      return { change, path: location.relative, items: [], complete: 0, total: 0 };
+      return { change, path: location.relative, items: [], groups: [], complete: 0, total: 0 };
     }
 
     const parsed = parseTrackedDocument(text);
@@ -157,6 +164,7 @@ export class BoardService {
         index: item.index,
         done: item.done,
       })),
+      groups: parsed.groups.map((group) => ({ number: group.number, title: group.title })),
       complete: parsed.complete,
       total: parsed.total,
     };

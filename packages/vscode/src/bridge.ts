@@ -8,6 +8,8 @@ export interface BridgeDeps {
   readonly post: (message: HostMessage) => unknown;
   /** Открывает файл рабочего пространства в редакторе. */
   readonly openFile: (path: string, line: number | null) => Promise<void>;
+  /** Открывает предпросмотр архивации в редакторе сравнения. */
+  readonly previewArchive: (change: string, capability: string | null) => Promise<void>;
   /** Панель загрузилась и готова принимать навигацию. */
   readonly onReady: () => void;
   /** Сообщение о сбое, который панель показать не может. */
@@ -40,6 +42,10 @@ export async function handleViewMessage(raw: unknown, deps: BridgeDeps): Promise
 
     case 'open-file':
       await deps.openFile(message.path, message.line);
+      return;
+
+    case 'preview-archive':
+      await deps.previewArchive(message.change, message.capability);
       return;
 
     case 'request': {

@@ -11,7 +11,7 @@ import { MetricsStore } from '../metricsStore.js';
 import { OpenspecClient } from '../openspec/client.js';
 import { SchemaReader } from '../schemaDefinition.js';
 import { WorkspaceReader } from '../workspace.js';
-import { PromptBuilder, PromptError } from './prompt.js';
+import { MAX_BRIEF_LENGTH, PromptBuilder, PromptError, normalizeBrief } from './prompt.js';
 import { AgentBlockedError, AgentBusyError, AgentConsentError, AgentService } from './runner.js';
 
 const OPENSPEC_BIN = fileURLToPath(new URL('../../../../node_modules/.bin/openspec', import.meta.url));
@@ -138,6 +138,32 @@ describe('сборка промпта', () => {
     const built = await prompts.build('full-feature', { kind: 'artifact', artifact: 'design' });
     expect(built.prompt).toMatch(/## Инструкция схемы «spec-driven»/);
     expect(built.prompt).toContain('openspec/changes/full-feature/design.md');
+  });
+
+  it('по артефакту с замыслом: замысел автора отдельным разделом перед инструкцией', async () => {
+    const { prompts } = setup();
+    const built = await prompts.build('full-feature', {
+      kind: 'artifact',
+      artifact: 'design',
+      brief: '  Выгрузка данных пользователя в CSV с лимитом объёма  ',
+    });
+
+    expect(built.prompt).toContain('## Замысел автора\n\nВыгрузка данных пользователя в CSV с лимитом объёма');
+    expect(built.prompt.indexOf('## Замысел автора')).toBeLessThan(built.prompt.indexOf('## Инструкция схемы'));
+    expect(built.target).toEqual({
+      kind: 'artifact',
+      artifact: 'design',
+      brief: 'Выгрузка данных пользователя в CSV с лимитом объёма',
+    });
+  });
+
+  it('пустой замысел не даёт раздела, длинный обрезается до предела', async () => {
+    const { prompts } = setup();
+    const empty = await prompts.build('full-feature', { kind: 'artifact', artifact: 'design', brief: '   ' });
+    expect(empty.prompt).not.toContain('Замысел автора');
+    expect(empty.target).toEqual({ kind: 'artifact', artifact: 'design' });
+
+    expect(normalizeBrief('а'.repeat(MAX_BRIEF_LENGTH + 50))).toHaveLength(MAX_BRIEF_LENGTH);
   });
 
   it('по пункту плана: текст задачи, критерий приёмки и артефакты change', async () => {

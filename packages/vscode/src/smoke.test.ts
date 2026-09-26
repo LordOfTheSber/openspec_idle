@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -56,8 +56,9 @@ function copyFixture(name: string): string {
 }
 
 /** Загружает свежую копию бандла с подменой `vscode` и активирует её. */
-async function activate(folders: readonly string[]): Promise<FakeState> {
+async function activate(folders: readonly string[], settings: Record<string, unknown> = {}): Promise<FakeState> {
   const fake = createFakeVscode(folders);
+  for (const [key, value] of Object.entries(settings)) fake.state.settings.set(key, value);
   const moduleApi = Module as unknown as { _load: (request: string, ...rest: unknown[]) => unknown };
   const original = moduleApi._load;
   moduleApi._load = function load(this: unknown, request: string, ...rest: unknown[]) {
@@ -148,6 +149,20 @@ describe('расширение VS Code: активация', () => {
     await command(state, 'openspec.newChange');
     expect(state.messages.at(-1)?.text).toContain('openspec init');
   });
+
+  it('путь к CLI из настройки: неверный — «нет CLI» с подсказкой, исправленный подхватывается без перезапуска', async () => {
+    const root = copyFixture('full-change');
+    const state = await activate([root], { 'openspec.cliPath': join(root, 'нет-такого', 'openspec') });
+
+    expect(state.context.get('openspec.state')).toBe('cli-missing');
+    expect(state.statusBar.tooltip).toContain('по заданному пути');
+    await command(state, 'openspec.newChange');
+    expect(state.messages.at(-1)?.text).toContain('openspec.cliPath');
+    expect(state.messages.at(-1)?.buttons).toEqual(['Указать путь к CLI']);
+
+    state.setSetting('openspec.cliPath', join(EXTENSION_DIR, '..', '..', 'node_modules', '.bin'));
+    await expect.poll(() => state.context.get('openspec.state'), { timeout: 20_000 }).toBe('ready');
+  });
 });
 
 describe('расширение VS Code: дерево и редактор', () => {
@@ -168,12 +183,33 @@ describe('расширение VS Code: дерево и редактор', () =>
     const node = findNode(topNodes(state), 'artifact:bare-feature/proposal');
     expect(node?.contextValue).toBe('artifact-missing');
 
-    state.answers.push('Создать');
+    state.answers.push('Пустой по шаблону');
     await command(state, 'openspec.openNode', node);
 
     const created = join(root, 'openspec', 'changes', 'bare-feature', 'proposal.md');
     expect(existsSync(created)).toBe(true);
     expect(state.shownDocuments.at(-1)?.path).toBe(created);
+    expect(state.messages.at(-1)?.buttons).toEqual(['Сгенерировать агентом', 'Пустой по шаблону']);
+  });
+
+  it('отсутствующий артефакт генерируется агентом: панель открывается на агенте с замыслом', async () => {
+    const root = copyFixture('bare-change');
+    const state = await activate([root]);
+
+    state.answers.push('Сгенерировать агентом', 'Выгрузка данных в CSV');
+    await command(state, 'openspec.openNode', findNode(topNodes(state), 'artifact:bare-feature/proposal'));
+
+    const panel = lastPanel(state);
+    panel.webview.receive({ kind: 'ready' });
+    await until(() => panel.webview.posted.length > 0, 'навигация к агенту');
+    expect(panel.webview.posted[0]).toEqual({
+      kind: 'navigate',
+      section: 'agent',
+      selection: { kind: 'change', id: 'bare-feature' },
+      agent: { artifact: 'proposal', brief: 'Выгрузка данных в CSV' },
+    });
+    // Файл пишет агент после подтверждения запуска, а не расширение.
+    expect(existsSync(join(root, 'openspec', 'changes', 'bare-feature', 'proposal.md'))).toBe(false);
   });
 });
 
@@ -282,14 +318,115 @@ describe('расширение VS Code: валидация и команды', (
     await until(() => findNode(topNodes(state), 'change:add-thing') !== undefined, 'change в дереве');
   });
 
-  it('архивирует change из палитры с выбором и подтверждением', async () => {
+  it('создаёт change с замыслом и открывает агента по первому артефакту схемы', async () => {
+    const root = copyFixture('empty');
+    const state = await activate([root]);
+
+    state.answers.push('add-export', 'spec-driven', 'Выгрузка данных пользователя в CSV');
+    await command(state, 'openspec.newChange');
+
+    const panel = lastPanel(state);
+    panel.webview.receive({ kind: 'ready' });
+    await until(() => panel.webview.posted.length > 0, 'навигация к агенту');
+    expect(panel.webview.posted[0]).toMatchObject({
+      section: 'agent',
+      selection: { kind: 'change', id: 'add-export' },
+      agent: { artifact: 'proposal', brief: 'Выгрузка данных пользователя в CSV' },
+    });
+  });
+
+  it('архивирует change из палитры: подтверждение перечисляет изменения спеков', async () => {
     const root = copyFixture('full-change');
     const state = await activate([root]);
 
     state.answers.push('full-feature', 'Архивировать');
     await command(state, 'openspec.archiveChange');
 
+    const confirm = state.messages.find((message) => message.text.startsWith('Архивировать change'));
+    expect(confirm?.detail).toContain('data-export — новая: +1');
+    expect(confirm?.buttons).toEqual(['Архивировать', 'Показать изменения спеков']);
     expect(existsSync(join(root, 'openspec', 'changes', 'full-feature'))).toBe(false);
+    expect(existsSync(join(root, 'openspec', 'specs', 'data-export', 'spec.md'))).toBe(true);
     expect(findNode(topNodes(state), 'change:full-feature')).toBeUndefined();
   });
+
+  it('архивацию, которую CLI отклонит, не предлагает и объясняет', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+
+    await command(state, 'openspec.archiveChange', findNode(topNodes(state), 'change:rework-export'));
+
+    const refusal = state.messages.find((message) => message.level === 'error');
+    expect(refusal?.text).toContain('CLI отклонит');
+    expect(refusal?.detail).toContain('Пустой набор данных');
+    expect(refusal?.buttons).not.toContain('Архивировать');
+    expect(existsSync(join(root, 'openspec', 'changes', 'rework-export'))).toBe(true);
+  });
+
+  it('предпросмотр архивации открывает сравнение: слева пусто, справа спек после архивации', async () => {
+    const root = copyFixture('full-change');
+    const state = await activate([root]);
+
+    await command(state, 'openspec.previewArchive', findNode(topNodes(state), 'change:full-feature'));
+
+    expect(state.diffs).toHaveLength(1);
+    const [diff] = state.diffs;
+    const provider = state.contentProviders.get('openspec-preview');
+    expect(diff?.left.scheme).toBe('openspec-preview');
+    expect(provider?.provideTextDocumentContent(diff!.left)).toBe('');
+    expect(provider?.provideTextDocumentContent(diff!.right)).toContain('### Requirement: Выгрузка данных');
+    expect(diff?.title).toContain('data-export');
+    // Файлы проекта предпросмотр не трогает.
+    expect(existsSync(join(root, 'openspec', 'changes', 'full-feature'))).toBe(true);
+    expect(existsSync(join(root, 'openspec', 'specs', 'data-export'))).toBe(false);
+  });
+
+  it('панель просит сравнение по имени capability — расширение строит его само', async () => {
+    const state = await activate([copyFixture('full-change')]);
+    await command(state, 'openspec.openBoard');
+    const panel = lastPanel(state);
+
+    panel.webview.receive({ kind: 'preview-archive', change: 'full-feature', capability: 'data-export' });
+    await until(() => state.diffs.length === 1, 'сравнение из панели');
+
+    expect(state.diffs[0]?.right.path).toBe('/full-feature/data-export/spec.md');
+  });
 });
+
+describe('расширение VS Code: структура папок', () => {
+  const DESCRIPTION = 'version: 1\nstructure:\n  docs:\n    context:\n      README.md: file\n      adr: "*"\n';
+
+  it('лишний файл — на файле, отсутствующий — на строке правила; исправленное исчезает', async () => {
+    const root = copyFixture('full-change');
+    writeFileSync(join(root, 'openspec', 'structure.yaml'), DESCRIPTION);
+    mkdirSync(join(root, 'docs', 'context', 'adr'), { recursive: true });
+    writeFileSync(join(root, 'docs', 'context', 'draft.txt'), 'x');
+    const state = await activate([root]);
+
+    await command(state, 'openspec.checkStructure');
+
+    const onFile = state.diagnostics.get(join(root, 'docs', 'context', 'draft.txt'));
+    expect(onFile?.[0]?.message).toContain('Лишний файл docs/context/draft.txt');
+    const onRule = state.diagnostics.get(join(root, 'openspec', 'structure.yaml'));
+    expect(onRule?.[0]?.message).toBe('Нет обязательного файла docs/context/README.md');
+    expect(onRule?.[0]?.range.start.line).toBe(4);
+    expect(state.messages.at(-1)?.text).toContain('Нарушений структуры папок: 2');
+
+    rmSync(join(root, 'docs', 'context', 'draft.txt'));
+    writeFileSync(join(root, 'docs', 'context', 'README.md'), '# Контекст');
+    state.fileWatchers[0]?.deleted.fire(Uri.file(join(root, 'docs', 'context', 'draft.txt')));
+    await until(() => !state.diagnostics.has(join(root, 'docs', 'context', 'draft.txt')), 'снятие замечания');
+    expect(state.diagnostics.has(join(root, 'openspec', 'structure.yaml'))).toBe(false);
+  });
+
+  it('без описания структуры замечаний нет', async () => {
+    const root = copyFixture('full-change');
+    const state = await activate([root]);
+
+    await command(state, 'openspec.checkStructure');
+
+    expect([...state.diagnostics.keys()].some((path) => path.endsWith('structure.yaml'))).toBe(false);
+    expect(state.messages.at(-1)?.text).toContain('Структура папок не задана');
+  });
+});
+

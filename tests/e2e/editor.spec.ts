@@ -99,7 +99,7 @@ test('отсутствующий артефакт создаётся из шаб
     try {
       await page.goto(bare.url);
       await page.getByTestId('artifact-bare-feature-design').click();
-      await page.getByRole('button', { name: 'Создать из шаблона' }).click();
+      await page.getByRole('button', { name: 'Пустой по шаблону' }).click();
 
       await expect(page.getByTestId('editor')).toBeVisible();
       const created = readFileSync(join(bare.root, 'openspec/changes/bare-feature/design.md'), 'utf8');

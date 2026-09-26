@@ -1,6 +1,6 @@
 export const CORE_VERSION = '0.1.0';
 
-export { OPENSPEC_DIR } from './constants.js';
+export { API_REVISION, OPENSPEC_DIR, isStaleBackend } from './constants.js';
 
 export {
   parseSpecMarkdown,
@@ -59,6 +59,7 @@ export {
   mergeOrders,
   topologicalOrder,
   type Board,
+  type BoardArtifact,
   type BoardCard,
   type BoardChange,
   type BoardColumn,
@@ -154,10 +155,12 @@ export {
 
 export {
   API_METHODS,
+  MAX_INTENT_BRIEF,
   PANEL_SECTIONS,
   isPanelApiPath,
   parseHostMessage,
   parseViewMessage,
+  type AgentIntent,
   type ApiMethod,
   type HostEvent,
   type HostMessage,
@@ -166,3 +169,47 @@ export {
   type Parsed,
   type ViewMessage,
 } from './hostProtocol.js';
+
+export {
+  MAX_DIFF_CELLS,
+  diffText,
+  splitLines,
+  type TextDiff,
+  type TextDiffHunk,
+  type TextDiffLine,
+} from './textDiff.js';
+
+export {
+  describeSpecChange,
+  normalizeRequirementName,
+  renamePairs,
+  requirementBlocks,
+  type RemovedRequirement,
+  type RenamePair,
+  type RequirementBlock,
+  type RequirementChange,
+  type RequirementChangeKind,
+  type SpecChange,
+} from './specChange.js';
+
+export {
+  DEFAULT_STRUCTURE_IGNORE,
+  STRUCTURE_FILE,
+  checkStructure,
+  matchesName,
+  parseStructureSpec,
+  topLevelDirs,
+  type DirEntry,
+  type LineOf,
+  type ReadDir,
+  type StructureCheck,
+  type StructureEntry,
+  type StructureIssue,
+  type StructureIssueKind,
+  type StructureNode,
+  type StructureNodeState,
+  type StructureRule,
+  type StructureSpec,
+  type StructureSpecError,
+  type StructureSpecResult,
+} from './structure.js';

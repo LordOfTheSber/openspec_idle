@@ -57,6 +57,22 @@ describe('доска на встроенной схеме', () => {
     expect(card?.schema).toBe('spec-driven');
   });
 
+  it('метка артефакта на карточке знает путь его файла', async () => {
+    const board = await service('full-change').readBoard();
+    const card = board.cards.find((item) => item.change === 'full-feature');
+
+    expect(card?.artifacts.find((artifact) => artifact.id === 'proposal')?.path).toBe(
+      'openspec/changes/full-feature/proposal.md',
+    );
+  });
+
+  it('у несозданного артефакта пути нет', async () => {
+    const board = await service('bare-change').readBoard();
+    const card = board.cards.find((item) => item.change === 'bare-feature');
+
+    expect(card?.artifacts.every((artifact) => artifact.path === null)).toBe(true);
+  });
+
   it('change без артефактов стоит в колонке первого артефакта и не проверялся', async () => {
     const board = await service('bare-change').readBoard();
     const card = board.cards.find((item) => item.change === 'bare-feature');

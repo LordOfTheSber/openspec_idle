@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Agent } from './components/Agent.js';
+import { Agent, type GenerateIntent } from './components/Agent.js';
 import { Detail } from './components/Detail.js';
-import { Board } from './components/Board.js';
+import { Board, type BoardTarget } from './components/Board.js';
 import { CapabilityMapView } from './components/CapabilityMapView.js';
 import { Deltas } from './components/Deltas.js';
 import { EditorPane } from './components/EditorPane.js';
@@ -10,9 +10,11 @@ import { Processes } from './components/Processes.js';
 import { Settings } from './components/Settings.js';
 import { AGENT_EVENT_TYPES, publishAgentEvent } from './lib/agentFeed.js';
 import { SpecView } from './components/SpecView.js';
+import { Structure } from './components/Structure.js';
 import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
-import { eventsUrl, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
+import { isStaleBackend } from '@openspec-ide/core';
+import { eventsUrl, fetchHealth, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
 import {
   type ConnectionState,
   WorkspaceConnection,
@@ -20,7 +22,16 @@ import {
 } from './lib/connection.js';
 import { messageStreamTransport, onNavigate, openInEditor, vscodeHost } from './lib/host.js';
 
-type Section = 'explorer' | 'deltas' | 'board' | 'metrics' | 'agent' | 'settings' | 'processes' | 'search';
+type Section =
+  | 'explorer'
+  | 'deltas'
+  | 'board'
+  | 'metrics'
+  | 'agent'
+  | 'settings'
+  | 'processes'
+  | 'search'
+  | 'structure';
 
 const SECTION_TITLE: Record<Section, string> = {
   explorer: 'Обозреватель',
@@ -31,6 +42,7 @@ const SECTION_TITLE: Record<Section, string> = {
   settings: 'Настройки',
   processes: 'Процессы',
   search: 'Поиск',
+  structure: 'Структура',
 };
 
 const RAIL: readonly { section: Section; short: string }[] = [
@@ -42,7 +54,11 @@ const RAIL: readonly { section: Section; short: string }[] = [
   { section: 'settings', short: 'Нс' },
   { section: 'processes', short: 'Пр' },
   { section: 'search', short: 'По' },
+  { section: 'structure', short: 'Ст' },
 ];
+
+/** Разделы на всю ширину, без дерева рабочего пространства слева. */
+const FULL_WIDTH: ReadonlySet<Section> = new Set(['processes', 'settings', 'board', 'structure']);
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
   connecting: 'подключение…',
@@ -63,7 +79,20 @@ export function App() {
   const [revision, setRevision] = useState(0);
   // Пункт плана, с которым открыта панель агента из метрик.
   const [agentItem, setAgentItem] = useState<string | null>(null);
+  // Артефакт, который открыли генерировать агентом, и замысел автора.
+  const [agentGenerate, setAgentGenerate] = useState<GenerateIntent | null>(null);
+  // Строка, к которой перейти во встроенном редакторе после перехода с доски.
+  const [revealLine, setRevealLine] = useState<number | null>(null);
   const connectionRef = useRef<WorkspaceConnection | null>(null);
+  // Бэкенд старше интерфейса — в VS Code так бывает до перезагрузки окна
+  // после установки новой сборки.
+  const [staleBackend, setStaleBackend] = useState(false);
+
+  useEffect(() => {
+    void fetchHealth()
+      .then((health) => setStaleBackend(isStaleBackend(health)))
+      .catch(() => undefined);
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -111,8 +140,9 @@ export function App() {
   // выбор в уже открытой панели.
   useEffect(() => {
     if (host === null) return;
-    const unsubscribe = onNavigate((next, nextSelection) => {
-      if (next !== 'agent') setAgentItem(null);
+    const unsubscribe = onNavigate((next, nextSelection, agent) => {
+      setAgentItem(null);
+      setAgentGenerate(next === 'agent' ? agent : null);
       setSection(next);
       if (nextSelection !== null) setSelection(nextSelection);
     });
@@ -122,7 +152,56 @@ export function App() {
 
   const tree = workspace?.state === 'ready' ? workspace.tree : null;
 
+  /** Переход с доски в раздел, показывающий один change. */
+  const openForChange = (target: BoardTarget, change: string): void => {
+    setAgentItem(null);
+    setAgentGenerate(null);
+    setSelection({ kind: 'change', id: change });
+    setSection(target);
+  };
+
+  /** Генерация артефакта агентом: раздел «Агент» с уже собранным промптом. */
+  const generate = (change: string, artifact: string, brief: string | null): void => {
+    setAgentItem(null);
+    setAgentGenerate({ artifact, brief });
+    setSelection({ kind: 'change', id: change });
+    setSection('agent');
+  };
+
+  /**
+   * Открывает артефакт change: в VS Code — файл в его редакторе, в браузере —
+   * встроенный редактор (он же предложит создать отсутствующий артефакт).
+   */
+  const openArtifact = (change: string, artifactId: string, path: string | null): void => {
+    if (host !== null) {
+      if (path !== null) openInEditor(path);
+      return;
+    }
+    setRevealLine(null);
+    setSelection({ kind: 'artifact', id: artifactId, parent: change });
+    setSection('explorer');
+  };
+
+  /** Открывает файл рабочего пространства на строке. */
+  const openFile = (path: string, line: number | null): void => {
+    if (host !== null) {
+      openInEditor(path, line);
+      return;
+    }
+    for (const change of tree?.changes ?? []) {
+      const prefix = `openspec/changes/${change.name}/`;
+      if (!path.startsWith(prefix)) continue;
+      const artifact = change.artifacts.find((item) => item.files.includes(path.slice(prefix.length)));
+      if (artifact === undefined) continue;
+      setRevealLine(line);
+      setSelection({ kind: 'artifact', id: artifact.id, parent: change.name });
+      setSection('explorer');
+      return;
+    }
+  };
+
   const select = (next: Selection): void => {
+    setRevealLine(null);
     setSelection(next);
     if (host === null || next.kind !== 'artifact' || next.parent === undefined) return;
     const change = tree?.changes.find((item) => item.name === next.parent);
@@ -141,7 +220,10 @@ export function App() {
             aria-label={SECTION_TITLE[entry.section]}
             title={SECTION_TITLE[entry.section]}
             onClick={() => {
-              if (entry.section === 'agent') setAgentItem(null);
+              if (entry.section === 'agent') {
+                setAgentItem(null);
+                setAgentGenerate(null);
+              }
               setSection(entry.section);
             }}
           >
@@ -158,8 +240,9 @@ export function App() {
           </span>
         </header>
 
-        <div className={section === 'processes' || section === 'settings' ? 'panes single' : 'panes'}>
-          {section !== 'processes' && section !== 'settings' && (
+        {/* Доске дерево не нужно: всё, что оно давало, есть на карточке и в панели деталей. */}
+        <div className={FULL_WIDTH.has(section) ? 'panes single' : 'panes'}>
+          {!FULL_WIDTH.has(section) && (
             <div className="pane">
               <p className="pane-title">Рабочее пространство</p>
               {tree === null ? (
@@ -171,6 +254,20 @@ export function App() {
           )}
 
           <div className="pane">
+            {staleBackend && (
+              <div className="notice error" role="alert" data-testid="stale-backend">
+                <p>
+                  Бэкенд расширения старее интерфейса панели: новая сборка установлена, но в
+                  VS Code ещё работает прежняя. Часть разделов будет отвечать ошибками.
+                </p>
+                <p>
+                  Перезагрузите окно: палитра команд → <code>Developer: Reload Window</code>. Если
+                  не помогло — закройте все окна VS Code и откройте проект заново, затем проверьте
+                  версию расширения OpenSpec IDE в разделе «Расширения».
+                </p>
+              </div>
+            )}
+
             {loadError !== null && (
               <p className="notice error" role="alert">
                 {loadError}
@@ -184,10 +281,28 @@ export function App() {
             )}
 
             {workspace?.state === 'cli-missing' && (
-              <p className="notice error" data-testid="cli-missing">
-                {workspace.notice.title}. Установите <code>{workspace.notice.tool}</code>:{' '}
-                <code>{workspace.notice.install}</code>.
-              </p>
+              <div className="notice error" data-testid="cli-missing">
+                <p>
+                  {workspace.notice.title}.
+                  {workspace.notice.configured === null && (
+                    <>
+                      {' '}
+                      Установите <code>{workspace.notice.tool}</code>: <code>{workspace.notice.install}</code>.
+                    </>
+                  )}
+                </p>
+                <p data-testid="cli-missing-hint">{workspace.notice.hint}</p>
+                {workspace.notice.searched.length > 0 && (
+                  <details>
+                    <summary>Где искали ({workspace.notice.searched.length})</summary>
+                    <ul className="failure-details mono">
+                      {workspace.notice.searched.map((path) => (
+                        <li key={path}>{path}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
             )}
 
             {workspace?.state === 'ready' &&
@@ -207,6 +322,7 @@ export function App() {
                   key={selection.parent ?? selection.id}
                   change={selection.parent ?? selection.id}
                   initialItem={agentItem}
+                  initialGenerate={agentGenerate}
                 />
               ) : (
                 <p className="empty">Выберите изменение в дереве слева, чтобы запустить агента по его артефакту или пункту плана.</p>
@@ -214,6 +330,10 @@ export function App() {
             ) : section === 'processes' ? (
               workspace?.state === 'ready' ? (
                 <Processes revision={revision} onChanged={() => void reload()} />
+              ) : null
+            ) : section === 'structure' ? (
+              workspace?.state === 'ready' ? (
+                <Structure revision={revision} />
               ) : null
             ) : section === 'search' ? (
               <Search />
@@ -223,6 +343,7 @@ export function App() {
                   change={selection.parent ?? selection.id}
                   onAgent={(key) => {
                     setAgentItem(key);
+                    setAgentGenerate(null);
                     setSection('agent');
                   }}
                 />
@@ -230,10 +351,18 @@ export function App() {
                 <p className="empty">Выберите изменение в дереве слева, чтобы увидеть его метрики.</p>
               )
             ) : section === 'board' ? (
-              <Board schemas={tree?.schemas ?? []} onChanged={() => void reload()} />
+              <Board
+                schemas={tree?.schemas ?? []}
+                revision={revision}
+                onChanged={() => void reload()}
+                onNavigate={openForChange}
+                onOpenArtifact={openArtifact}
+                onOpenFile={openFile}
+                onGenerate={generate}
+              />
             ) : section === 'deltas' ? (
               selection?.kind === 'change' || selection?.kind === 'artifact' ? (
-                <Deltas change={selection.parent ?? selection.id} />
+                <Deltas key={selection.parent ?? selection.id} change={selection.parent ?? selection.id} revision={revision} />
               ) : selection?.kind === 'capability' ? (
                 <SpecView capability={selection.id} />
               ) : (
@@ -253,7 +382,8 @@ export function App() {
                     change={change}
                     artifactId={selection.id}
                     file={artifact?.files[0] ?? null}
-                    revealLine={null}
+                    revealLine={revealLine}
+                    onGenerate={(brief) => generate(change.name, selection.id, brief)}
                   />
                 );
               })()

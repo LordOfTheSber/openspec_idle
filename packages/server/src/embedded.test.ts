@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { FIXTURES_ROOT } from '../../../tests/fixtures.js';
 import { type EmbeddedBackend, createEmbeddedBackend } from './embedded.js';
 import { canonicalize } from './fs/workspace.js';
+import { isStaleBackend } from '@openspec-ide/core';
 
 let root: string | null = null;
 let backend: EmbeddedBackend | null = null;
@@ -73,6 +74,37 @@ describe('встроенный бэкенд', () => {
 
     expect(reply.status).toBe(400);
     expect((reply.body as { error: string }).error).toContain('Не указано имя изменения');
+  });
+
+  it('проверяет структуру папок и создаёт описание, повторно — 409', async () => {
+    backend = await createEmbeddedBackend({ root: copyFixture('full-change'), watch: false });
+
+    expect((await backend.request('GET', '/api/structure')).body).toMatchObject({ configured: false });
+    const created = await backend.request('POST', '/api/structure/init');
+    expect(created.status).toBe(200);
+    expect(created.body).toMatchObject({ configured: true, ok: true });
+    expect((await backend.request('POST', '/api/structure/init')).status).toBe(409);
+  });
+
+  it('сообщает ревизию API, по которой панель узнаёт устаревший бэкенд', async () => {
+    backend = await createEmbeddedBackend({ root: copyFixture('empty'), watch: false });
+
+    const reply = await backend.request('GET', '/api/health');
+
+    expect(isStaleBackend(reply.body)).toBe(false);
+  });
+
+  it('отдаёт предпросмотр архивации и 404 для неизвестного change', async () => {
+    backend = await createEmbeddedBackend({ root: copyFixture('full-change'), watch: false });
+
+    const reply = await backend.request('GET', '/api/archive/preview?change=full-feature');
+    expect(reply.status).toBe(200);
+    const body = reply.body as { outcome: string; specs: { capability: string; status: string }[] };
+    expect(body.outcome).toBe('ready');
+    expect(body.specs).toEqual([expect.objectContaining({ capability: 'data-export', status: 'created' })]);
+
+    const missing = await backend.request('GET', '/api/archive/preview?change=no-such-change');
+    expect(missing.status).toBe(404);
   });
 
   it('доставляет событие изменения файла подписчику', async () => {

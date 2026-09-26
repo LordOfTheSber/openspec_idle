@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, formatShare, formatTokens, plural } from './format.js';
+import { formatAge, formatDuration, formatShare, formatTokens, plural } from './format.js';
 
 describe('форматирование', () => {
   it('склоняет существительные по числу', () => {
@@ -33,5 +33,15 @@ describe('форматирование', () => {
   it('доля — в процентах', () => {
     expect(formatShare(0.5)).toBe('50 %');
     expect(formatShare(null)).toBe('—');
+  });
+
+  it('давность изменения карточки', () => {
+    const now = Date.parse('2026-09-24T12:00:00Z');
+    expect(formatAge('2026-09-24T11:59:40Z', now)).toBe('только что');
+    expect(formatAge('2026-09-24T11:55:00Z', now)).toBe('5 мин назад');
+    expect(formatAge('2026-09-24T09:00:00Z', now)).toBe('3 ч назад');
+    expect(formatAge('2026-09-22T09:00:00Z', now)).toBe('2 дн назад');
+    expect(formatAge(null, now)).toBeNull();
+    expect(formatAge('не дата', now)).toBeNull();
   });
 });
