@@ -1,7 +1,7 @@
 {
   "name": "openspec-ide",
   "displayName": "OpenSpec IDE",
-  "description": "Работа по методологии OpenSpec в VS Code: дерево changes и спеков, валидация, доска, дельты, метрики, конструктор процессов и агент GigaCode CLI",
+  "description": "Работа по методологии OpenSpec в VS Code: дерево changes и спеков, валидация, доска, дельты, метрики, конструктор процессов, структура папок и карта контекста модулей",
   "version": "0.3.2",
   "publisher": "openspec-ide",
   "private": true,
@@ -20,7 +20,8 @@
     "openspec",
     "sdd",
     "specification",
-    "gigacode"
+    "context",
+    "adr"
   ],
   "main": "./dist/extension.cjs",
   "activationEvents": [
@@ -118,22 +119,10 @@
         "icon": "$(graph)"
       },
       {
-        "command": "openspec.openAgent",
-        "title": "Агент",
-        "category": "OpenSpec",
-        "icon": "$(sparkle)"
-      },
-      {
         "command": "openspec.openProcesses",
         "title": "Процессы",
         "category": "OpenSpec",
         "icon": "$(type-hierarchy)"
-      },
-      {
-        "command": "openspec.openSettings",
-        "title": "Настройки агента",
-        "category": "OpenSpec",
-        "icon": "$(gear)"
       },
       {
         "command": "openspec.openSearch",
@@ -152,6 +141,12 @@
         "title": "Структура папок",
         "category": "OpenSpec",
         "icon": "$(list-tree)"
+      },
+      {
+        "command": "openspec.openContext",
+        "title": "Карта контекста",
+        "category": "OpenSpec",
+        "icon": "$(type-hierarchy-sub)"
       },
       {
         "command": "openspec.openNode",
@@ -198,7 +193,7 @@
           "group": "sections@2"
         },
         {
-          "command": "openspec.openSettings",
+          "command": "openspec.openContext",
           "when": "view == openspec.workspace && openspec.state == 'ready'",
           "group": "sections@3"
         },
@@ -228,11 +223,6 @@
           "command": "openspec.openDeltas",
           "when": "view == openspec.workspace && viewItem =~ /^(change|capability)$/",
           "group": "sections@2"
-        },
-        {
-          "command": "openspec.openAgent",
-          "when": "view == openspec.workspace && viewItem == change",
-          "group": "sections@3"
         },
         {
           "command": "openspec.openBoard",

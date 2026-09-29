@@ -1,5 +1,4 @@
 import {
-  type AgentIntent,
   type HostMessage,
   type PanelSection,
   type PanelSelection,
@@ -143,11 +142,11 @@ export function previewArchiveInEditor(change: string, capability: string | null
 
 /** Подписка на команды навигации от расширения. */
 export function onNavigate(
-  handler: (section: PanelSection, selection: PanelSelection | null, agent: AgentIntent | null) => void,
+  handler: (section: PanelSection, selection: PanelSelection | null) => void,
 ): () => void {
   const host = vscodeHost();
   if (host === null) return () => undefined;
   return host.subscribe((message) => {
-    if (message.kind === 'navigate') handler(message.section, message.selection, message.agent ?? null);
+    if (message.kind === 'navigate') handler(message.section, message.selection);
   });
 }

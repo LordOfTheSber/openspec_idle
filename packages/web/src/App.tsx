@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Agent, type GenerateIntent } from './components/Agent.js';
 import { Detail } from './components/Detail.js';
 import { Board, type BoardTarget } from './components/Board.js';
 import { CapabilityMapView } from './components/CapabilityMapView.js';
+import { ContextMap } from './components/ContextMap.js';
 import { Deltas } from './components/Deltas.js';
 import { EditorPane } from './components/EditorPane.js';
 import { Metrics } from './components/Metrics.js';
 import { Processes } from './components/Processes.js';
-import { Settings } from './components/Settings.js';
-import { AGENT_EVENT_TYPES, publishAgentEvent } from './lib/agentFeed.js';
 import { SpecView } from './components/SpecView.js';
 import { Structure } from './components/Structure.js';
 import { Search } from './components/Search.js';
@@ -27,22 +25,20 @@ type Section =
   | 'deltas'
   | 'board'
   | 'metrics'
-  | 'agent'
-  | 'settings'
   | 'processes'
   | 'search'
-  | 'structure';
+  | 'structure'
+  | 'context';
 
 const SECTION_TITLE: Record<Section, string> = {
   explorer: 'Обозреватель',
   deltas: 'Дельты',
   board: 'Доска',
   metrics: 'Метрики',
-  agent: 'Агент',
-  settings: 'Настройки',
   processes: 'Процессы',
   search: 'Поиск',
   structure: 'Структура',
+  context: 'Контекст',
 };
 
 const RAIL: readonly { section: Section; short: string }[] = [
@@ -50,15 +46,14 @@ const RAIL: readonly { section: Section; short: string }[] = [
   { section: 'deltas', short: 'Дл' },
   { section: 'board', short: 'Дс' },
   { section: 'metrics', short: 'Мт' },
-  { section: 'agent', short: 'Аг' },
-  { section: 'settings', short: 'Нс' },
   { section: 'processes', short: 'Пр' },
   { section: 'search', short: 'По' },
   { section: 'structure', short: 'Ст' },
+  { section: 'context', short: 'Кн' },
 ];
 
 /** Разделы на всю ширину, без дерева рабочего пространства слева. */
-const FULL_WIDTH: ReadonlySet<Section> = new Set(['processes', 'settings', 'board', 'structure']);
+const FULL_WIDTH: ReadonlySet<Section> = new Set(['processes', 'board', 'structure', 'context']);
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
   connecting: 'подключение…',
@@ -77,10 +72,6 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   // Счётчик изменений на диске — разделам, которые читают данные сами.
   const [revision, setRevision] = useState(0);
-  // Пункт плана, с которым открыта панель агента из метрик.
-  const [agentItem, setAgentItem] = useState<string | null>(null);
-  // Артефакт, который открыли генерировать агентом, и замысел автора.
-  const [agentGenerate, setAgentGenerate] = useState<GenerateIntent | null>(null);
   // Строка, к которой перейти во встроенном редакторе после перехода с доски.
   const [revealLine, setRevealLine] = useState<number | null>(null);
   const connectionRef = useRef<WorkspaceConnection | null>(null);
@@ -109,18 +100,13 @@ export function App() {
     const instance = new WorkspaceConnection({
       connect: () =>
         host === null
-          ? eventSourceTransport(eventsUrl(), ['connected', 'workspace-changed', ...AGENT_EVENT_TYPES])
+          ? eventSourceTransport(eventsUrl(), ['connected', 'workspace-changed'])
           : messageStreamTransport(host),
       onState: setConnection,
       onEvent: (event) => {
         if (event.type === 'workspace-changed') {
           setRevision((current) => current + 1);
           void reload();
-        }
-        if (event.type.startsWith('agent-')) {
-          publishAgentEvent(event);
-          // Агент мог изменить файлы: дерево и статусы перечитываются.
-          if (event.type === 'agent-finished') void reload();
         }
       },
       // После разрыва часть событий потеряна безвозвратно, поэтому состояние
@@ -140,9 +126,7 @@ export function App() {
   // выбор в уже открытой панели.
   useEffect(() => {
     if (host === null) return;
-    const unsubscribe = onNavigate((next, nextSelection, agent) => {
-      setAgentItem(null);
-      setAgentGenerate(next === 'agent' ? agent : null);
+    const unsubscribe = onNavigate((next, nextSelection) => {
       setSection(next);
       if (nextSelection !== null) setSelection(nextSelection);
     });
@@ -154,18 +138,8 @@ export function App() {
 
   /** Переход с доски в раздел, показывающий один change. */
   const openForChange = (target: BoardTarget, change: string): void => {
-    setAgentItem(null);
-    setAgentGenerate(null);
     setSelection({ kind: 'change', id: change });
     setSection(target);
-  };
-
-  /** Генерация артефакта агентом: раздел «Агент» с уже собранным промптом. */
-  const generate = (change: string, artifact: string, brief: string | null): void => {
-    setAgentItem(null);
-    setAgentGenerate({ artifact, brief });
-    setSelection({ kind: 'change', id: change });
-    setSection('agent');
   };
 
   /**
@@ -219,13 +193,7 @@ export function App() {
             aria-current={section === entry.section}
             aria-label={SECTION_TITLE[entry.section]}
             title={SECTION_TITLE[entry.section]}
-            onClick={() => {
-              if (entry.section === 'agent') {
-                setAgentItem(null);
-                setAgentGenerate(null);
-              }
-              setSection(entry.section);
-            }}
+            onClick={() => setSection(entry.section)}
           >
             {entry.short}
           </button>
@@ -312,22 +280,7 @@ export function App() {
                 </p>
               ))}
 
-            {section === 'settings' ? (
-              workspace?.state === 'ready' ? (
-                <Settings />
-              ) : null
-            ) : section === 'agent' ? (
-              selection?.kind === 'change' || selection?.kind === 'artifact' ? (
-                <Agent
-                  key={selection.parent ?? selection.id}
-                  change={selection.parent ?? selection.id}
-                  initialItem={agentItem}
-                  initialGenerate={agentGenerate}
-                />
-              ) : (
-                <p className="empty">Выберите изменение в дереве слева, чтобы запустить агента по его артефакту или пункту плана.</p>
-              )
-            ) : section === 'processes' ? (
+            {section === 'processes' ? (
               workspace?.state === 'ready' ? (
                 <Processes revision={revision} onChanged={() => void reload()} />
               ) : null
@@ -335,18 +288,15 @@ export function App() {
               workspace?.state === 'ready' ? (
                 <Structure revision={revision} />
               ) : null
+            ) : section === 'context' ? (
+              workspace?.state === 'ready' ? (
+                <ContextMap revision={revision} />
+              ) : null
             ) : section === 'search' ? (
               <Search />
             ) : section === 'metrics' ? (
               selection?.kind === 'change' || selection?.kind === 'artifact' ? (
-                <Metrics
-                  change={selection.parent ?? selection.id}
-                  onAgent={(key) => {
-                    setAgentItem(key);
-                    setAgentGenerate(null);
-                    setSection('agent');
-                  }}
-                />
+                <Metrics change={selection.parent ?? selection.id} />
               ) : (
                 <p className="empty">Выберите изменение в дереве слева, чтобы увидеть его метрики.</p>
               )
@@ -358,7 +308,6 @@ export function App() {
                 onNavigate={openForChange}
                 onOpenArtifact={openArtifact}
                 onOpenFile={openFile}
-                onGenerate={generate}
               />
             ) : section === 'deltas' ? (
               selection?.kind === 'change' || selection?.kind === 'artifact' ? (
@@ -383,7 +332,6 @@ export function App() {
                     artifactId={selection.id}
                     file={artifact?.files[0] ?? null}
                     revealLine={revealLine}
-                    onGenerate={(brief) => generate(change.name, selection.id, brief)}
                   />
                 );
               })()

@@ -126,21 +126,6 @@ export function resolveCommand(bin: string, platform: NodeJS.Platform = process.
   return resolved;
 }
 
-/** Обёртка `.cmd`, которую не удалось свести к запуску скрипта. */
-export function isUnresolvedShim(bin: string, platform: NodeJS.Platform = process.platform): boolean {
-  return platform === 'win32' && WINDOWS_SHIM.test(bin) && resolveCommand(bin, platform).command === bin;
-}
-
-/** Строка запуска из обёртки — для сообщения, когда её не удалось разобрать. */
-export function shimLaunchLine(bin: string): string | null {
-  try {
-    const lines = readFileSync(bin, 'utf8').split(/\r?\n/).map((line) => line.trim());
-    return lines.filter((line) => line.includes('%*')).at(-1) ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /** Аргумент нельзя безопасно передать через `cmd.exe`. */
 export class UnsafeShellArgumentError extends Error {
   constructor(readonly argument: string) {
@@ -150,6 +135,11 @@ export class UnsafeShellArgumentError extends Error {
     );
     this.name = 'UnsafeShellArgumentError';
   }
+}
+
+/** Обёртка `.cmd`, которую не удалось свести к запуску скрипта. */
+function isUnresolvedShim(bin: string, platform: NodeJS.Platform): boolean {
+  return platform === 'win32' && WINDOWS_SHIM.test(bin) && resolveCommand(bin, platform).command === bin;
 }
 
 /** Готовая к `spawn` команда. */
@@ -228,35 +218,6 @@ export function executableCandidates(
   // Файл без расширения на Windows — сценарий оболочки, запустить его нельзя.
   if (extensions.some((ext) => name.toLowerCase().endsWith(ext))) return [path.join(dir, name)];
   return extensions.map((ext) => path.join(dir, `${name}${ext}`));
-}
-
-/**
- * Запуск с собственной группой процессов там, где она есть. `stdin` — текст,
- * который получит программа на стандартный ввод; без него ввод закрыт.
- */
-export function spawnTree(
-  bin: string,
-  args: readonly string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv; stdin?: string },
-): ChildProcess {
-  const plan = spawnPlan(bin, args);
-  const child = spawn(plan.command, [...plan.args], {
-    cwd: options.cwd,
-    env: options.env,
-    stdio: [options.stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
-    // POSIX: своя группа, чтобы остановка сняла и дочерние процессы. На
-    // Windows группа не нужна (дерево снимает taskkill), а detached открыл бы
-    // новое окно консоли.
-    detached: process.platform !== 'win32',
-    windowsHide: true,
-    windowsVerbatimArguments: plan.verbatim,
-  });
-  if (options.stdin !== undefined && child.stdin !== null) {
-    // Программа может выйти, не дочитав ввод, — это не ошибка запуска.
-    child.stdin.on('error', () => undefined);
-    child.stdin.end(options.stdin);
-  }
-  return child;
 }
 
 /** Команда оболочки: `sh -c` на POSIX, `cmd.exe` на Windows. */

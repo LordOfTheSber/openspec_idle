@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { FIXTURES_ROOT } from '../../../tests/fixtures.js';
 // @ts-expect-error — модуль сборки на JavaScript без объявлений типов.
 import { bundleExtension } from '../bundle.mjs';
-import { type FakeState, type FakeWebviewPanel, Uri, createFakeVscode } from './testing/fakeVscode.js';
+import { DiagnosticSeverity, type FakeState, type FakeWebviewPanel, Uri, createFakeVscode } from './testing/fakeVscode.js';
 import type { TreeNode } from './treeModel.js';
 
 /**
@@ -183,33 +183,13 @@ describe('расширение VS Code: дерево и редактор', () =>
     const node = findNode(topNodes(state), 'artifact:bare-feature/proposal');
     expect(node?.contextValue).toBe('artifact-missing');
 
-    state.answers.push('Пустой по шаблону');
+    state.answers.push('Создать по шаблону');
     await command(state, 'openspec.openNode', node);
 
     const created = join(root, 'openspec', 'changes', 'bare-feature', 'proposal.md');
     expect(existsSync(created)).toBe(true);
     expect(state.shownDocuments.at(-1)?.path).toBe(created);
-    expect(state.messages.at(-1)?.buttons).toEqual(['Сгенерировать агентом', 'Пустой по шаблону']);
-  });
-
-  it('отсутствующий артефакт генерируется агентом: панель открывается на агенте с замыслом', async () => {
-    const root = copyFixture('bare-change');
-    const state = await activate([root]);
-
-    state.answers.push('Сгенерировать агентом', 'Выгрузка данных в CSV');
-    await command(state, 'openspec.openNode', findNode(topNodes(state), 'artifact:bare-feature/proposal'));
-
-    const panel = lastPanel(state);
-    panel.webview.receive({ kind: 'ready' });
-    await until(() => panel.webview.posted.length > 0, 'навигация к агенту');
-    expect(panel.webview.posted[0]).toEqual({
-      kind: 'navigate',
-      section: 'agent',
-      selection: { kind: 'change', id: 'bare-feature' },
-      agent: { artifact: 'proposal', brief: 'Выгрузка данных в CSV' },
-    });
-    // Файл пишет агент после подтверждения запуска, а не расширение.
-    expect(existsSync(join(root, 'openspec', 'changes', 'bare-feature', 'proposal.md'))).toBe(false);
+    expect(state.messages.at(-1)?.buttons).toEqual(['Создать по шаблону']);
   });
 });
 
@@ -318,23 +298,6 @@ describe('расширение VS Code: валидация и команды', (
     await until(() => findNode(topNodes(state), 'change:add-thing') !== undefined, 'change в дереве');
   });
 
-  it('создаёт change с замыслом и открывает агента по первому артефакту схемы', async () => {
-    const root = copyFixture('empty');
-    const state = await activate([root]);
-
-    state.answers.push('add-export', 'spec-driven', 'Выгрузка данных пользователя в CSV');
-    await command(state, 'openspec.newChange');
-
-    const panel = lastPanel(state);
-    panel.webview.receive({ kind: 'ready' });
-    await until(() => panel.webview.posted.length > 0, 'навигация к агенту');
-    expect(panel.webview.posted[0]).toMatchObject({
-      section: 'agent',
-      selection: { kind: 'change', id: 'add-export' },
-      agent: { artifact: 'proposal', brief: 'Выгрузка данных пользователя в CSV' },
-    });
-  });
-
   it('архивирует change из палитры: подтверждение перечисляет изменения спеков', async () => {
     const root = copyFixture('full-change');
     const state = await activate([root]);
@@ -417,6 +380,25 @@ describe('расширение VS Code: структура папок', () => {
     state.fileWatchers[0]?.deleted.fire(Uri.file(join(root, 'docs', 'context', 'draft.txt')));
     await until(() => !state.diagnostics.has(join(root, 'docs', 'context', 'draft.txt')), 'снятие замечания');
     expect(state.diagnostics.has(join(root, 'openspec', 'structure.yaml'))).toBe(false);
+  });
+
+  it('карта контекста: замечания на строках index.md, раздел «Контекст» открывается командой', async () => {
+    const root = copyFixture('context-map');
+    const state = await activate([root]);
+
+    const index = join(root, 'openspec', 'context', 'modules', 'sds-impl', 'index.md');
+    await until(() => state.diagnostics.has(index), 'замечания карты контекста');
+    const list = state.diagnostics.get(index) ?? [];
+    const unknown = list.find((item) => item.message.includes('sds-router'));
+    expect(unknown?.range.start.line).toBe(5);
+    expect(unknown?.severity).toBe(DiagnosticSeverity.Error);
+    expect(list.find((item) => item.message.includes('sds-impl/src'))?.severity).toBe(DiagnosticSeverity.Warning);
+
+    await command(state, 'openspec.openContext');
+    const panel = lastPanel(state);
+    panel.webview.receive({ kind: 'ready' });
+    await until(() => panel.webview.posted.length > 0, 'навигация к разделу');
+    expect(panel.webview.posted[0]).toEqual({ kind: 'navigate', section: 'context', selection: null });
   });
 
   it('без описания структуры замечаний нет', async () => {

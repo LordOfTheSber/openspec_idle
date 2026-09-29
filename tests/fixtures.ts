@@ -78,6 +78,14 @@ export const FIXTURES: readonly FixtureExpectation[] = [
     validates: true,
     tasks: { complete: 1, total: 3 },
   },
+  {
+    dir: 'context-map',
+    about: 'контекст модулей с доменами, зависимостями и ADR; есть неописанный модуль, отсутствующий путь кода и домен без модуля',
+    schema: null,
+    change: null,
+    validates: true,
+    tasks: null,
+  },
 ] as const;
 
 /** Абсолютный путь к фикстуре по её каталогу. */

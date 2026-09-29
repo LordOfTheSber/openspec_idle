@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -10,7 +10,6 @@ import {
   shimTarget,
   spawnPlan,
   spawnShell,
-  spawnTree,
   toPosixPath,
 } from './platform.js';
 
@@ -140,29 +139,6 @@ describe('запуск на Windows', () => {
 describe('запуск на любой платформе', () => {
   it('js-файл запускается текущим Node', () => {
     expect(resolveCommand('/opt/tool/cli.mjs')).toEqual({ command: process.execPath, prefix: ['/opt/tool/cli.mjs'] });
-  });
-
-  it('многострочный аргумент доходит до скрипта целиком', async () => {
-    dir = mkdtempSync(join(tmpdir(), 'osi-spawn-'));
-    const script = join(dir, 'echo.mjs');
-    writeFileSync(script, 'process.stdout.write(JSON.stringify(process.argv.slice(2)));');
-    chmodSync(script, 0o755);
-    const child = spawnTree(script, ['строка 1\nстрока "2"', '--flag'], { cwd: dir, env: process.env });
-    let out = '';
-    child.stdout?.on('data', (chunk: Buffer) => (out += chunk.toString()));
-    await new Promise((resolve) => child.on('close', resolve));
-    expect(JSON.parse(out)).toEqual(['строка 1\nстрока "2"', '--flag']);
-  });
-
-  it('текст для стандартного ввода доходит до программы целиком', async () => {
-    dir = mkdtempSync(join(tmpdir(), 'osi-spawn-'));
-    const script = join(dir, 'cat.mjs');
-    writeFileSync(script, 'let t = "";process.stdin.on("data", (c) => (t += c)).on("end", () => process.stdout.write(t));');
-    const child = spawnTree(script, [], { cwd: dir, env: process.env, stdin: 'строка 1\nстрока "2" 100%' });
-    let out = '';
-    child.stdout?.on('data', (chunk: Buffer) => (out += chunk.toString()));
-    await new Promise((resolve) => child.on('close', resolve));
-    expect(out).toBe('строка 1\nстрока "2" 100%');
   });
 
   it('команда оболочки выполняется оболочкой платформы', async () => {

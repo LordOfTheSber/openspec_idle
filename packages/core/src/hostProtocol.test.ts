@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_INTENT_BRIEF, isPanelApiPath, parseHostMessage, parseViewMessage } from './hostProtocol.js';
+import { isPanelApiPath, parseHostMessage, parseViewMessage } from './hostProtocol.js';
 
 describe('протокол панели: сообщения панели', () => {
   it('принимает запрос к API с телом', () => {
@@ -128,43 +128,16 @@ describe('протокол панели: сообщения расширения
     ).toBe(false);
   });
 
-  it('принимает навигацию к агенту с артефактом и замыслом', () => {
-    expect(
-      parseHostMessage({
-        kind: 'navigate',
-        section: 'agent',
-        selection: { kind: 'change', id: 'add-export' },
-        agent: { artifact: 'proposal', brief: 'Выгрузка в CSV' },
-      }),
-    ).toEqual({
-      ok: true,
-      message: {
-        kind: 'navigate',
-        section: 'agent',
-        selection: { kind: 'change', id: 'add-export' },
-        agent: { artifact: 'proposal', brief: 'Выгрузка в CSV' },
-      },
-    });
-    const withoutBrief = parseHostMessage({
-      kind: 'navigate',
-      section: 'agent',
-      selection: { kind: 'change', id: 'a' },
-      agent: { artifact: 'design', brief: '  ' },
-    });
-    expect(withoutBrief.ok && withoutBrief.message.kind === 'navigate' && withoutBrief.message.agent).toEqual({
-      artifact: 'design',
-      brief: null,
-    });
+  it('отклоняет удалённые разделы агента и настроек', () => {
+    expect(parseHostMessage({ kind: 'navigate', section: 'agent', selection: null }).ok).toBe(false);
+    expect(parseHostMessage({ kind: 'navigate', section: 'settings', selection: null }).ok).toBe(false);
   });
 
-  it('отклоняет навигацию к агенту с путём наружу, нестроковым или слишком длинным замыслом', () => {
-    const base = { kind: 'navigate', section: 'agent', selection: { kind: 'change', id: 'a' } };
-    expect(parseHostMessage({ ...base, agent: { artifact: '../x', brief: null } }).ok).toBe(false);
-    expect(parseHostMessage({ ...base, agent: { artifact: 'proposal', brief: 42 } }).ok).toBe(false);
-    expect(parseHostMessage({ ...base, agent: { artifact: 'proposal', brief: 'а'.repeat(MAX_INTENT_BRIEF + 1) } }).ok).toBe(
-      false,
-    );
-    expect(parseHostMessage({ ...base, agent: 'proposal' }).ok).toBe(false);
+  it('принимает навигацию к разделу «Контекст»', () => {
+    expect(parseHostMessage({ kind: 'navigate', section: 'context', selection: null })).toEqual({
+      ok: true,
+      message: { kind: 'navigate', section: 'context', selection: null },
+    });
   });
 });
 

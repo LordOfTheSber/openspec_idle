@@ -6,6 +6,7 @@ import { canonicalize } from '@openspec-ide/server';
 import type { ArchivePreview, SpecPreview } from '@openspec-ide/server';
 import { archiveSummary, specLine } from './archiveSummary.js';
 import { structureDiagnostics } from './structureModel.js';
+import { contextDiagnostics } from './contextModel.js';
 import { handleViewMessage, resolvePanelPath } from './bridge.js';
 import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
 import { renderPanelHtml } from './panelHtml.js';
@@ -318,5 +319,31 @@ describe('диагностики структуры папок', () => {
     const result = structureDiagnostics({ ...base, errors: [{ message: 'Неизвестное правило', line: 4 }], issues: [] });
     expect(result.get('openspec/structure.yaml')).toEqual([{ line: 3, message: 'Описание структуры: Неизвестное правило' }]);
     expect(structureDiagnostics({ ...base, configured: false, ok: true, issues: [] }).size).toBe(0);
+  });
+});
+
+describe('диагностики карты контекста', () => {
+  it('замечание — на строке поля, без строки — в начале файла, модуль без index.md пропускается', () => {
+    const map = {
+      configured: true,
+      general: [],
+      modules: [],
+      domains: [],
+      adrs: [],
+      links: [],
+      dependencies: [],
+      adrLinks: [],
+      issues: [
+        { kind: 'unknown-domain', severity: 'error', path: 'openspec/context/modules/m/index.md', line: 4, message: 'нет домена' },
+        { kind: 'missing-context', severity: 'warning', path: 'openspec/context/modules/m/index.md', line: null, message: 'нет context.md' },
+        { kind: 'missing-index', severity: 'error', path: 'openspec/context/modules/x', line: null, message: 'нет index.md' },
+      ],
+    } as const;
+    const result = contextDiagnostics(map);
+    expect([...result.keys()]).toEqual(['openspec/context/modules/m/index.md']);
+    expect(result.get('openspec/context/modules/m/index.md')).toEqual([
+      { line: 3, message: 'нет домена', severity: 'error' },
+      { line: 0, message: 'нет context.md', severity: 'warning' },
+    ]);
   });
 });

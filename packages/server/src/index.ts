@@ -54,6 +54,7 @@ export {
   watchedStructureDirs,
   type StructureReport,
 } from './structure.js';
+export { ContextMapService, codePathExists, parseFrontmatter, type ParsedFrontmatter } from './contextMap.js';
 export {
   ArchivePreviewService,
   PREVIEW_DIR_PREFIX,
@@ -63,17 +64,7 @@ export {
   type ArchiveProblem,
   type SpecPreview,
 } from './archivePreview.js';
-export {
-  CONFIG_FILE,
-  IDE_DIR,
-  SECRET_FIELDS,
-  SecretInConfigError,
-  loadConfig,
-  rejectSecrets,
-  saveConfig,
-  type ConfigLoad,
-  type IdeConfig,
-} from './config.js';
+export { IDE_DIR } from './config.js';
 
 export {
   ArtifactCreationError,
@@ -135,17 +126,3 @@ export {
   type StructuralIssue,
   type YamlProblem,
 } from './schemaRegistry.js';
-export { buildArgs, displayCommand, parseDuration, templateFlags, type AgentConfig } from './agent/launch.js';
-export { locateExecutable, probeAgent, type ProbeResult } from './agent/probe.js';
-export { PromptBuilder, PromptError, type BuiltPrompt, type RunTarget, type RunTargets } from './agent/prompt.js';
-export {
-  APPROVAL_MODES,
-  AgentBlockedError,
-  AgentBusyError,
-  AgentConsentError,
-  AgentService,
-  type AgentStatus,
-  type ApprovalMode,
-  type RunRequest,
-} from './agent/runner.js';
-export { AgentRunStore, Redactor, type AgentRunRecord, type StoredAgentEvent } from './agent/store.js';
