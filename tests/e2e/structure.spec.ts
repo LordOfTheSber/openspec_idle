@@ -16,7 +16,7 @@ test.describe('структура папок', () => {
 
   test('без описания предлагается создать его, созданное проходит проверку', async ({ page }) => {
     await page.goto(ide.url);
-    await page.getByRole('button', { name: 'Структура' }).click();
+    await page.getByTestId('nav-structure').click();
 
     await expect(page.getByTestId('structure-not-configured')).toBeVisible();
     await page.getByTestId('structure-init').click();
@@ -32,7 +32,7 @@ test.describe('структура папок', () => {
       'version: 1\nstructure:\n  openspec:\n    structure.yaml: file\n    config.yaml: file\n    specs: "*"\n    changes: "*"\n',
     );
     await page.goto(ide.url);
-    await page.getByRole('button', { name: 'Структура' }).click();
+    await page.getByTestId('nav-structure').click();
     await expect(page.getByTestId('structure-summary')).toContainText('соответствует');
 
     writeFileSync(join(ide.root, 'openspec/notes.txt'), 'черновик');

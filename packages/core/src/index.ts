@@ -230,3 +230,20 @@ export {
   type ModuleDomainLink,
   type ModuleSource,
 } from './contextMap.js';
+
+export {
+  MIN_INFERRED_NAME,
+  appendPlanItem,
+  buildTrace,
+  normalizeTraceName,
+  planReferences,
+  scenarioKey,
+  splitReference,
+  traceScenarios,
+  type AppendedPlanItem,
+  type Trace,
+  type TraceLink,
+  type TracePlanItem,
+  type TraceReference,
+  type TraceScenario,
+} from './trace.js';

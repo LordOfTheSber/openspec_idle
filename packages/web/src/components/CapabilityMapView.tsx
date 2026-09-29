@@ -33,14 +33,17 @@ export function CapabilityMapView() {
     return <p className="empty">В проекте пока нет ни capability, ни дельт.</p>;
   }
 
+  // Сначала спеки, которые меняют активные changes: ради них карту и открывают.
+  const nodes = [...map.nodes].sort((a, b) => Number(b.links.length > 0) - Number(a.links.length > 0));
+
   return (
     <ul className="capability-map" data-testid="capability-map">
-      {map.nodes.map((node) => (
+      {nodes.map((node) => (
         <li key={node.capability} data-testid={`map-${node.capability}`}>
           <div className="cap-head">
             <span className="nm mono">{node.capability}</span>
             {!node.exists && (
-              <span className="chip" title="Появится в спеках после архивации">
+              <span className="chip accent" title="Появится в спеках после архивации">
                 новая
               </span>
             )}
@@ -52,12 +55,12 @@ export function CapabilityMapView() {
           </div>
 
           {node.links.length === 0 ? (
-            <p className="empty">Активных изменений нет</p>
+            <p className="empty small">Активных изменений нет</p>
           ) : (
             <ul className="cap-links">
               {node.links.map((link) => (
                 <li key={link.change}>
-                  <span className="mono">{link.change}</span>
+                  <span className="chip mono">{link.change}</span>
                   {link.conflictingRequirements.length > 0 && (
                     <span className="conflict" data-testid="conflict">
                       конфликт: {link.conflictingRequirements.join(', ')}

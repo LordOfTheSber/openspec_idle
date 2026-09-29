@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { launchIde, type LaunchedIde } from './helpers.js';
@@ -16,7 +16,7 @@ test.describe('карта контекста', () => {
 
   test('граф связывает модули с доменами многие-ко-многим, выбор узла показывает связи и контекст', async ({ page }) => {
     await page.goto(ide.url);
-    await page.getByRole('button', { name: 'Контекст' }).click();
+    await page.getByTestId('nav-context').click();
 
     await expect(page.getByTestId('context-summary')).toContainText('2 модуля');
     await expect(page.getByTestId('context-summary')).toContainText('5 доменов');
@@ -43,7 +43,7 @@ test.describe('карта контекста', () => {
 
   test('набор контекста собирается щелчками по нескольким модулям и доменам', async ({ page }) => {
     await page.goto(ide.url);
-    await page.getByRole('button', { name: 'Контекст' }).click();
+    await page.getByTestId('nav-context').click();
 
     await page.getByTestId('context-pick-mode').click();
     await expect(page.getByTestId('context-selection-empty')).toBeVisible();
@@ -84,14 +84,14 @@ test.describe('карта контекста', () => {
     await page.getByTestId('ctx-row-sds-master').click();
     await expect(bundle).toContainText('openspec/context/modules/master/context.md');
     await page.reload();
-    await page.getByRole('button', { name: 'Контекст' }).click();
+    await page.getByTestId('nav-context').click();
     await expect(page.getByTestId('context-selection')).toContainText('sds-master');
     await expect(page.getByTestId('context-selection')).toContainText('session-data');
   });
 
   test('матрица и обновление при правке index.md', async ({ page }) => {
     await page.goto(ide.url);
-    await page.getByRole('button', { name: 'Контекст' }).click();
+    await page.getByTestId('nav-context').click();
     await page.getByTestId('context-view-matrix').click();
 
     await expect(page.getByTestId('ctx-cell-sds-master-replication')).toBeVisible();
@@ -105,5 +105,32 @@ test.describe('карта контекста', () => {
 
     await expect(page.getByTestId('ctx-cell-sds-impl-cm-cluster-api')).toBeVisible();
     await expect(page.getByTestId('context-issue-uncovered-domain')).toHaveCount(0);
+  });
+});
+
+test.describe('контекст без модулей', () => {
+  let ide: LaunchedIde;
+
+  test.beforeEach(async () => {
+    ide = await launchIde('empty', { writable: true });
+  });
+
+  test.afterEach(async () => {
+    await ide?.stop();
+  });
+
+  test('пустое состояние объясняет формат и создаёт модуль', async ({ page }) => {
+    await page.goto(ide.url);
+    await page.getByTestId('nav-context').click();
+
+    await expect(page.getByTestId('context-not-configured')).toContainText('Модули ещё не описаны');
+    await page.getByTestId('context-new-module').click();
+    await page.getByTestId('context-module-name').fill('web');
+    await page.getByTestId('context-module-create').click();
+
+    await expect(page.getByTestId('context-summary')).toContainText('1 модуль');
+    await expect(page.getByTestId('toast')).toContainText('Модуль web создан');
+    const index = readFileSync(join(ide.root, 'openspec/context/modules/web/index.md'), 'utf8');
+    expect(index).toContain('module: web');
   });
 });

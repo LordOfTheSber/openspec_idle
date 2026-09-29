@@ -63,39 +63,54 @@ test('раздел процессов показывает схему проек
   await expect(page.getByTestId('schema-spec-driven')).toContainText('package');
 });
 
-test('поиск находит требование и ведёт к файлу и строке', async ({ page }) => {
+test('палитра по Ctrl+K находит требование и показывает файл и строку', async ({ page }) => {
   await page.goto(ide.url);
+  await expect(page.getByRole('heading', { name: 'Обозреватель' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Поиск' }).click();
+  await page.keyboard.press('Control+k');
   await page.getByLabel('Поиск по рабочему пространству').fill('ревью');
-  await page.getByLabel('Поиск по рабочему пространству').press('Enter');
 
-  const hits = page.getByTestId('search-hits');
-  await expect(hits).toBeVisible();
-  await expect(hits).toContainText('Ревью спека до дизайна');
-  await expect(hits).toContainText('specs/review-flow/spec.md:');
+  const results = page.getByTestId('palette-results');
+  await expect(results).toContainText('Ревью спека до дизайна');
+  await expect(results).toContainText('review-flow');
 });
 
-test('фильтр по типу ограничивает выдачу только сценариями', async ({ page }) => {
+test('фильтр палитры ограничивает выдачу только сценариями', async ({ page }) => {
   await page.goto(ide.url);
 
-  await page.getByRole('button', { name: 'Поиск' }).click();
+  await page.getByTestId('open-palette').click();
   await page.getByLabel('Поиск по рабочему пространству').fill('ревью');
-  await page.getByLabel('Тип элемента').selectOption('scenario');
+  await expect(page.getByTestId('palette-results')).toContainText('Ревью спека до дизайна');
+  await page.getByTestId('palette-filter-scenario').click();
 
-  const hits = page.getByTestId('search-hits');
-  await expect(hits).toContainText('Ревью не зафиксировано');
-  await expect(hits).not.toContainText('Ревью спека до дизайна');
+  const results = page.getByTestId('palette-results');
+  await expect(results).toContainText('Ревью не зафиксировано');
+  await expect(results).not.toContainText('Ревью спека до дизайна');
 });
 
 test('поиск без совпадений показывает пустое состояние с текстом запроса', async ({ page }) => {
   await page.goto(ide.url);
 
-  await page.getByRole('button', { name: 'Поиск' }).click();
+  await page.getByTestId('open-palette').click();
   await page.getByLabel('Поиск по рабочему пространству').fill('такого-точно-нет');
-  await page.getByLabel('Поиск по рабочему пространству').press('Enter');
 
   await expect(page.getByTestId('search-empty')).toContainText('такого-точно-нет');
+});
+
+test('команда палитры переключает раздел, Esc закрывает палитру', async ({ page }) => {
+  await page.goto(ide.url);
+
+  await page.keyboard.press('Control+k');
+  await page.getByLabel('Поиск по рабочему пространству').fill('структура');
+  await page.getByTestId('palette-command-go-structure').click();
+
+  await expect(page.locator('.toolbar h1')).toHaveText('Структура');
+  await expect(page.getByTestId('palette')).toHaveCount(0);
+
+  await page.keyboard.press('Control+k');
+  await expect(page.getByTestId('palette')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('palette')).toHaveCount(0);
 });
 
 for (const width of [400, 1280]) {

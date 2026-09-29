@@ -6,7 +6,7 @@ import { launchIde, type LaunchedIde } from './helpers.js';
 async function openMetrics(page: Page, url: string, change: string): Promise<void> {
   await page.goto(url);
   await page.getByTestId(`change-${change}`).click();
-  await page.getByRole('button', { name: 'Метрики' }).click();
+  await page.getByTestId('nav-metrics').click();
   await expect(page.getByTestId('metrics')).toBeVisible();
 }
 
@@ -21,14 +21,15 @@ test.describe('метрики на встроенной схеме', () => {
     await ide?.stop();
   });
 
-  test('сводка показывает долю выполненных и «нет данных» вместо нуля', async ({ page }) => {
+  test('сводка показывает долю выполненных, а показатели без данных — одной строкой', async ({ page }) => {
     await openMetrics(page, ide.url, 'full-feature');
 
     const summary = page.getByTestId('metrics-summary');
     await expect(summary).toContainText('50 %');
     await expect(summary).toContainText('2 из 4 пунктов');
-    // Агент ещё не запускался — расход не ноль, а отсутствие данных.
-    await expect(page.getByTestId('tokens-total')).toHaveText('нет данных');
+    // Агент ещё не запускался — расход не ноль, а отсутствие данных, и плиток под него нет.
+    await expect(page.getByTestId('metrics-no-data')).toContainText('токены');
+    await expect(page.getByTestId('tokens-total')).toHaveCount(0);
   });
 
   test('таблица показывает каждый пункт плана с критерием приёмки', async ({ page }) => {
@@ -88,7 +89,7 @@ test.describe('метрики на встроенной схеме', () => {
     await expect(async () => {
       await page.reload();
       await page.getByTestId('change-full-feature').click();
-      await page.getByRole('button', { name: 'Метрики' }).click();
+      await page.getByTestId('nav-metrics').click();
       await expect(page.getByTestId('metrics-row-1.3')).toContainText('готово', {
         timeout: 1000,
       });

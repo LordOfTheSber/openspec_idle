@@ -5,7 +5,7 @@ import { launchIde, type LaunchedIde } from './helpers.js';
 
 async function openBoard(page: Page, url: string): Promise<void> {
   await page.goto(url);
-  await page.getByRole('button', { name: 'Доска' }).click();
+  await page.getByTestId('nav-board').click();
   await expect(page.getByTestId('board')).toBeVisible();
 }
 
@@ -13,6 +13,13 @@ async function openBoard(page: Page, url: string): Promise<void> {
 async function openCard(page: Page, change: string): Promise<void> {
   await page.getByTestId(`card-open-${change}`).click();
   await expect(page.getByTestId('change-detail')).toBeVisible();
+}
+
+/** Открывает вкладку «План» панели деталей. */
+async function openPlan(page: Page, change: string): Promise<void> {
+  await openCard(page, change);
+  await page.getByTestId('detail-tab-plan').click();
+  await expect(page.getByTestId('items')).toBeVisible();
 }
 
 test.describe('доска на встроенной схеме', () => {
@@ -26,12 +33,17 @@ test.describe('доска на встроенной схеме', () => {
     await ide?.stop();
   });
 
-  test('колонки идут по зависимостям артефактов и заканчиваются рабочими', async ({ page }) => {
+  test('полоса фаз идёт по зависимостям артефактов и заканчивается рабочими', async ({ page }) => {
     await openBoard(page, ide.url);
 
-    for (const id of ['proposal', 'specs', 'design', 'tasks', 'ready', 'in-progress', 'to-archive']) {
-      await expect(page.getByTestId(`column-${id}`)).toBeVisible();
+    const ids = ['proposal', 'specs', 'design', 'tasks', 'ready', 'in-progress', 'to-archive'];
+    for (const id of ids) {
+      await expect(page.getByTestId(`phase-${id}`)).toBeVisible();
     }
+    const order = await page.getByTestId('phase-strip').locator('[data-testid^="phase-"]').evaluateAll((items) =>
+      items.map((item) => item.getAttribute('data-testid')),
+    );
+    expect(order).toEqual(ids.map((id) => `phase-${id}`));
   });
 
   test('карточка стоит в колонке «В работе» и несёт схему, прогресс и время изменения', async ({ page }) => {
@@ -44,16 +56,25 @@ test.describe('доска на встроенной схеме', () => {
     await expect(card.getByTestId('card-age')).toContainText('изменён');
   });
 
-  test('пустые колонки свёрнуты в полосы и разворачиваются щелчком', async ({ page }) => {
+  test('пустые фазы скрыты, счётчики в полосе фаз, щелчок по пустой фазе показывает колонку', async ({ page }) => {
     await openBoard(page, ide.url);
 
-    const proposal = page.getByTestId('column-proposal');
-    await expect(proposal).toHaveAttribute('data-collapsed', 'true');
-    await expect(page.getByTestId('column-in-progress')).not.toHaveAttribute('data-collapsed', 'true');
+    await expect(page.getByTestId('column-proposal')).toHaveCount(0);
+    await expect(page.getByTestId('column-in-progress')).toBeVisible();
+    await expect(page.getByTestId('phase-proposal')).toContainText('0');
+    await expect(page.getByTestId('phase-in-progress')).toContainText('1');
 
-    await proposal.click();
-    await expect(page.getByTestId('column-proposal')).not.toHaveAttribute('data-collapsed', 'true');
+    await page.getByTestId('phase-proposal').click();
     await expect(page.getByTestId('column-proposal').locator('h3')).toHaveText('proposal');
+  });
+
+  test('карточка показывает нить change и следующий шаг', async ({ page }) => {
+    await openBoard(page, ide.url);
+
+    const card = page.getByTestId('card-full-feature');
+    await expect(card.getByRole('list', { name: 'Путь изменения full-feature' })).toBeVisible();
+    await expect(card).toContainText('реализация');
+    await expect(card.getByTestId('card-validity-full-feature')).toBeVisible();
   });
 
   test('на узкой панели доска показана списком фаз, а выбранный режим запоминается', async ({ page }) => {
@@ -67,14 +88,14 @@ test.describe('доска на встроенной схеме', () => {
     await expect(page.locator('.board-pane')).toHaveAttribute('data-mode', 'columns');
 
     await page.reload();
-    await page.getByRole('button', { name: 'Доска' }).click();
+    await page.getByTestId('nav-board').click();
     await expect(page.locator('.board-pane')).toHaveAttribute('data-mode', 'columns');
     await page.getByTestId('board-mode-auto').click();
   });
 
   test('панель деталей показывает пункты по группам и закрывается по Esc', async ({ page }) => {
     await openBoard(page, ide.url);
-    await openCard(page, 'full-feature');
+    await openPlan(page, 'full-feature');
 
     const detail = page.getByTestId('change-detail');
     await expect(detail.locator('.group-title').first()).toContainText('1.');
@@ -110,9 +131,19 @@ test.describe('доска на встроенной схеме', () => {
     await expect(page.getByTestId('validation-clean')).toContainText('без замечаний');
   });
 
-  test('отметка пункта пишется в файл и не трогает остальные строки', async ({ page }) => {
+  test('панель деталей показывает готовность к архивации из пяти условий', async ({ page }) => {
     await openBoard(page, ide.url);
     await openCard(page, 'full-feature');
+
+    const readiness = page.getByTestId('readiness');
+    await expect(readiness).toContainText('из 5');
+    await expect(page.getByTestId('readiness-plan')).toContainText('2/4');
+    await expect(page.getByTestId('readiness-preview')).toContainText('не проверено');
+  });
+
+  test('отметка пункта пишется в файл и не трогает остальные строки', async ({ page }) => {
+    await openBoard(page, ide.url);
+    await openPlan(page, 'full-feature');
 
     const path = join(ide.root, 'openspec/changes/full-feature/tasks.md');
     const before = readFileSync(path, 'utf8');
@@ -131,7 +162,7 @@ test.describe('доска на встроенной схеме', () => {
 
   test('правка файла в обход IDE двигает карточку без действий в интерфейсе', async ({ page }) => {
     await openBoard(page, ide.url);
-    await openCard(page, 'full-feature');
+    await openPlan(page, 'full-feature');
 
     const path = join(ide.root, 'openspec/changes/full-feature/tasks.md');
     writeFileSync(path, readFileSync(path, 'utf8').replace(/- \[ \]/g, '- [x]'));
@@ -148,7 +179,7 @@ test.describe('доска на встроенной схеме', () => {
     await page.getByRole('button', { name: 'Создать' }).click();
 
     await expect(page.getByTestId('board-error')).toBeVisible();
-    await expect(page.getByTestId('column-proposal')).not.toContainText('Имя С Пробелами');
+    await expect(page.getByTestId('board')).not.toContainText('Имя С Пробелами');
   });
 
   test('архивация показывает, что станет со спеками, и переносит дельты', async ({ page }) => {
@@ -171,6 +202,7 @@ test.describe('доска на встроенной схеме', () => {
     await page.getByTestId('archive-confirmed').click();
 
     await expect(page.getByTestId('card-full-feature')).toHaveCount(0);
+    await expect(page.getByTestId('toast')).toContainText('Change архивирован');
     expect(existsSync(join(ide.root, 'openspec/specs/data-export/spec.md'))).toBe(true);
     expect(readdirSync(join(ide.root, 'openspec/changes/archive')).some((name) => name.endsWith('full-feature'))).toBe(
       true,
@@ -235,10 +267,10 @@ test.describe('доска на собственной схеме', () => {
   test('колонки берутся из артефактов собственной схемы', async ({ page }) => {
     await openBoard(page, ide.url);
 
-    await expect(page.getByTestId('column-research')).toBeVisible();
-    await expect(page.getByTestId('column-spec-review')).toBeVisible();
-    await expect(page.getByTestId('column-plan')).toBeVisible();
-    await expect(page.getByTestId('column-tasks')).toHaveCount(0);
+    await expect(page.getByTestId('phase-research')).toBeVisible();
+    await expect(page.getByTestId('phase-spec-review')).toBeVisible();
+    await expect(page.getByTestId('phase-plan')).toBeVisible();
+    await expect(page.getByTestId('phase-tasks')).toHaveCount(0);
   });
 
   test('новый change создаётся выбранной схемой и попадает в её первую колонку', async ({
@@ -257,7 +289,7 @@ test.describe('доска на собственной схеме', () => {
 
   test('отметка пункта пишется в plan.md, а не в tasks.md', async ({ page }) => {
     await openBoard(page, ide.url);
-    await openCard(page, 'team-feature');
+    await openPlan(page, 'team-feature');
 
     await page.getByTestId('item-1.2').check();
 
@@ -277,5 +309,30 @@ test.describe('доска на собственной схеме', () => {
     await page.getByTestId('archive').click();
 
     await expect(page.getByTestId('archive-confirm')).toContainText('не выполнено пунктов');
+  });
+});
+
+test.describe('доска: change без артефактов', () => {
+  let ide: LaunchedIde;
+
+  test.beforeAll(async () => {
+    ide = await launchIde('bare-change', { writable: true });
+  });
+
+  test.afterAll(async () => {
+    await ide?.stop();
+  });
+
+  test('следующее действие на карточке создаёт артефакт по шаблону схемы', async ({ page }) => {
+    await openBoard(page, ide.url);
+
+    const card = page.getByTestId('card-bare-feature');
+    await expect(card).toContainText('следующий шаг — proposal');
+    await page.getByTestId('card-create-bare-feature').click();
+
+    await expect(page.getByTestId('toast')).toContainText('Создан proposal');
+    expect(existsSync(join(ide.root, 'openspec/changes/bare-feature/proposal.md'))).toBe(true);
+    // В браузере созданный артефакт открывается во встроенном редакторе.
+    await expect(page.locator('.toolbar h1')).toHaveText('Обозреватель');
   });
 });

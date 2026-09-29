@@ -1,21 +1,23 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BoardCard, BoardColumn, Board as BoardModel, TreeSchema } from '@openspec-ide/core';
-import { createChange, fetchBoard } from '../lib/api.js';
-import { formatAge } from '../lib/format.js';
+import { createArtifactFile, createChange, fetchBoard } from '../lib/api.js';
+import { formatAge, plural } from '../lib/format.js';
+import { COLUMN_TITLE, columnTitle } from '../lib/phase.js';
 import { readPref, writePref } from '../lib/prefs.js';
+import { buildThread, threadCaption } from '../lib/thread.js';
+import { PageActions, useNotify, useWidth } from '../lib/ui.js';
 import { ChangeDetail, type DetailIntent } from './ChangeDetail.js';
+import { Icon } from './Icon.js';
+import { Thread } from './Thread.js';
 
-export const COLUMN_TITLE: Record<string, string> = {
-  ready: 'Готово к работе',
-  'in-progress': 'В работе',
-  'to-archive': 'Готово к архивации',
-};
+export { COLUMN_TITLE };
 
 /** Режим раскладки доски. */
 type BoardMode = 'auto' | 'columns' | 'list';
 
 const MODES: readonly BoardMode[] = ['auto', 'columns', 'list'];
 const MODE_LABEL: Record<BoardMode, string> = { auto: 'Авто', columns: 'Колонки', list: 'Список' };
+const MODE_ICON = { auto: 'auto', columns: 'columns', list: 'list' } as const;
 
 /** Уже этой ширины доска в режиме «Авто» показывается списком. */
 export const LIST_BELOW_PX = 640;
@@ -23,12 +25,18 @@ export const LIST_BELOW_PX = 640;
 export const DETAIL_SIDE_FROM_PX = 1100;
 
 /** Разделы, в которые можно перейти с доски. */
-export type BoardTarget = 'deltas' | 'metrics';
+export type BoardTarget = 'deltas' | 'metrics' | 'trace';
+
+/** Запрос к доске извне — из палитры команд. */
+export type BoardRequest =
+  | { readonly kind: 'create'; readonly nonce: number }
+  | { readonly kind: 'detail'; readonly change: string; readonly intent: DetailIntent; readonly nonce: number };
 
 export interface BoardProps {
   readonly schemas: readonly TreeSchema[];
   /** Счётчик изменений на диске: доска перечитывает данные при его смене. */
   readonly revision: number;
+  readonly request?: BoardRequest | null;
   readonly onChanged: () => void;
   /** Открыть раздел панели для change. */
   readonly onNavigate: (section: BoardTarget, change: string) => void;
@@ -36,10 +44,9 @@ export interface BoardProps {
   readonly onOpenArtifact: (change: string, artifactId: string, path: string | null) => void;
   /** Открыть файл рабочего пространства на строке. */
   readonly onOpenFile: (path: string, line: number | null) => void;
-  /** Сгенерировать артефакт change агентом с замыслом автора. */
 }
 
-export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact, onOpenFile }: BoardProps) {
+export function Board({ schemas, revision, request = null, onChanged, onNavigate, onOpenArtifact, onOpenFile }: BoardProps) {
   const [board, setBoard] = useState<BoardModel | null>(null);
   const [error, setError] = useState<{ message: string; output: string } | null>(null);
   const [selected, setSelected] = useState<{ change: string; intent: DetailIntent } | null>(null);
@@ -50,8 +57,9 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
   const [mode, setMode] = useState<BoardMode>(() => readPref('board-mode', MODES, 'auto'));
   const [showEmpty, setShowEmpty] = useState(() => readPref('board-empty', ['show', 'collapse'], 'collapse') === 'show');
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [width, setWidth] = useState<number | null>(null);
-  const paneRef = useRef<HTMLDivElement | null>(null);
+  const [paneRef, width] = useWidth<HTMLDivElement>();
+  const notify = useNotify();
+  const handled = useRef<number | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -67,19 +75,13 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
     void reload();
   }, [reload, revision]);
 
-  // Ширина — самой доски, а не окна: в VS Code панель занимает часть окна.
-  useLayoutEffect(() => {
-    const element = paneRef.current;
-    if (element === null) return;
-    setWidth(element.getBoundingClientRect().width);
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry !== undefined) setWidth(entry.contentRect.width);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+  // Запрос из палитры команд: создать change или открыть его панель.
+  useEffect(() => {
+    if (request === null || handled.current === request.nonce) return;
+    handled.current = request.nonce;
+    if (request.kind === 'create') setCreating(true);
+    else setSelected({ change: request.change, intent: request.intent });
+  }, [request]);
 
   useEffect(() => {
     if (selected === null) return;
@@ -103,6 +105,14 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
     setExpanded(new Set());
   }
 
+  function showError(problem: unknown): void {
+    const payload = problem as { message?: string; output?: string };
+    setError({
+      message: payload.message ?? String(problem),
+      output: typeof payload.output === 'string' ? payload.output : '',
+    });
+  }
+
   async function create(): Promise<void> {
     setError(null);
     try {
@@ -112,13 +122,31 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
       setCreating(false);
       setBoard(await fetchBoard());
       onChanged();
+      notify({ kind: 'ok', title: 'Change создан', detail: name });
     } catch (problem) {
-      const payload = problem as { message?: string; output?: string };
-      setError({
-        message: payload.message ?? String(problem),
-        output: typeof payload.output === 'string' ? payload.output : '',
-      });
+      showError(problem);
     }
+  }
+
+  async function createArtifact(change: string, artifact: string, capabilityPath?: string): Promise<void> {
+    setError(null);
+    try {
+      const created = await createArtifactFile(change, artifact, capabilityPath);
+      notify({ kind: 'ok', title: `Создан ${artifact}`, detail: created.path });
+      await reload();
+      onChanged();
+      onOpenArtifact(change, artifact, created.path);
+    } catch (problem) {
+      showError(problem);
+    }
+  }
+
+  function revealPhase(column: BoardColumn, count: number): void {
+    if (count === 0) {
+      setExpanded((current) => new Set([...current, column.id]));
+      return;
+    }
+    document.querySelector(`[data-testid="column-${CSS.escape(column.id)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   const effective: Exclude<BoardMode, 'auto'> =
@@ -130,6 +158,15 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
   const card = selected === null ? undefined : board?.cards.find((item) => item.change === selected.change);
   const detailBeside = width !== null && width >= DETAIL_SIDE_FROM_PX;
   const select = (change: string, intent: DetailIntent = 'none'): void => setSelected({ change, intent });
+  const counts = new Map((board?.columns ?? []).map((column) => [column.id, visible.filter((item) => item.column === column.id).length]));
+
+  const cardProps = {
+    selected: selected?.change ?? null,
+    onSelect: select,
+    onOpenArtifact,
+    onCreateArtifact: (change: string, artifact: string, capabilityPath?: string) =>
+      void createArtifact(change, artifact, capabilityPath),
+  };
 
   return (
     <div
@@ -137,24 +174,18 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
       className={`board-pane ${card !== undefined ? (detailBeside ? 'with-detail' : 'with-overlay') : ''}`}
       data-mode={effective}
     >
-      <div className="board-toolbar">
-        <button
-          type="button"
-          className="btn primary"
-          onClick={() => setCreating((value) => !value)}
-          data-testid="new-change"
-        >
-          Новое изменение
-        </button>
-        <input
-          className="board-filter"
-          type="search"
-          value={filter}
-          placeholder="фильтр по имени"
-          aria-label="Фильтр по имени изменения"
-          onChange={(event) => setFilter(event.target.value)}
-          data-testid="board-filter"
-        />
+      <PageActions>
+        <label className="field-search board-filter">
+          <Icon name="filter" size={14} />
+          <input
+            type="search"
+            value={filter}
+            placeholder="Фильтр по имени"
+            aria-label="Фильтр по имени изменения"
+            onChange={(event) => setFilter(event.target.value)}
+            data-testid="board-filter"
+          />
+        </label>
         <div className="segmented" role="group" aria-label="Раскладка доски">
           {MODES.map((item) => (
             <button
@@ -162,17 +193,29 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
               type="button"
               aria-pressed={mode === item}
               onClick={() => chooseMode(item)}
+              title={item === 'auto' ? 'Колонки или список — по ширине панели' : undefined}
               data-testid={`board-mode-${item}`}
             >
-              {MODE_LABEL[item]}
+              <Icon name={MODE_ICON[item]} size={14} />
+              <span className="seg-label">{MODE_LABEL[item]}</span>
             </button>
           ))}
         </div>
-        <button type="button" className="btn" aria-pressed={showEmpty} onClick={toggleEmpty} data-testid="toggle-empty">
-          {showEmpty ? 'Свернуть пустые' : 'Показать пустые'}
+        <button type="button" className="btn ghost" aria-pressed={showEmpty} onClick={toggleEmpty} data-testid="toggle-empty">
+          <Icon name="eye" size={15} />
+          Пустые фазы
         </button>
-        <span className="crumbs">фаза выводится из файлов — карточку не перетащить</span>
-      </div>
+        <button
+          type="button"
+          className="btn primary"
+          onClick={() => setCreating((value) => !value)}
+          aria-expanded={creating}
+          data-testid="new-change"
+        >
+          <Icon name="plus" size={15} />
+          Новое изменение
+        </button>
+      </PageActions>
 
       {creating && (
         <form
@@ -184,9 +227,11 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
         >
           <input
             id="new-change-name"
+            className="mono"
             value={newName}
             placeholder="имя-изменения"
             aria-label="Имя изменения"
+            autoFocus
             onChange={(event) => setNewName(event.target.value)}
           />
           <select
@@ -206,72 +251,127 @@ export function Board({ schemas, revision, onChanged, onNavigate, onOpenArtifact
           <button type="submit" className="btn primary">
             Создать
           </button>
+          <button type="button" className="btn ghost" onClick={() => setCreating(false)}>
+            Отмена
+          </button>
         </form>
       )}
 
       {error !== null && (
-        <div className="notice error" role="alert" data-testid="board-error">
+        <div className="notice error board-error" role="alert" data-testid="board-error">
           <p>{error.message}</p>
           {error.output !== '' && <pre className="diff-preview">{error.output}</pre>}
         </div>
       )}
 
-      {board === null && error === null && <p className="empty">Загрузка доски…</p>}
+      {board === null && error === null && <BoardSkeleton />}
 
       {board !== null && (
-        <div className="board-body">
-          {effective === 'columns' ? (
-            <ColumnsView
-              columns={board.columns}
-              cards={visible}
-              collapseEmpty={!showEmpty}
-              expanded={expanded}
-              onExpand={(id) => setExpanded((current) => new Set([...current, id]))}
-              selected={selected?.change ?? null}
-              onSelect={select}
-              onOpenArtifact={onOpenArtifact}
-            />
-          ) : (
-            <ListView
-              columns={board.columns}
-              cards={visible}
-              selected={selected?.change ?? null}
-              onSelect={select}
-              onOpenArtifact={onOpenArtifact}
-            />
-          )}
+        <>
+          <PhaseStrip columns={board.columns} counts={counts} onReveal={revealPhase} />
+          <div className="board-body">
+            <div className="board-scroll">
+              {board.cards.length === 0 ? (
+                <div className="state-card" data-testid="board-empty">
+                  <span className="state-icon info">
+                    <Icon name="board" size={22} />
+                  </span>
+                  <h2>Активных изменений нет</h2>
+                  <p>Change — это предложение изменения в <code>openspec/changes/</code>. Создайте первый.</p>
+                  <button type="button" className="btn primary" onClick={() => setCreating(true)}>
+                    <Icon name="plus" size={14} />
+                    Новое изменение
+                  </button>
+                </div>
+              ) : effective === 'columns' ? (
+                <ColumnsView
+                  columns={board.columns}
+                  cards={visible}
+                  showEmpty={showEmpty}
+                  expanded={expanded}
+                  {...cardProps}
+                />
+              ) : (
+                <ListView columns={board.columns} cards={visible} showEmpty={showEmpty} {...cardProps} />
+              )}
 
-          {needle !== '' && visible.length === 0 && (
-            <p className="empty" data-testid="board-filter-empty">
-              Нет изменений, имя которых содержит «{filter.trim()}».
-            </p>
-          )}
+              {needle !== '' && visible.length === 0 && board.cards.length > 0 && (
+                <p className="empty" data-testid="board-filter-empty">
+                  Нет изменений, имя которых содержит «{filter.trim()}».
+                </p>
+              )}
+            </div>
 
-          {card !== undefined && selected !== null && (
-            <ChangeDetail
-              key={`${card.change}:${selected.intent}`}
-              card={card}
-              columnTitle={COLUMN_TITLE[card.column] ?? card.column}
-              intent={selected.intent}
-              revision={revision}
-              overlay={!detailBeside}
-              onClose={() => setSelected(null)}
-              onNavigate={onNavigate}
-              onOpenArtifact={onOpenArtifact}
-              onOpenFile={onOpenFile}
-              onChanged={async () => {
-                await reload();
-                onChanged();
-              }}
-              onArchived={async () => {
-                setSelected(null);
-                await reload();
-                onChanged();
-              }}
-            />
-          )}
-        </div>
+            {card !== undefined && selected !== null && (
+              <ChangeDetail
+                key={`${card.change}:${selected.intent}`}
+                card={card}
+                columnTitle={columnTitle(card.column)}
+                intent={selected.intent}
+                revision={revision}
+                overlay={!detailBeside}
+                onClose={() => setSelected(null)}
+                onNavigate={onNavigate}
+                onOpenArtifact={onOpenArtifact}
+                onOpenFile={onOpenFile}
+                onChanged={async () => {
+                  await reload();
+                  onChanged();
+                }}
+                onArchived={async () => {
+                  setSelected(null);
+                  notify({ kind: 'ok', title: 'Change архивирован', detail: card.change });
+                  await reload();
+                  onChanged();
+                }}
+              />
+            )}
+          </div>
+        </>
       )}
+    </div>
+  );
+}
+
+/** Полоса всех фаз со счётчиками — вместо свёрнутых полос пустых колонок. */
+function PhaseStrip({
+  columns,
+  counts,
+  onReveal,
+}: {
+  readonly columns: readonly BoardColumn[];
+  readonly counts: ReadonlyMap<string, number>;
+  readonly onReveal: (column: BoardColumn, count: number) => void;
+}) {
+  const group = (items: readonly BoardColumn[]) =>
+    items.map((column, index) => {
+      const count = counts.get(column.id) ?? 0;
+      return (
+        <span key={column.id} className="phase-step">
+          {index > 0 && <span className="phase-link" aria-hidden="true" />}
+          <button
+            type="button"
+            className={`phase-chip ${count > 0 ? 'filled' : 'empty'} ${column.isArtifact ? 'artifact' : 'work'}`}
+            onClick={() => onReveal(column, count)}
+            title={count === 0 ? `${columnTitle(column.id)}: пусто — показать колонку` : `${columnTitle(column.id)}: ${count}`}
+            data-testid={`phase-${column.id}`}
+          >
+            <span className="dot" aria-hidden="true" />
+            <span className={column.isArtifact ? 'mono' : undefined}>{columnTitle(column.id)}</span>
+            <span className="badge">{count}</span>
+          </button>
+        </span>
+      );
+    });
+  const artifacts = columns.filter((column) => column.isArtifact);
+  const work = columns.filter((column) => !column.isArtifact);
+  return (
+    <div className="phase-strip" role="navigation" aria-label="Фазы процесса" data-testid="phase-strip">
+      <span className="phase-group-label">Артефакты</span>
+      {group(artifacts)}
+      <span className="phase-divider" aria-hidden="true" />
+      <span className="phase-group-label">Реализация</span>
+      {group(work)}
     </div>
   );
 }
@@ -281,93 +381,79 @@ interface CardListProps {
   readonly selected: string | null;
   readonly onSelect: (change: string, intent?: DetailIntent) => void;
   readonly onOpenArtifact: BoardProps['onOpenArtifact'];
+  readonly onCreateArtifact: (change: string, artifact: string, capabilityPath?: string) => void;
 }
 
 function ColumnsView({
   columns,
   cards,
-  collapseEmpty,
+  showEmpty,
   expanded,
-  onExpand,
   ...rest
 }: CardListProps & {
   readonly columns: readonly BoardColumn[];
-  readonly collapseEmpty: boolean;
+  readonly showEmpty: boolean;
   readonly expanded: ReadonlySet<string>;
-  readonly onExpand: (id: string) => void;
 }) {
-  const layout = columns.map((column) => {
-    const inColumn = cards.filter((item) => item.column === column.id);
-    return { column, cards: inColumn, collapsed: collapseEmpty && inColumn.length === 0 && !expanded.has(column.id) };
-  });
+  const shown = columns
+    .map((column) => ({ column, cards: cards.filter((item) => item.column === column.id) }))
+    .filter((entry) => entry.cards.length > 0 || showEmpty || expanded.has(entry.column.id));
 
   return (
-    <div
-      className="board"
-      data-testid="board"
-      style={{
-        gridTemplateColumns: layout
-          .map((entry) => (entry.collapsed ? '36px' : 'minmax(190px, 340px)'))
-          .join(' '),
-      }}
-    >
-      {layout.map(({ column, cards: inColumn, collapsed }) => {
-        const title = COLUMN_TITLE[column.id] ?? column.id;
-        if (collapsed) {
-          return (
-            <button
-              type="button"
-              key={column.id}
-              className="col-strip"
-              data-testid={`column-${column.id}`}
-              data-collapsed="true"
-              title={`${title}: пусто — развернуть`}
-              aria-label={`${title}, пусто. Развернуть колонку`}
-              onClick={() => onExpand(column.id)}
-            >
-              <span className="n">0</span>
-              <span className="label">{title}</span>
-            </button>
-          );
-        }
+    <div className="board" data-testid="board" style={{ gridTemplateColumns: `repeat(${Math.max(1, shown.length)}, minmax(240px, 1fr))` }}>
+      {shown.map(({ column, cards: inColumn }) => {
+        const title = columnTitle(column.id);
         return (
-          <div className="col" key={column.id} data-testid={`column-${column.id}`}>
+          <section className="col" key={column.id} data-testid={`column-${column.id}`} aria-label={title}>
             <header>
-              <h3 title={title}>{title}</h3>
-              <span className="n">{inColumn.length}</span>
+              <span className={`dot ${column.isArtifact ? 'artifact' : 'work'}`} aria-hidden="true" />
+              <h3 title={title} className={column.isArtifact ? 'mono' : undefined}>
+                {title}
+              </h3>
+              <span className="badge">{inColumn.length}</span>
             </header>
+            {inColumn.length === 0 && <p className="empty col-empty">Пусто</p>}
             {inColumn.map((item) => (
               <Card key={item.change} card={item} {...rest} />
             ))}
-          </div>
+          </section>
         );
       })}
     </div>
   );
 }
 
-function ListView({ columns, cards, ...rest }: CardListProps & { readonly columns: readonly BoardColumn[] }) {
+function ListView({
+  columns,
+  cards,
+  showEmpty,
+  ...rest
+}: CardListProps & { readonly columns: readonly BoardColumn[]; readonly showEmpty: boolean }) {
+  const entries = columns.map((column) => ({ column, cards: cards.filter((item) => item.column === column.id) }));
+  const empty = entries.filter((entry) => entry.cards.length === 0);
   return (
     <div className="board-list" data-testid="board">
-      {columns.map((column) => {
-        const inColumn = cards.filter((item) => item.column === column.id);
-        const title = COLUMN_TITLE[column.id] ?? column.id;
-        return (
-          <section
-            key={column.id}
-            className={`phase ${inColumn.length === 0 ? 'empty-phase' : ''}`}
-            data-testid={`column-${column.id}`}
-          >
-            <header>
-              <h3>{title}</h3>
-              <span className="n">{inColumn.length}</span>
-            </header>
-            {inColumn.map((item) => (
-              <Card key={item.change} card={item} {...rest} row />
-            ))}
-          </section>
-        );
-      })}
+      {entries
+        .filter((entry) => entry.cards.length > 0 || showEmpty)
+        .map(({ column, cards: inColumn }) => {
+          const title = columnTitle(column.id);
+          return (
+            <section key={column.id} className="phase" data-testid={`column-${column.id}`}>
+              <header>
+                <h3 className={column.isArtifact ? 'mono' : undefined}>{title}</h3>
+                <span className="badge">{inColumn.length}</span>
+              </header>
+              {inColumn.map((item) => (
+                <Card key={item.change} card={item} {...rest} row />
+              ))}
+            </section>
+          );
+        })}
+      {!showEmpty && empty.length > 0 && (
+        <p className="empty empty-phases" data-testid="empty-phases">
+          Пустые фазы: {empty.map((entry) => columnTitle(entry.column.id)).join(', ')}
+        </p>
+      )}
     </div>
   );
 }
@@ -377,11 +463,13 @@ function Card({
   selected,
   onSelect,
   onOpenArtifact,
+  onCreateArtifact,
   row = false,
 }: Omit<CardListProps, 'cards'> & { readonly card: BoardCard; readonly row?: boolean }) {
+  const [capability, setCapability] = useState<string | null>(null);
   const age = formatAge(card.lastModified);
-  const progress = card.progress;
-  const hasProgress = progress !== null && progress.total > 0;
+  const thread = buildThread(card);
+  const next = thread.next === null ? undefined : card.artifacts.find((artifact) => artifact.id === thread.next);
 
   return (
     <article
@@ -392,7 +480,7 @@ function Card({
       <div className="card-head">
         <button
           type="button"
-          className="card-title"
+          className="card-title mono"
           aria-pressed={selected === card.change}
           onClick={(event) => {
             event.stopPropagation();
@@ -402,58 +490,32 @@ function Card({
         >
           {card.change}
         </button>
-        {age !== null && (
-          <span className="age" title={card.lastModified ?? undefined} data-testid="card-age">
-            изменён {age}
-          </span>
-        )}
-      </div>
-
-      <div className="chips">
-        <span className="chip">{card.schema}</span>
         {card.waivers.length > 0 && (
           <span
             className="chip warn"
             data-testid="card-waiver"
             title={card.waivers.map((waiver) => `${waiver.rule}: ${waiver.reason}`).join('\n')}
           >
-            ⊘ отказ SDD
+            отказ SDD
           </span>
         )}
-        {card.artifacts.map((artifact) =>
-          artifact.path !== null && artifact.path !== undefined ? (
-            <button
-              type="button"
-              key={artifact.id}
-              className={artifact.done ? 'chip on' : 'chip no'}
-              title={`Открыть ${artifact.path}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenArtifact(card.change, artifact.id, artifact.path ?? null);
-              }}
-              data-testid={`card-artifact-${card.change}-${artifact.id}`}
-            >
-              {artifact.id}
-            </button>
-          ) : (
-            <span key={artifact.id} className="chip no" title="ещё не создан">
-              {artifact.id}
-            </span>
-          ),
+      </div>
+      <div className="card-meta">
+        <span>{card.schema}</span>
+        {age !== null && (
+          <span title={card.lastModified ?? undefined} data-testid="card-age">
+            изменён {age}
+          </span>
         )}
       </div>
 
-      {hasProgress && (
-        <div className="meter">
-          <i style={{ width: `${Math.round((progress.complete / progress.total) * 100)}%` }} />
-        </div>
-      )}
+      <Thread card={card} thread={thread} onOpen={(id, path) => onOpenArtifact(card.change, id, path)} />
+      <p className="card-caption">{threadCaption(card, thread)}</p>
 
-      <div className="foot">
-        <span>{hasProgress ? `${progress.complete}/${progress.total} пунктов` : 'нет пунктов'}</span>
+      <div className="card-foot">
         <button
           type="button"
-          className={`validity ${card.errorCount > 0 ? 'err' : card.validationUnknown ? 'unknown' : 'ok'}`}
+          className={`status ${card.errorCount > 0 ? 'bad' : card.validationUnknown ? 'unknown' : 'ok'}`}
           title={card.errorCount > 0 ? 'Показать замечания проверки' : 'Запустить проверку'}
           onClick={(event) => {
             event.stopPropagation();
@@ -461,27 +523,97 @@ function Card({
           }}
           data-testid={`card-validity-${card.change}`}
         >
+          <Icon name={card.errorCount > 0 ? 'error' : card.validationUnknown ? 'circle' : 'checkCircle'} size={14} />
           {card.validationUnknown
             ? 'не проверялся'
             : card.errorCount > 0
-              ? `${card.errorCount} ош.`
-              : 'валиден'}
+              ? plural(card.errorCount, ['ошибка', 'ошибки', 'ошибок'])
+              : 'проверка пройдена'}
         </button>
+        <span className="spacer" />
+        {next !== undefined && capability === null && (
+          <button
+            type="button"
+            className="btn small"
+            title={`Создать ${next.id} по шаблону схемы`}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (next.perCapability === true) setCapability('');
+              else onCreateArtifact(card.change, next.id);
+            }}
+            data-testid={`card-create-${card.change}`}
+          >
+            <Icon name="filePlus" size={14} />
+            {next.id}
+          </button>
+        )}
+        {card.column === 'to-archive' && (
+          <button
+            type="button"
+            className="btn small"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(card.change, 'archive');
+            }}
+            data-testid={`card-archive-${card.change}`}
+          >
+            <Icon name="archive" size={14} />
+            Архивировать
+          </button>
+        )}
       </div>
 
-      {card.column === 'to-archive' && (
-        <button
-          type="button"
-          className="btn primary card-archive"
-          onClick={(event) => {
-            event.stopPropagation();
-            onSelect(card.change, 'archive');
+      {next !== undefined && capability !== null && (
+        <form
+          className="card-capability"
+          onClick={(event) => event.stopPropagation()}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (capability.trim() === '') return;
+            onCreateArtifact(card.change, next.id, capability.trim());
+            setCapability(null);
           }}
-          data-testid={`card-archive-${card.change}`}
         >
-          Архивировать…
-        </button>
+          <input
+            className="mono"
+            value={capability}
+            placeholder="путь capability"
+            aria-label={`Путь capability для ${next.id}`}
+            autoFocus
+            onChange={(event) => setCapability(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                setCapability(null);
+              }
+            }}
+          />
+          <button type="submit" className="btn small primary" disabled={capability.trim() === ''}>
+            Создать
+          </button>
+        </form>
       )}
     </article>
+  );
+}
+
+function BoardSkeleton() {
+  return (
+    <div className="page-skeleton board-skeleton" aria-busy="true" aria-label="Загрузка доски">
+      <div className="skeleton-row">
+        {[0, 1, 2, 3, 4].map((index) => (
+          <span key={index} className="skeleton" style={{ width: 110, height: 28, borderRadius: 14 }} />
+        ))}
+      </div>
+      <div className="skeleton-grid">
+        {[0, 1, 2].map((index) => (
+          <div key={index} className="skeleton-col">
+            <span className="skeleton" style={{ width: '50%', height: 14 }} />
+            <span className="skeleton" style={{ height: 120 }} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
