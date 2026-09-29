@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { type ContextIssue, type ContextMap as ContextMapModel, contextBundle } from '@openspec-ide/core';
+import {
+  type ContextBundle,
+  type ContextIssue,
+  type ContextMap as ContextMapModel,
+  contextBundle,
+} from '@openspec-ide/core';
 import { fetchContextMap } from '../lib/api.js';
 import {
   type ContextLayout,
@@ -11,12 +16,21 @@ import {
   neighbourhood,
   nodeKey,
 } from '../lib/contextLayout.js';
+import { bundleKeys, parseNodeKey, selectionOf, togglePicked } from '../lib/contextSelection.js';
 import { plural } from '../lib/format.js';
 import { inVsCode, openInEditor } from '../lib/host.js';
-import { readPref, writePref } from '../lib/prefs.js';
+import { readListPref, readPref, writeListPref, writePref } from '../lib/prefs.js';
 
 type View = 'graph' | 'matrix';
 const VIEWS: readonly View[] = ['graph', 'matrix'];
+const SWITCH: readonly ('on' | 'off')[] = ['on', 'off'];
+
+/** Щелчок с Ctrl, ⌘ или Shift добавляет узел в набор и без режима набора. */
+type Activate = (key: string | null, toggle?: boolean) => void;
+
+function withModifier(event: { readonly ctrlKey: boolean; readonly metaKey: boolean; readonly shiftKey: boolean }): boolean {
+  return event.ctrlKey || event.metaKey || event.shiftKey;
+}
 
 const KIND_LABEL: Record<ContextNodeKind, string> = { adr: 'ADR', module: 'Модуль', domain: 'Домен' };
 
@@ -38,6 +52,11 @@ export function ContextMap({ revision }: { readonly revision: number }) {
   const [view, setView] = useState<View>(() => readPref('context-view', VIEWS, 'graph'));
   const [selected, setSelected] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  // Набор контекста: узлы в порядке выбора. Переживает переключение разделов.
+  const [picked, setPicked] = useState<string[]>(() => readListPref('context-picked'));
+  const [picking, setPicking] = useState(() => picked.length > 0);
+  const [withDeps, setWithDeps] = useState(() => readPref('context-deps', SWITCH, 'on') === 'on');
+  const [withModuleDomains, setWithModuleDomains] = useState(() => readPref('context-module-domains', SWITCH, 'on') === 'on');
 
   const load = useCallback(async () => {
     try {
@@ -58,6 +77,56 @@ export function ContextMap({ revision }: { readonly revision: number }) {
   useEffect(() => {
     if (selected !== null && layout !== null && !layout.nodes.some((node) => node.key === selected)) setSelected(null);
   }, [layout, selected]);
+
+  const updatePicked = useCallback((next: string[]) => {
+    setPicked(next);
+    writeListPref('context-picked', next);
+  }, []);
+
+  // Из набора уходят узлы, которых больше нет на карте.
+  useEffect(() => {
+    if (layout === null) return;
+    const keys = new Set(layout.nodes.map((node) => node.key));
+    if (picked.some((key) => !keys.has(key))) updatePicked(picked.filter((key) => keys.has(key)));
+  }, [layout, picked, updatePicked]);
+
+  const bundle = useMemo(
+    () =>
+      map === null || !picking
+        ? null
+        : contextBundle(map, selectionOf(picked), { dependencies: withDeps, moduleDomains: withModuleDomains }),
+    [map, picking, picked, withDeps, withModuleDomains],
+  );
+  const included = bundle !== null && picked.length > 0 ? bundleKeys(bundle) : null;
+  const pickedSet = useMemo(() => new Set(picking ? picked : []), [picking, picked]);
+
+  const activate: Activate = (key, toggle = false) => {
+    if (key === null) {
+      if (!picking) setSelected(null);
+      return;
+    }
+    if (picking || toggle) {
+      updatePicked(togglePicked(picked, key));
+      setPicking(true);
+      return;
+    }
+    setSelected(key);
+  };
+
+  const pick = (key: string): void => {
+    if (!picked.includes(key)) updatePicked([...picked, key]);
+    setPicking(true);
+  };
+
+  const showOnMap = (key: string): void => {
+    setPicking(false);
+    setSelected(key);
+  };
+
+  function switchOption(key: string, value: boolean, set: (value: boolean) => void): void {
+    set(value);
+    writePref(key, value ? 'on' : 'off');
+  }
 
   function chooseView(next: View): void {
     setView(next);
@@ -86,6 +155,16 @@ export function ContextMap({ revision }: { readonly revision: number }) {
           {map.adrs.length > 0 && <> · {map.adrs.length} ADR</>}
         </span>
         <span className="spacer" />
+        <button
+          type="button"
+          className={picking ? 'btn primary' : 'btn'}
+          aria-pressed={picking}
+          onClick={() => setPicking(!picking)}
+          title="Собрать контекст из нескольких модулей, доменов и ADR щелчками по ним. Ctrl+щелчок по узлу работает и без режима."
+          data-testid="context-pick-mode"
+        >
+          Набор контекста{picked.length > 0 && <> · {picked.length}</>}
+        </button>
         <div className="segmented" role="group" aria-label="Вид">
           <button type="button" aria-pressed={view === 'graph'} onClick={() => chooseView('graph')} data-testid="context-view-graph">
             Граф
@@ -109,18 +188,50 @@ export function ContextMap({ revision }: { readonly revision: number }) {
               <span className="chip warn">{plural(warnings, ['предупреждение', 'предупреждения', 'предупреждений'])}</span>
             )}
           </summary>
-          <IssueList issues={map.issues} onSelect={setSelected} />
+          <IssueList issues={map.issues} onSelect={showOnMap} />
         </details>
       )}
 
       {map.configured || map.domains.length > 0 ? (
         <div className="context-body">
           {view === 'graph' ? (
-            <Graph layout={layout} selected={selected} hovered={hovered} onSelect={setSelected} onHover={setHovered} />
+            <Graph
+              layout={layout}
+              selected={picking ? null : selected}
+              hovered={hovered}
+              picked={pickedSet}
+              included={included}
+              picking={picking}
+              onActivate={activate}
+              onHover={setHovered}
+            />
           ) : (
-            <Matrix map={map} selected={selected} onSelect={setSelected} />
+            <Matrix
+              map={map}
+              selected={picking ? null : selected}
+              picked={pickedSet}
+              included={included}
+              onActivate={activate}
+            />
           )}
-          {selected !== null && <Details map={map} selected={selected} onSelect={setSelected} />}
+          {picking && bundle !== null ? (
+            <SelectionPanel
+              map={map}
+              picked={picked}
+              bundle={bundle}
+              withDeps={withDeps}
+              withModuleDomains={withModuleDomains}
+              onDeps={(value) => switchOption('context-deps', value, setWithDeps)}
+              onModuleDomains={(value) => switchOption('context-module-domains', value, setWithModuleDomains)}
+              onRemove={(key) => updatePicked(togglePicked(picked, key))}
+              onClear={() => updatePicked([])}
+              onClose={() => setPicking(false)}
+            />
+          ) : (
+            selected !== null && (
+              <Details map={map} selected={selected} picked={picked} onSelect={setSelected} onPick={pick} />
+            )
+          )}
         </div>
       ) : (
         <p className="empty">В проекте нет ни модулей, ни спеков.</p>
@@ -192,18 +303,29 @@ function Graph({
   layout,
   selected,
   hovered,
-  onSelect,
+  picked,
+  included,
+  picking,
+  onActivate,
   onHover,
 }: {
   readonly layout: ContextLayout;
   readonly selected: string | null;
   readonly hovered: string | null;
-  readonly onSelect: (key: string | null) => void;
+  /** Узлы, выбранные в набор. */
+  readonly picked: ReadonlySet<string>;
+  /** Все узлы набора, включая добавленные по связям; `null` — набора нет. */
+  readonly included: ReadonlySet<string> | null;
+  readonly picking: boolean;
+  readonly onActivate: Activate;
   readonly onHover: (key: string | null) => void;
 }) {
+  // Наведение показывает соседей узла; без него в режиме набора подсвечен набор.
   const focus = hovered ?? selected;
-  const near = focus === null ? null : neighbourhood(layout, focus);
-  const edgeActive = (from: string, to: string): boolean => focus !== null && (from === focus || to === focus);
+  const near = focus === null ? included : neighbourhood(layout, focus);
+  const edgeActive = (from: string, to: string): boolean =>
+    focus !== null ? from === focus || to === focus : included !== null && included.has(from) && included.has(to);
+  const highlighting = focus !== null || included !== null;
 
   return (
     <div className="context-graph-wrap">
@@ -215,7 +337,7 @@ function Graph({
         role="img"
         aria-label="Граф связей модулей, доменов и ADR"
         data-testid="context-graph"
-        onClick={() => onSelect(null)}
+        onClick={() => onActivate(null)}
       >
         <defs>
           <marker id="ctx-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -240,7 +362,7 @@ function Graph({
                 edge.resolved ? '' : 'unresolved',
                 edge.cyclic ? 'cyclic' : '',
                 edgeActive(edge.from, edge.to) ? 'active' : '',
-                focus !== null && !edgeActive(edge.from, edge.to) ? 'faded' : '',
+                highlighting && !edgeActive(edge.from, edge.to) ? 'faded' : '',
               ]
                 .filter((name) => name !== '')
                 .join(' ')}
@@ -256,8 +378,9 @@ function Graph({
               key={node.key}
               node={node}
               selected={node.key === selected}
+              picked={picked.has(node.key)}
               faded={near !== null && !near.has(node.key)}
-              onSelect={onSelect}
+              onActivate={onActivate}
               onHover={onHover}
             />
           ))}
@@ -267,6 +390,11 @@ function Graph({
       <p className="context-legend">
         <span className="swatch module" /> модуль <span className="swatch domain" /> домен <span className="swatch adr" /> ADR{' '}
         <span className="line depends" /> depends_on <span className="line unresolved" /> не найдено
+        {picking ? (
+          <span className="context-legend-hint">· щелчок добавляет узел в набор или убирает его</span>
+        ) : (
+          <span className="context-legend-hint">· Ctrl+щелчок — в набор контекста</span>
+        )}
       </p>
     </div>
   );
@@ -275,17 +403,26 @@ function Graph({
 function GraphNode({
   node,
   selected,
+  picked,
   faded,
-  onSelect,
+  onActivate,
   onHover,
 }: {
   readonly node: LayoutNode;
   readonly selected: boolean;
+  readonly picked: boolean;
   readonly faded: boolean;
-  readonly onSelect: (key: string) => void;
+  readonly onActivate: Activate;
   readonly onHover: (key: string | null) => void;
 }) {
-  const classes = ['ctx-node', node.kind, node.resolved ? '' : 'unresolved', selected ? 'selected' : '', faded ? 'faded' : '']
+  const classes = [
+    'ctx-node',
+    node.kind,
+    node.resolved ? '' : 'unresolved',
+    selected ? 'selected' : '',
+    picked ? 'picked' : '',
+    faded ? 'faded' : '',
+  ]
     .filter((name) => name !== '')
     .join(' ');
   return (
@@ -295,16 +432,17 @@ function GraphNode({
       role="button"
       tabIndex={0}
       aria-label={`${KIND_LABEL[node.kind]} ${node.label}`}
-      aria-pressed={selected}
+      aria-pressed={selected || picked}
       data-testid={`ctx-node-${node.key}`}
+      data-picked={picked ? 'true' : undefined}
       onClick={(event) => {
         event.stopPropagation();
-        onSelect(node.key);
+        onActivate(node.key, withModifier(event));
       }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onSelect(node.key);
+          onActivate(node.key, withModifier(event));
         }
       }}
       onMouseEnter={() => onHover(node.key)}
@@ -315,10 +453,11 @@ function GraphNode({
       <title>
         {KIND_LABEL[node.kind]} {node.label}
         {node.resolved ? '' : ' — не найден'}
+        {picked ? ' — в наборе' : ''}
       </title>
       <rect width={NODE_WIDTH} height={NODE_HEIGHT} rx={6} />
       <text x={10} y={NODE_HEIGHT / 2 + 4}>
-        {short(node.label)}
+        {picked ? `✓ ${short(node.label)}` : short(node.label)}
       </text>
       {node.degree > 0 && (
         <text x={NODE_WIDTH - 8} y={NODE_HEIGHT / 2 + 4} className="ctx-degree" textAnchor="end">
@@ -332,12 +471,25 @@ function GraphNode({
 function Matrix({
   map,
   selected,
-  onSelect,
+  picked,
+  included,
+  onActivate,
 }: {
   readonly map: ContextMapModel;
   readonly selected: string | null;
-  readonly onSelect: (key: string) => void;
+  readonly picked: ReadonlySet<string>;
+  readonly included: ReadonlySet<string> | null;
+  readonly onActivate: Activate;
 }) {
+  const marks = (key: string, unresolved = false): string =>
+    [
+      unresolved ? 'unresolved' : '',
+      selected === key ? 'selected' : '',
+      picked.has(key) ? 'picked' : included?.has(key) === true ? 'included' : '',
+    ]
+      .filter((name) => name !== '')
+      .join(' ');
+  const label = (key: string, text: string): string => (picked.has(key) ? `✓ ${text}` : text);
   const linked = new Set(map.links.map((link) => `${link.module}\u0000${link.domain}`));
   if (map.modules.length === 0) return <p className="empty">Модулей нет — строить матрицу не из чего.</p>;
   return (
@@ -350,12 +502,16 @@ function Matrix({
               <th
                 key={domain.id}
                 scope="col"
-                className={[domain.specPath === null ? 'unresolved' : '', selected === nodeKey('domain', domain.id) ? 'selected' : '']
-                  .filter((name) => name !== '')
-                  .join(' ')}
+                className={marks(nodeKey('domain', domain.id), domain.specPath === null) || undefined}
               >
-                <button type="button" className="linkish" onClick={() => onSelect(nodeKey('domain', domain.id))} title={domain.id}>
-                  <span className="vertical">{domain.id}</span>
+                <button
+                  type="button"
+                  className="linkish"
+                  onClick={(event) => onActivate(nodeKey('domain', domain.id), withModifier(event))}
+                  title={domain.id}
+                  data-testid={`ctx-col-${domain.id}`}
+                >
+                  <span className="vertical">{label(nodeKey('domain', domain.id), domain.id)}</span>
                 </button>
               </th>
             ))}
@@ -363,10 +519,15 @@ function Matrix({
         </thead>
         <tbody>
           {map.modules.map((module) => (
-            <tr key={module.id} className={selected === nodeKey('module', module.id) ? 'selected' : undefined}>
+            <tr key={module.id} className={marks(nodeKey('module', module.id)) || undefined}>
               <th scope="row">
-                <button type="button" className="linkish" onClick={() => onSelect(nodeKey('module', module.id))}>
-                  {module.id}
+                <button
+                  type="button"
+                  className="linkish"
+                  onClick={(event) => onActivate(nodeKey('module', module.id), withModifier(event))}
+                  data-testid={`ctx-row-${module.id}`}
+                >
+                  {label(nodeKey('module', module.id), module.id)}
                 </button>
               </th>
               {map.domains.map((domain) => {
@@ -448,24 +609,176 @@ function Chips({
   );
 }
 
+/** Упорядоченный список файлов контекста с копированием путей строками `@путь`. */
+function BundleFiles({ title, note, files }: { readonly title: string; readonly note: string; readonly files: readonly string[] }) {
+  const [copied, setCopied] = useState(false);
+  const joined = files.join('\n');
+  useEffect(() => setCopied(false), [joined]);
+  const copy = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(files.map((file) => `@${file}`).join('\n'));
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="ctx-bundle" data-testid="context-bundle">
+      <p className="pane-title">
+        {title} <span className="count">{files.length}</span>
+      </p>
+      <p className="muted">{note}</p>
+      {files.length > 0 && (
+        <ol>
+          {files.map((file) => (
+            <li key={file} className="mono">
+              {inVsCode() ? (
+                <button type="button" className="linkish" onClick={() => openInEditor(file)}>
+                  {file}
+                </button>
+              ) : (
+                file
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+      <button type="button" className="btn" onClick={() => void copy()} disabled={files.length === 0} data-testid="context-copy">
+        {copied ? 'Скопировано' : 'Копировать пути (@файл)'}
+      </button>
+    </div>
+  );
+}
+
+const PICKED_ORDER: readonly ContextNodeKind[] = ['module', 'domain', 'adr'];
+
+/** Набор контекста из нескольких модулей, доменов и ADR. */
+function SelectionPanel({
+  map,
+  picked,
+  bundle,
+  withDeps,
+  withModuleDomains,
+  onDeps,
+  onModuleDomains,
+  onRemove,
+  onClear,
+  onClose,
+}: {
+  readonly map: ContextMapModel;
+  readonly picked: readonly string[];
+  readonly bundle: ContextBundle;
+  readonly withDeps: boolean;
+  readonly withModuleDomains: boolean;
+  readonly onDeps: (value: boolean) => void;
+  readonly onModuleDomains: (value: boolean) => void;
+  readonly onRemove: (key: string) => void;
+  readonly onClear: () => void;
+  readonly onClose: () => void;
+}) {
+  const nodes = picked
+    .map((key) => ({ key, node: parseNodeKey(key) }))
+    .filter((item): item is { key: string; node: NonNullable<ReturnType<typeof parseNodeKey>> } => item.node !== null)
+    .sort((a, b) => PICKED_ORDER.indexOf(a.node.kind) - PICKED_ORDER.indexOf(b.node.kind));
+  const label = (kind: ContextNodeKind, id: string): string =>
+    kind === 'adr' ? (map.adrs.find((adr) => adr.path === id)?.id ?? id) : id;
+  const parts = [
+    bundle.modules.length > 0 ? `модули: ${bundle.modules.join(', ')}` : '',
+    bundle.domains.length > 0 ? plural(bundle.domains.length, ['спека', 'спеки', 'спек']) : '',
+    bundle.adrs.length > 0 ? `${bundle.adrs.length} ADR` : '',
+  ].filter((part) => part !== '');
+
+  return (
+    <aside className="context-details context-selection" data-testid="context-selection">
+      <header>
+        <span className="chip">набор</span> <b>Контекст из выбранного</b>
+        <span className="spacer" />
+        <button type="button" className="btn small" onClick={onClose} aria-label="Закрыть набор">
+          ✕
+        </button>
+      </header>
+      {nodes.length === 0 ? (
+        <p className="muted" data-testid="context-selection-empty">
+          Щёлкайте по модулям, доменам и ADR на графе или по строкам и столбцам матрицы — они попадут в набор. Повторный
+          щелчок убирает узел из набора.
+        </p>
+      ) : (
+        <>
+          <span className="ctx-chips">
+            {nodes.map(({ key, node }) => (
+              <button
+                key={key}
+                type="button"
+                className={`ctx-chip ${node.kind} removable`}
+                onClick={() => onRemove(key)}
+                title={`Убрать ${node.id} из набора`}
+                data-testid={`context-picked-${key}`}
+              >
+                {label(node.kind, node.id)} ✕
+              </button>
+            ))}
+          </span>
+          <div className="ctx-options">
+            <label>
+              <input type="checkbox" checked={withDeps} onChange={(event) => onDeps(event.target.checked)} data-testid="context-opt-deps" />{' '}
+              зависимости модулей по depends_on
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={withModuleDomains}
+                onChange={(event) => onModuleDomains(event.target.checked)}
+                data-testid="context-opt-module-domains"
+              />{' '}
+              спеки доменов модулей
+            </label>
+          </div>
+          <BundleFiles
+            title="Контекст для работы"
+            note={`Общий контекст${parts.length > 0 ? `, ${parts.join(', ')}` : ''}.`}
+            files={bundle.files}
+          />
+          <button type="button" className="btn small ctx-clear" onClick={onClear} data-testid="context-clear">
+            Очистить набор
+          </button>
+        </>
+      )}
+    </aside>
+  );
+}
+
 function Details({
   map,
   selected,
+  picked,
   onSelect,
+  onPick,
 }: {
   readonly map: ContextMapModel;
   readonly selected: string;
+  readonly picked: readonly string[];
   readonly onSelect: (key: string | null) => void;
+  readonly onPick: (key: string) => void;
 }) {
-  const [copied, setCopied] = useState(false);
   const separator = selected.indexOf(':');
   const kind = selected.slice(0, separator) as ContextNodeKind;
   const id = selected.slice(separator + 1);
-  useEffect(() => setCopied(false), [selected]);
+  const inSet = picked.includes(selected);
 
   const close = (
     <button type="button" className="btn small" onClick={() => onSelect(null)} aria-label="Закрыть">
       ✕
+    </button>
+  );
+  const add = (
+    <button
+      type="button"
+      className="btn small"
+      onClick={() => onPick(selected)}
+      title="Добавить в набор контекста вместе с другими модулями и доменами"
+      data-testid="context-pick"
+    >
+      {inSet ? '✓ В наборе' : '+ В набор'}
     </button>
   );
 
@@ -485,20 +798,13 @@ function Details({
         </aside>
       );
     }
-    const bundle = contextBundle(map, module.id);
-    const copy = async (): Promise<void> => {
-      try {
-        await navigator.clipboard.writeText(bundle.files.map((file) => `@${file}`).join('\n'));
-        setCopied(true);
-      } catch {
-        setCopied(false);
-      }
-    };
+    const bundle = contextBundle(map, { modules: [module.id] });
     return (
       <aside className="context-details" data-testid="context-details">
         <header>
           <span className="chip">модуль</span> <b className="mono">{module.id}</b>
           <span className="spacer" />
+          {add}
           {close}
         </header>
         {module.description !== null && <p>{module.description}</p>}
@@ -539,30 +845,11 @@ function Details({
             )}
           </dd>
         </dl>
-        <div className="ctx-bundle" data-testid="context-bundle">
-          <p className="pane-title">
-            Контекст для работы над модулем <span className="count">{bundle.files.length}</span>
-          </p>
-          <p className="muted">
-            Общий контекст, модуль и его зависимости по depends_on ({bundle.modules.join(' → ')}), спеки их доменов и ADR.
-          </p>
-          <ol>
-            {bundle.files.map((file) => (
-              <li key={file} className="mono">
-                {inVsCode() ? (
-                  <button type="button" className="linkish" onClick={() => openInEditor(file)}>
-                    {file}
-                  </button>
-                ) : (
-                  file
-                )}
-              </li>
-            ))}
-          </ol>
-          <button type="button" className="btn" onClick={() => void copy()} data-testid="context-copy">
-            {copied ? 'Скопировано' : 'Копировать пути (@файл)'}
-          </button>
-        </div>
+        <BundleFiles
+          title="Контекст для работы над модулем"
+          note={`Общий контекст, модуль и его зависимости по depends_on (${bundle.modules.join(' → ')}), спеки их доменов и ADR.`}
+          files={bundle.files}
+        />
       </aside>
     );
   }
@@ -575,6 +862,7 @@ function Details({
         <header>
           <span className="chip">домен</span> <b className="mono">{domain.id}</b>
           <span className="spacer" />
+          {add}
           {close}
         </header>
         <div className="ctx-files">
@@ -604,6 +892,7 @@ function Details({
       <header>
         <span className="chip">ADR</span> <b>{adr.title}</b>
         <span className="spacer" />
+        {add}
         {close}
       </header>
       <div className="ctx-files">

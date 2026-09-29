@@ -24,3 +24,17 @@ export function writePref(key: string, value: string): void {
     // Без хранилища настройка просто не переживёт перезагрузку.
   }
 }
+
+/** Список строк, который помнит окно, например набор выбранных узлов. */
+export function readListPref(key: string): string[] {
+  try {
+    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(`openspec-ide:${key}`) ?? '[]');
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeListPref(key: string, values: readonly string[]): void {
+  writePref(key, JSON.stringify(values));
+}

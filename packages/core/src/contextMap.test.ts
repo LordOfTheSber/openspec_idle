@@ -100,8 +100,10 @@ describe('карта контекста: модули и домены', () => {
   });
 
   it('контекст модуля включает зависимости, спеки доменов и общий контекст', () => {
-    expect(contextBundle(map, 'sds-master')).toEqual({
+    expect(contextBundle(map, { modules: ['sds-master'] })).toEqual({
       modules: ['sds-master', 'sds-impl'],
+      domains: ['session-lifecycle', 'session-data', 'replication', 'servant-master-api'],
+      adrs: [],
       files: [
         'openspec/context/1.md',
         'openspec/context/2.md',
@@ -113,6 +115,53 @@ describe('карта контекста: модули и домены', () => {
         'openspec/specs/servant-master-api/spec.md',
       ],
     });
+  });
+
+  it('набор из нескольких модулей и доменов: каждый файл один раз, модули — в порядке выбора', () => {
+    const bundle = contextBundle(map, { modules: ['sds-impl', 'sds-master'], domains: ['cm-cluster-api', 'replication'] });
+    expect(bundle.modules).toEqual(['sds-impl', 'sds-master']);
+    expect(bundle.domains).toEqual([
+      'replication',
+      'servant-master-api',
+      'session-lifecycle',
+      'session-data',
+      'cm-cluster-api',
+    ]);
+    expect(bundle.files).toEqual([
+      'openspec/context/1.md',
+      'openspec/context/2.md',
+      'openspec/context/modules/sds-impl/context.md',
+      'openspec/context/modules/master/context.md',
+      'openspec/specs/replication/spec.md',
+      'openspec/specs/servant-master-api/spec.md',
+      'openspec/specs/session-lifecycle/spec.md',
+      'openspec/specs/session-data/spec.md',
+      'openspec/specs/cm-cluster-api/spec.md',
+    ]);
+  });
+
+  it('только выбранные домены — без модулей, только общий контекст и их спеки', () => {
+    expect(contextBundle(map, { domains: ['session-data', 'ghost'] })).toEqual({
+      modules: [],
+      domains: ['session-data'],
+      adrs: [],
+      files: ['openspec/context/1.md', 'openspec/context/2.md', 'openspec/specs/session-data/spec.md'],
+    });
+  });
+
+  it('без зависимостей и без доменов модулей — только выбранное', () => {
+    const bundle = contextBundle(
+      map,
+      { modules: ['sds-master'], domains: ['replication'] },
+      { dependencies: false, moduleDomains: false },
+    );
+    expect(bundle.modules).toEqual(['sds-master']);
+    expect(bundle.files).toEqual([
+      'openspec/context/1.md',
+      'openspec/context/2.md',
+      'openspec/context/modules/master/context.md',
+      'openspec/specs/replication/spec.md',
+    ]);
   });
 });
 
@@ -156,7 +205,7 @@ describe('карта контекста: замечания', () => {
       cyclic: false,
     });
     // Цикл не мешает собрать контекст: каждый модуль берётся один раз.
-    expect(contextBundle(map, 'a').modules).toEqual(['a', 'b', 'c']);
+    expect(contextBundle(map, { modules: ['a'] }).modules).toEqual(['a', 'b', 'c']);
   });
 
   it('нет index.md, нет frontmatter, ошибка YAML, нет context.md, неверное поле, дубль модуля', () => {
@@ -243,6 +292,13 @@ describe('карта контекста: ADR', () => {
   });
 
   it('ADR модуля попадает в его контекст', () => {
-    expect(contextBundle(map, 'sds-master').files).toContain('openspec/context/adr/ADR-001-replication.md');
+    expect(contextBundle(map, { modules: ['sds-master'] }).files).toContain('openspec/context/adr/ADR-001-replication.md');
+  });
+
+  it('ADR выбранного домена и выбранный ADR попадают в набор', () => {
+    expect(contextBundle(map, { domains: ['replication'] }).adrs).toEqual(['openspec/context/adr/ADR-001-replication.md']);
+    expect(contextBundle(map, { adrs: ['openspec/context/adr/ADR-002.md'] }).files).toEqual([
+      'openspec/context/adr/ADR-002.md',
+    ]);
   });
 });
