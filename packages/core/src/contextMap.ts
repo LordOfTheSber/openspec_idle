@@ -643,23 +643,52 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
   };
 }
 
-/** Набор файлов контекста для работы над модулем. */
+/** Что выбрано для набора контекста: модули, домены и ADR по идентификаторам. */
+export interface ContextSelection {
+  readonly modules?: readonly string[];
+  readonly domains?: readonly string[];
+  /** Пути ADR — они же их идентификаторы на карте. */
+  readonly adrs?: readonly string[];
+}
+
+/** Что добавлять к выбранному при сборке набора. */
+export interface ContextBundleOptions {
+  /** Транзитивные зависимости выбранных модулей по `depends_on`; по умолчанию — да. */
+  readonly dependencies?: boolean;
+  /** Спеки доменов модулей набора; по умолчанию — да. */
+  readonly moduleDomains?: boolean;
+}
+
+/** Набор файлов контекста для работы над модулями и доменами. */
 export interface ContextBundle {
-  /** Модуль и все его зависимости по `depends_on`, в порядке обхода. */
+  /** Модули набора: выбранные и их зависимости по `depends_on`, в порядке обхода. */
   readonly modules: readonly string[];
+  /** Домены набора: домены модулей, затем выбранные. */
+  readonly domains: readonly string[];
+  /** ADR набора — пути файлов. */
+  readonly adrs: readonly string[];
   /** Файлы в порядке загрузки: общий контекст, модули, спеки доменов, ADR. */
   readonly files: readonly string[];
 }
 
 /**
- * Собирает контекст модуля: сам модуль, транзитивно его зависимости,
- * спеки их доменов и относящиеся к ним ADR. Циклы и неописанные модули не
- * мешают: каждый модуль берётся один раз, неизвестные пропускаются.
+ * Собирает контекст по выбору: модули (и транзитивно их зависимости), спеки
+ * их доменов и выбранных доменов, ADR, которые ссылаются на модули набора или
+ * на выбранные домены, и выбранные ADR. Циклы и неописанные модули не
+ * мешают: каждый модуль берётся один раз, неизвестные пропускаются; каждый
+ * файл входит в набор один раз.
  */
-export function contextBundle(map: ContextMap, moduleId: string): ContextBundle {
+export function contextBundle(
+  map: ContextMap,
+  selection: ContextSelection,
+  options: ContextBundleOptions = {},
+): ContextBundle {
+  const withDependencies = options.dependencies ?? true;
+  const withModuleDomains = options.moduleDomains ?? true;
   const byId = new Map(map.modules.map((module) => [module.id, module]));
+
   const order: string[] = [];
-  const queue = [moduleId];
+  const queue = [...(selection.modules ?? [])];
   const seen = new Set<string>();
   while (queue.length > 0) {
     const id = queue.shift() as string;
@@ -668,23 +697,37 @@ export function contextBundle(map: ContextMap, moduleId: string): ContextBundle 
     const module = byId.get(id);
     if (module === undefined) continue;
     order.push(id);
-    queue.push(...module.dependsOn);
+    if (withDependencies) queue.push(...module.dependsOn);
   }
 
-  const files: string[] = [...map.general];
-  const add = (path: string | null): void => {
-    if (path !== null && !files.includes(path)) files.push(path);
-  };
   const specs = new Map(map.domains.map((domain) => [domain.id, domain.specPath]));
-  for (const id of order) {
-    const module = byId.get(id);
-    add(module?.contextPath ?? null);
+  const domains: string[] = [];
+  const addDomain = (id: string): void => {
+    if (specs.has(id) && !domains.includes(id)) domains.push(id);
+  };
+  if (withModuleDomains) {
+    for (const id of order) for (const domain of byId.get(id)?.domains ?? []) addDomain(domain);
   }
-  for (const id of order) {
-    for (const domain of byId.get(id)?.domains ?? []) add(specs.get(domain) ?? null);
-  }
-  for (const adr of map.adrs) {
-    if (adr.modules.some((id) => seen.has(id) && byId.has(id))) add(adr.path);
-  }
-  return { modules: order, files };
+  const chosenDomains = new Set(selection.domains ?? []);
+  for (const id of chosenDomains) addDomain(id);
+
+  const chosenAdrs = new Set(selection.adrs ?? []);
+  const inOrder = new Set(order);
+  const adrs = map.adrs
+    .filter(
+      (adr) =>
+        chosenAdrs.has(adr.path) ||
+        adr.modules.some((id) => inOrder.has(id)) ||
+        adr.domains.some((id) => chosenDomains.has(id)),
+    )
+    .map((adr) => adr.path);
+
+  const files: string[] = [...map.general];
+  const add = (path: string | null | undefined): void => {
+    if (path !== null && path !== undefined && !files.includes(path)) files.push(path);
+  };
+  for (const id of order) add(byId.get(id)?.contextPath);
+  for (const id of domains) add(specs.get(id));
+  for (const path of adrs) add(path);
+  return { modules: order, domains, adrs, files };
 }

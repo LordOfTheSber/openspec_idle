@@ -2792,6 +2792,52 @@ table.m td.task {
   opacity: 0.25;
 }
 
+.ctx-node.picked rect {
+  stroke-width: 3;
+}
+
+.ctx-node.picked text:not(.ctx-degree) {
+  font-weight: 600;
+}
+
+.context-legend-hint {
+  margin-left: 6px;
+}
+
+.context-matrix tr.picked th .linkish,
+.context-matrix th.picked .linkish {
+  font-weight: 600;
+}
+
+.context-matrix tr.picked th,
+.context-matrix th.picked,
+.context-matrix tr.included th,
+.context-matrix th.included {
+  background: var(--accent-soft);
+}
+
+.ctx-chip.removable:hover {
+  border-style: dashed;
+}
+
+.ctx-clear {
+  align-self: flex-start;
+}
+
+.ctx-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.ctx-options label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
 .context-legend {
   display: flex;
   flex-wrap: wrap;

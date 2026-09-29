@@ -216,6 +216,8 @@ export {
   type CodePath,
   type ContextAdr,
   type ContextBundle,
+  type ContextBundleOptions,
+  type ContextSelection,
   type ContextDomain,
   type ContextIssue,
   type ContextIssueKind,
