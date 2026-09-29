@@ -16,7 +16,7 @@ test('при живом сервере показывает наблюдение
 
   const indicator = page.getByTestId('connection-state');
   await expect(indicator).toHaveAttribute('data-state', 'connected');
-  await expect(indicator).toContainText('наблюдение за файлами');
+  await expect(indicator).toContainText('Синхронизировано');
 });
 
 test('обрыв потока показывает признак отключения, а восстановление перечитывает состояние', async ({
@@ -56,7 +56,7 @@ test('обрыв потока показывает признак отключе
   await page.evaluate(() => window.stop());
 
   await expect(indicator).toHaveAttribute('data-state', 'disconnected', { timeout: 20_000 });
-  await expect(indicator).toContainText('нет связи с сервером');
+  await expect(indicator).toContainText('Нет связи');
 
   // Повторные попытки идут — значит, переподключение запущено.
   await expect

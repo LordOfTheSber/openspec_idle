@@ -95,6 +95,7 @@ export class BoardService {
           artifact.files[0] === undefined
             ? null
             : `${OPENSPEC_DIR}/changes/${change.name}/${artifact.files[0]}`,
+        perCapability: artifact.outputPath.includes('*'),
       })),
       progress: change.progress,
       errorCount: change.errorCount,
@@ -168,6 +169,32 @@ export class BoardService {
       complete: parsed.complete,
       total: parsed.total,
     };
+  }
+
+  /**
+   * Путь и текст отслеживаемого артефакта change; `null`, если схема его не
+   * объявила. Текст `null`, если файла ещё нет.
+   */
+  async readTrackedText(change: string): Promise<{ path: string; absolute: string; text: string | null } | null> {
+    const location = await this.#trackedPath(change);
+    if (location === null) return null;
+    let text: string | null;
+    try {
+      text = await readFile(location.absolute, 'utf8');
+    } catch {
+      text = null;
+    }
+    return { path: location.relative, absolute: location.absolute, text };
+  }
+
+  /** Записывает отслеживаемый артефакт change целиком. */
+  async writeTrackedText(change: string, text: string): Promise<void> {
+    const location = await this.#trackedPath(change);
+    if (location === null) {
+      throw new ChangeOperationError(`Схема изменения «${change}» не объявила отслеживаемый артефакт`, '');
+    }
+    await saveArtifactFile(this.#client.root, location.relative, text, null);
+    this.#client.invalidate();
   }
 
   /** Переключает отметку пункта, меняя только скобки чекбокса. */

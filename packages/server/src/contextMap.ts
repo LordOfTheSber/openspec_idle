@@ -1,4 +1,4 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { join, normalize } from 'node:path';
 import {
   ADR_DIR,
@@ -114,6 +114,35 @@ function listField(value: unknown, key: string): string[] {
 }
 
 /** Строит карту контекста проекта по файлам `openspec/context/` и `openspec/specs/`. */
+/** Модуль с таким именем уже описан или имя недопустимо. */
+export class ContextModuleError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 409,
+  ) {
+    super(message);
+    this.name = 'ContextModuleError';
+  }
+}
+
+const RE_MODULE_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Заготовка `index.md` нового модуля. */
+export function moduleIndexTemplate(id: string): string {
+  return [
+    '---',
+    `module: ${id}`,
+    'description: ""',
+    'domains: []',
+    'code_paths: []',
+    'depends_on: []',
+    '---',
+    '',
+    `# ${id}`,
+    '',
+  ].join('\n');
+}
+
 export class ContextMapService {
   readonly #root: string;
 
@@ -129,6 +158,30 @@ export class ContextMapService {
       this.#domains(),
     ]);
     return buildContextMap({ general, modules, adrs, domains });
+  }
+
+  /**
+   * Заводит папку модуля с `index.md` и пустым `context.md`.
+   *
+   * Существующая папка не трогается: правка описанного модуля — дело
+   * редактора, а не заготовки.
+   */
+  async createModule(id: string): Promise<{ index: string; context: string }> {
+    if (!RE_MODULE_ID.test(id)) {
+      throw new ContextModuleError(`Имя модуля «${id}» должно быть в kebab-case: строчные латинские буквы, цифры и дефисы`, 400);
+    }
+    const folder = `${MODULES_DIR}/${id}`;
+    const exists = await stat(this.#abs(folder)).then(
+      () => true,
+      () => false,
+    );
+    if (exists) throw new ContextModuleError(`Модуль «${id}» уже есть: ${folder}/`, 409);
+    await mkdir(this.#abs(folder), { recursive: true });
+    const index = `${folder}/${MODULE_INDEX_FILE}`;
+    const context = `${folder}/${MODULE_CONTEXT_FILE}`;
+    await writeFile(this.#abs(index), moduleIndexTemplate(id), { encoding: 'utf8', flag: 'wx' });
+    await writeFile(this.#abs(context), `# Контекст модуля ${id}\n`, { encoding: 'utf8', flag: 'wx' });
+    return { index, context };
   }
 
   #abs(relative: string): string {

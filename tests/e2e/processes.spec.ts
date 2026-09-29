@@ -5,7 +5,7 @@ import { launchIde, type LaunchedIde } from './helpers.js';
 
 async function openProcesses(page: Page, url: string): Promise<void> {
   await page.goto(url);
-  await page.getByRole('button', { name: 'Процессы' }).click();
+  await page.getByTestId('nav-processes').click();
   await expect(page.getByTestId('schema-registry')).toBeVisible();
 }
 
@@ -281,7 +281,7 @@ test.describe('назначение схемы', () => {
     await expect(page.getByTestId('schema-dirty')).toHaveCount(0);
     await expect(page.getByTestId('schema-waived')).toContainText('sdd/motivation-first');
 
-    await page.getByRole('button', { name: 'Доска' }).click();
+    await page.getByTestId('nav-board').click();
     const card = page.getByTestId('card-team-feature');
     await expect(card.getByTestId('card-waiver')).toBeVisible();
     await page.getByTestId('card-open-team-feature').click();

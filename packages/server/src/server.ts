@@ -14,7 +14,8 @@ import { DeltaReader } from './deltas.js';
 import { BoardService, ChangeOperationError } from './board.js';
 import { ArchivePreviewService, UnknownChangeError } from './archivePreview.js';
 import { StructureExistsError, StructureService, watchedStructureDirs } from './structure.js';
-import { ContextMapService } from './contextMap.js';
+import { ContextMapService, ContextModuleError } from './contextMap.js';
+import { TraceService } from './trace.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
 import { MetricsService, UnknownItemError } from './metrics.js';
@@ -120,6 +121,8 @@ export function createApp(options: ServerOptions): AppParts {
           store: new MetricsStore(root, (message) => console.error(`[метрики] ${message}`)),
         });
 
+  const trace = deltas === null || board === null ? null : new TraceService(deltas, board, metrics);
+
   const validation =
     root !== null && location?.kind === 'found'
       ? new ValidationRunner({ bin: location.bin, cwd: root })
@@ -152,6 +155,10 @@ export function createApp(options: ServerOptions): AppParts {
     }
     if (error instanceof WriteFailedError) {
       await reply.code(500).send({ error: error.message, path: error.path });
+      return;
+    }
+    if (error instanceof ContextModuleError) {
+      await reply.code(error.status).send({ error: error.message });
       return;
     }
     if (error instanceof StructureExistsError) {
@@ -266,6 +273,39 @@ export function createApp(options: ServerOptions): AppParts {
   app.get('/api/context-map', async () => {
     if (contextMap === null) throw new Error('Рабочее пространство не определено');
     return contextMap.build();
+  });
+
+  app.post('/api/context/module', async (request) => {
+    if (contextMap === null) throw new Error('Рабочее пространство не определено');
+    const body = (request.body ?? {}) as { id?: string };
+    if (typeof body.id !== 'string') throw new ContextModuleError('Не указано имя модуля', 400);
+    return contextMap.createModule(body.id.trim());
+  });
+
+  app.get('/api/trace', async (request) => {
+    if (trace === null) throw new Error('CLI OpenSpec недоступен');
+    const query = (request.query as Record<string, string | undefined>) ?? {};
+    const change = query['change'];
+    if (change === undefined || change === '') throw new Error('Не указано имя change');
+    return trace.view(change);
+  });
+
+  app.post('/api/trace/item', async (request) => {
+    if (trace === null) throw new Error('CLI OpenSpec недоступен');
+    const body = (request.body ?? {}) as { change?: string; capability?: string; requirement?: string; scenario?: string };
+    if (
+      typeof body.change !== 'string' ||
+      typeof body.capability !== 'string' ||
+      typeof body.requirement !== 'string' ||
+      typeof body.scenario !== 'string'
+    ) {
+      throw new Error('Нужны имя change, capability, требование и сценарий');
+    }
+    return trace.addItem(body.change, {
+      capability: body.capability,
+      requirement: body.requirement,
+      scenario: body.scenario,
+    });
   });
 
   app.get('/api/archive/preview', async (request) => {

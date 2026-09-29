@@ -15,6 +15,7 @@ import type {
   StructureIssue,
   StructureNode,
   StructureSpecError,
+  Trace,
   WorkspaceTree,
 } from '@openspec-ide/core';
 import { apiTransport, pageToken } from './transport.js';
@@ -487,3 +488,36 @@ export function saveSchemaTemplate(name: string, template: string, content: stri
   return send('/api/schema/template', 'PUT', { name, template, content });
 }
 
+
+/** Приёмка и файлы пункта плана — из метрик. */
+export interface TraceItemMetrics {
+  readonly passed: boolean | null;
+  readonly command: string | null;
+  readonly criterion: string | null;
+  readonly files: readonly string[];
+}
+
+/** Трассировка change: сценарии дельт, пункты плана и связи между ними. */
+export interface TraceResponse {
+  readonly change: string;
+  readonly planPath: string | null;
+  readonly trace: Trace;
+  readonly metrics: Readonly<Record<string, TraceItemMetrics>>;
+}
+
+export function fetchTrace(change: string): Promise<TraceResponse> {
+  return get<TraceResponse>(`/api/trace?change=${encodeURIComponent(change)}`);
+}
+
+/** Дописывает в план пункт со ссылкой на непокрытый сценарий. */
+export function addTraceItem(
+  change: string,
+  target: { capability: string; requirement: string; scenario: string },
+): Promise<TraceResponse> {
+  return send<TraceResponse>('/api/trace/item', 'POST', { change, ...target });
+}
+
+/** Заводит папку модуля контекста с `index.md` и `context.md`. */
+export function createContextModule(id: string): Promise<{ index: string; context: string }> {
+  return send<{ index: string; context: string }>('/api/context/module', 'POST', { id });
+}

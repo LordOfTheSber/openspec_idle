@@ -5,7 +5,7 @@ import {
   type ContextMap as ContextMapModel,
   contextBundle,
 } from '@openspec-ide/core';
-import { fetchContextMap } from '../lib/api.js';
+import { createContextModule, fetchContextMap } from '../lib/api.js';
 import {
   type ContextLayout,
   type ContextNodeKind,
@@ -20,6 +20,8 @@ import { bundleKeys, parseNodeKey, selectionOf, togglePicked } from '../lib/cont
 import { plural } from '../lib/format.js';
 import { inVsCode, openInEditor } from '../lib/host.js';
 import { readListPref, readPref, writeListPref, writePref } from '../lib/prefs.js';
+import { PageActions, useNotify } from '../lib/ui.js';
+import { Icon } from './Icon.js';
 
 type View = 'graph' | 'matrix';
 const VIEWS: readonly View[] = ['graph', 'matrix'];
@@ -140,21 +142,26 @@ export function ContextMap({ revision }: { readonly revision: number }) {
       </p>
     );
   }
-  if (map === null || layout === null) return <p className="empty">Загрузка карты контекста…</p>;
+  if (map === null || layout === null) {
+    return (
+      <div className="page-skeleton section-pad" aria-busy="true" aria-label="Загрузка карты контекста">
+        <span className="skeleton" style={{ height: 420 }} />
+      </div>
+    );
+  }
 
   const errors = map.issues.filter((issue) => issue.severity === 'error').length;
   const warnings = map.issues.length - errors;
 
   return (
     <div className="context-map" data-testid="context-map">
-      <div className="context-toolbar">
-        <span className="context-summary" data-testid="context-summary">
+      <PageActions>
+        <span className="context-summary muted" data-testid="context-summary">
           {plural(map.modules.length, ['модуль', 'модуля', 'модулей'])} ·{' '}
           {plural(map.domains.length, ['домен', 'домена', 'доменов'])} ·{' '}
           {plural(map.links.length, ['связь', 'связи', 'связей'])}
           {map.adrs.length > 0 && <> · {map.adrs.length} ADR</>}
         </span>
-        <span className="spacer" />
         <button
           type="button"
           className={picking ? 'btn primary' : 'btn'}
@@ -163,22 +170,25 @@ export function ContextMap({ revision }: { readonly revision: number }) {
           title="Собрать контекст из нескольких модулей, доменов и ADR щелчками по ним. Ctrl+щелчок по узлу работает и без режима."
           data-testid="context-pick-mode"
         >
+          <Icon name="layers" size={15} />
           Набор контекста{picked.length > 0 && <> · {picked.length}</>}
         </button>
         <div className="segmented" role="group" aria-label="Вид">
           <button type="button" aria-pressed={view === 'graph'} onClick={() => chooseView('graph')} data-testid="context-view-graph">
+            <Icon name="context" size={14} />
             Граф
           </button>
           <button type="button" aria-pressed={view === 'matrix'} onClick={() => chooseView('matrix')} data-testid="context-view-matrix">
+            <Icon name="board" size={14} />
             Матрица
           </button>
         </div>
-        <button type="button" className="btn" onClick={() => void load()} data-testid="context-reload">
-          Обновить
+        <button type="button" className="icon-btn" aria-label="Перечитать карту" title="Перечитать карту" onClick={() => void load()} data-testid="context-reload">
+          <Icon name="refresh" />
         </button>
-      </div>
+      </PageActions>
 
-      {!map.configured && <NotConfigured />}
+      {!map.configured && <NotConfigured onCreated={() => void load()} />}
 
       {map.issues.length > 0 && (
         <details className="context-issues" open={errors > 0} data-testid="context-issues">
@@ -240,24 +250,88 @@ export function ContextMap({ revision }: { readonly revision: number }) {
   );
 }
 
-function NotConfigured() {
+function NotConfigured({ onCreated }: { readonly onCreated: () => void }) {
+  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const notify = useNotify();
+
+  async function create(): Promise<void> {
+    setProblem(null);
+    try {
+      const created = await createContextModule(name.trim());
+      notify({
+        kind: 'ok',
+        title: `Модуль ${name.trim()} создан`,
+        detail: created.index,
+        ...(inVsCode() ? { action: { label: 'Открыть', run: () => openInEditor(created.index) } } : {}),
+      });
+      setName('');
+      setCreating(false);
+      onCreated();
+      openInEditor(created.index);
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   return (
-    <div className="notice info" data-testid="context-not-configured">
+    <div className="state-card context-empty" data-testid="context-not-configured">
+      <span className="state-icon info">
+        <Icon name="layers" size={22} />
+      </span>
+      <h2>Модули ещё не описаны</h2>
       <p>
-        Модули ещё не описаны. Заведите папку модуля <code>openspec/context/modules/&lt;модуль&gt;/</code> с файлами{' '}
-        <code>context.md</code> (сам контекст) и <code>index.md</code> — в его frontmatter перечислите домены:
+        Карта строится из папок <code>openspec/context/modules/&lt;модуль&gt;/</code>: <code>index.md</code> с доменами во
+        frontmatter и <code>context.md</code> с самим контекстом. Опишите первый модуль — связи с доменами и ADR появятся
+        сами.
       </p>
-      <pre className="context-sample">{`---
-module: sds-master
-description: Хранение данных сессии in-memory, жизненный цикл сессии, репликация
-domains: [session-lifecycle, session-data, replication]   # папки из openspec/specs/
-code_paths: [sds-master/src/main/java, sds-master-api]
-depends_on: [sds-router]
+      <pre className="code-sample context-sample">{`---
+module: web
+description: Интерфейс разделов панели
+domains: [workflow-board, spec-delta-viewer]   # папки из openspec/specs/
+code_paths: [packages/web/src]
+depends_on: [core]
 ---`}</pre>
-      <p>
+      <p className="muted">
         Решения — в <code>openspec/context/adr/*.md</code> с полями <code>modules</code> и <code>domains</code>. Общий
         контекст проекта — файлы <code>openspec/context/*.md</code>.
       </p>
+      {creating ? (
+        <form
+          className="inline-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void create();
+          }}
+        >
+          <input
+            className="mono"
+            value={name}
+            placeholder="имя-модуля"
+            aria-label="Имя модуля"
+            autoFocus
+            onChange={(event) => setName(event.target.value)}
+            data-testid="context-module-name"
+          />
+          <button type="submit" className="btn primary" disabled={name.trim() === ''} data-testid="context-module-create">
+            Создать
+          </button>
+          <button type="button" className="btn ghost" onClick={() => setCreating(false)}>
+            Отмена
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="btn primary" onClick={() => setCreating(true)} data-testid="context-new-module">
+          <Icon name="plus" size={14} />
+          Создать модуль…
+        </button>
+      )}
+      {problem !== null && (
+        <p className="notice error" role="alert">
+          {problem}
+        </p>
+      )}
     </div>
   );
 }

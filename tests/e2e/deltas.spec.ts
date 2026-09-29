@@ -14,7 +14,7 @@ test.afterAll(async () => {
 test('дельты сгруппированы по операциям с подписями и счётчиками', async ({ page }) => {
   await page.goto(ide.url);
   await page.getByTestId('change-rework-export').click();
-  await page.getByRole('button', { name: 'Дельты' }).click();
+  await page.getByTestId('nav-deltas').click();
 
   await expect(page.getByTestId('group-MODIFIED')).toContainText('Изменено');
   await expect(page.getByTestId('group-REMOVED')).toContainText('Удалено');
@@ -25,7 +25,7 @@ test('дельты сгруппированы по операциям с под�
 test('удалённое требование показывает причину и миграцию', async ({ page }) => {
   await page.goto(ide.url);
   await page.getByTestId('change-rework-export').click();
-  await page.getByRole('button', { name: 'Дельты' }).click();
+  await page.getByTestId('nav-deltas').click();
 
   const removed = page.getByTestId('group-REMOVED');
   await expect(removed).toContainText('Причина: Заменена новой выгрузкой');
@@ -36,7 +36,7 @@ test('удалённое требование показывает причин�
 test('переименование показывает прежнее и новое имя', async ({ page }) => {
   await page.goto(ide.url);
   await page.getByTestId('change-rework-export').click();
-  await page.getByRole('button', { name: 'Дельты' }).click();
+  await page.getByTestId('nav-deltas').click();
 
   await expect(page.getByTestId('group-RENAMED')).toContainText(
     'Кодировка файла → Кодировка выгрузки',
@@ -46,7 +46,7 @@ test('переименование показывает прежнее и нов
 test('сравнение с основным спеком показывает потерянный сценарий', async ({ page }) => {
   await page.goto(ide.url);
   await page.getByTestId('change-rework-export').click();
-  await page.getByRole('button', { name: 'Дельты' }).click();
+  await page.getByTestId('nav-deltas').click();
 
   await page.getByTestId('requirement-Выгрузка данных').click();
 
@@ -59,7 +59,7 @@ test('сравнение с основным спеком показывает �
 test('сравнение показывает изменение текста требования', async ({ page }) => {
   await page.goto(ide.url);
   await page.getByTestId('change-rework-export').click();
-  await page.getByRole('button', { name: 'Дельты' }).click();
+  await page.getByTestId('nav-deltas').click();
   await page.getByTestId('requirement-Выгрузка данных').click();
 
   await expect(page.locator('.diff .row.minus')).toContainText('формате CSV');
@@ -68,7 +68,7 @@ test('сравнение показывает изменение текста т
 
 test('карта связей помечает требование, которое меняют два change', async ({ page }) => {
   await page.goto(ide.url);
-  await page.getByRole('button', { name: 'Дельты' }).click();
+  await page.getByTestId('nav-deltas').click();
 
   const node = page.getByTestId('map-data-export');
   await expect(node).toBeVisible();
@@ -82,7 +82,7 @@ test('change без дельт сообщает об этом прямо', async
   try {
     await page.goto(bare.url);
     await page.getByTestId('change-bare-feature').click();
-    await page.getByRole('button', { name: 'Дельты' }).click();
+    await page.getByTestId('nav-deltas').click();
 
     await expect(page.getByTestId('no-deltas')).toContainText('не содержит дельт');
   } finally {
@@ -92,8 +92,8 @@ test('change без дельт сообщает об этом прямо', async
 
 test('основной спек показан структурно со сворачиванием требований', async ({ page }) => {
   await page.goto(ide.url);
-  await page.getByRole('button', { name: 'Дельты' }).click();
   await page.getByTestId('capability-data-export').click();
+  await page.getByTestId('nav-deltas').click();
 
   const view = page.getByTestId('spec-view');
   await expect(view).toBeVisible();
@@ -109,8 +109,33 @@ test('основной спек показан структурно со сво�
 
 test('незаполненное назначение спека помечается как требующее заполнения', async ({ page }) => {
   await page.goto(ide.url);
-  await page.getByRole('button', { name: 'Дельты' }).click();
   await page.getByTestId('capability-tbd-capability').click();
+  await page.getByTestId('nav-deltas').click();
 
   await expect(page.getByTestId('purpose-placeholder')).toContainText('заглушкой');
+});
+
+test('дельты change предупреждают о спеке, который меняет ещё один change', async ({ page }) => {
+  await page.goto(ide.url);
+  await page.getByTestId('change-rework-export').click();
+  await page.getByTestId('nav-deltas').click();
+
+  await expect(page.getByTestId('delta-totals')).toContainText('изменено');
+  await expect(page.getByTestId('overlap-data-export')).toContainText('add-limits');
+});
+
+test('переключатель change в шапке общий для «Дельт» и «Метрик»', async ({ page }) => {
+  await page.goto(ide.url);
+  await page.getByTestId('change-rework-export').click();
+  await page.getByTestId('nav-deltas').click();
+  await expect(page.getByTestId('nav-deltas')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('change-picker')).toContainText('rework-export');
+
+  await page.getByTestId('change-picker').click();
+  await page.getByTestId('picker-option-add-limits').click();
+  await expect(page.getByTestId('change-picker')).toContainText('add-limits');
+  await expect(page.getByTestId('group-REMOVED')).toHaveCount(0);
+
+  await page.getByTestId('nav-metrics').click();
+  await expect(page.getByTestId('change-picker')).toContainText('add-limits');
 });

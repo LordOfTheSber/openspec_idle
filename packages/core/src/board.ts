@@ -41,6 +41,11 @@ export interface BoardArtifact {
    * чтобы с карточки открыть его в редакторе; `null`, если файла нет.
    */
   readonly path?: string | null;
+  /**
+   * Артефакт порождает по файлу на capability (`specs/<capability>/spec.md`):
+   * для его создания нужен путь capability.
+   */
+  readonly perCapability?: boolean;
 }
 
 /** Действующий отказ схемы от правила SDD. */

@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type SearchHit, isStaleBackend } from '@openspec-ide/core';
 import { Detail } from './components/Detail.js';
-import { Board, type BoardTarget } from './components/Board.js';
+import { Board, type BoardRequest, type BoardTarget } from './components/Board.js';
 import { CapabilityMapView } from './components/CapabilityMapView.js';
+import { ChangePicker, ChooseChange } from './components/ChangePicker.js';
+import { CommandPalette, type PaletteCommand } from './components/CommandPalette.js';
 import { ContextMap } from './components/ContextMap.js';
-import { Deltas } from './components/Deltas.js';
+import { Deltas, type DeltasTab } from './components/Deltas.js';
 import { EditorPane } from './components/EditorPane.js';
+import { Icon, type IconName } from './components/Icon.js';
 import { Metrics } from './components/Metrics.js';
 import { Processes } from './components/Processes.js';
 import { SpecView } from './components/SpecView.js';
 import { Structure } from './components/Structure.js';
-import { Search } from './components/Search.js';
 import { Tree, type Selection } from './components/Tree.js';
-import { isStaleBackend } from '@openspec-ide/core';
 import { eventsUrl, fetchHealth, fetchWorkspace, type WorkspaceResponse } from './lib/api.js';
 import {
   type ConnectionState,
@@ -19,49 +21,46 @@ import {
   eventSourceTransport,
 } from './lib/connection.js';
 import { messageStreamTransport, onNavigate, openInEditor, vscodeHost } from './lib/host.js';
+import { ActionsTargetProvider, ToastProvider, useWidth } from './lib/ui.js';
 
-type Section =
-  | 'explorer'
-  | 'deltas'
-  | 'board'
-  | 'metrics'
-  | 'processes'
-  | 'search'
-  | 'structure'
-  | 'context';
+type Section = 'explorer' | 'board' | 'deltas' | 'metrics' | 'context' | 'structure' | 'processes';
 
-const SECTION_TITLE: Record<Section, string> = {
-  explorer: 'Обозреватель',
-  deltas: 'Дельты',
-  board: 'Доска',
-  metrics: 'Метрики',
-  processes: 'Процессы',
-  search: 'Поиск',
-  structure: 'Структура',
-  context: 'Контекст',
-};
-
-const RAIL: readonly { section: Section; short: string }[] = [
-  { section: 'explorer', short: 'Об' },
-  { section: 'deltas', short: 'Дл' },
-  { section: 'board', short: 'Дс' },
-  { section: 'metrics', short: 'Мт' },
-  { section: 'processes', short: 'Пр' },
-  { section: 'search', short: 'По' },
-  { section: 'structure', short: 'Ст' },
-  { section: 'context', short: 'Кн' },
+const SECTIONS: readonly { readonly id: Section; readonly title: string; readonly icon: IconName }[] = [
+  { id: 'explorer', title: 'Обозреватель', icon: 'explorer' },
+  { id: 'board', title: 'Доска', icon: 'board' },
+  { id: 'deltas', title: 'Дельты', icon: 'diff' },
+  { id: 'metrics', title: 'Метрики', icon: 'chart' },
+  { id: 'context', title: 'Контекст', icon: 'context' },
+  { id: 'structure', title: 'Структура', icon: 'structure' },
+  { id: 'processes', title: 'Процессы', icon: 'workflow' },
 ];
 
-/** Разделы на всю ширину, без дерева рабочего пространства слева. */
-const FULL_WIDTH: ReadonlySet<Section> = new Set(['processes', 'board', 'structure', 'context']);
+const TITLE: Record<Section, string> = Object.fromEntries(SECTIONS.map((item) => [item.id, item.title])) as Record<
+  Section,
+  string
+>;
+
+/** Разделы, которые сами раскладывают страницу: колонки, панели справа. */
+const FLUSH: ReadonlySet<Section> = new Set(['board', 'deltas', 'context', 'structure', 'processes']);
+
+/** Уже этой ширины у вкладок разделов остаются только иконки. */
+export const COMPACT_BELOW_PX = 720;
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
-  connecting: 'подключение…',
-  connected: 'наблюдение за файлами',
-  disconnected: 'нет связи с сервером',
+  connecting: 'Переподключение…',
+  connected: 'Синхронизировано',
+  disconnected: 'Нет связи',
 };
 
 export function App() {
+  return (
+    <ToastProvider>
+      <Shell />
+    </ToastProvider>
+  );
+}
+
+function Shell() {
   // В панели VS Code артефакты редактируются в редакторе VS Code, поэтому
   // раздела «Обозреватель» со встроенным редактором там нет.
   const host = vscodeHost();
@@ -74,6 +73,11 @@ export function App() {
   const [revision, setRevision] = useState(0);
   // Строка, к которой перейти во встроенном редакторе после перехода с доски.
   const [revealLine, setRevealLine] = useState<number | null>(null);
+  const [palette, setPalette] = useState(false);
+  const [deltasTab, setDeltasTab] = useState<DeltasTab>('deltas');
+  const [boardRequest, setBoardRequest] = useState<BoardRequest | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
+  const [appRef, width] = useWidth<HTMLDivElement>();
   const connectionRef = useRef<WorkspaceConnection | null>(null);
   // Бэкенд старше интерфейса — в VS Code так бывает до перезагрузки окна
   // после установки новой сборки.
@@ -123,22 +127,52 @@ export function App() {
   }, [reload, host]);
 
   // Команды палитры и контекстное меню дерева VS Code переключают раздел и
-  // выбор в уже открытой панели.
+  // выбор в уже открытой панели. «Поиск» открывает палитру поверх раздела.
   useEffect(() => {
     if (host === null) return;
     const unsubscribe = onNavigate((next, nextSelection) => {
-      setSection(next);
       if (nextSelection !== null) setSelection(nextSelection);
+      if (next === 'search') {
+        setPalette(true);
+        return;
+      }
+      setSection(next);
     });
     host.post({ kind: 'ready' });
     return unsubscribe;
   }, [host]);
 
+  // Ctrl+K / ⌘K — палитра поиска и команд из любого раздела.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPalette((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const tree = workspace?.state === 'ready' ? workspace.tree : null;
+  const changes = useMemo(() => tree?.changes ?? [], [tree]);
+  const selectedChange =
+    selection?.kind === 'change' ? selection.id : selection?.kind === 'artifact' ? (selection.parent ?? null) : null;
+
+  const chooseChange = (change: string): void => {
+    setRevealLine(null);
+    setSelection({ kind: 'change', id: change });
+  };
 
   /** Переход с доски в раздел, показывающий один change. */
   const openForChange = (target: BoardTarget, change: string): void => {
     setSelection({ kind: 'change', id: change });
+    if (target === 'trace') {
+      setDeltasTab('trace');
+      setSection('deltas');
+      return;
+    }
+    if (target === 'deltas') setDeltasTab('deltas');
     setSection(target);
   };
 
@@ -174,6 +208,29 @@ export function App() {
     }
   };
 
+  const openHit = (hit: SearchHit): void => {
+    if (hit.kind === 'change') {
+      chooseChange(hit.owner);
+      setSection('board');
+      setBoardRequest({ kind: 'detail', change: hit.owner, intent: 'none', nonce: Date.now() });
+      return;
+    }
+    if (hit.kind === 'schema') {
+      setSection('processes');
+      return;
+    }
+    if (hit.file !== null && host !== null) {
+      openInEditor(hit.file, hit.line);
+      return;
+    }
+    if (hit.kind === 'capability' || (hit.file?.startsWith('openspec/specs/') ?? false)) {
+      setSelection({ kind: 'capability', id: hit.owner });
+      setSection('deltas');
+      return;
+    }
+    if (hit.file !== null) openFile(hit.file, hit.line);
+  };
+
   const select = (next: Selection): void => {
     setRevealLine(null);
     setSelection(next);
@@ -183,184 +240,336 @@ export function App() {
     if (file !== undefined) openInEditor(`openspec/changes/${next.parent}/${file}`);
   };
 
+  const visibleSections = SECTIONS.filter((item) => host === null || item.id !== 'explorer');
+
+  const commands: PaletteCommand[] = [
+    ...visibleSections.map((item) => ({
+      id: `go-${item.id}`,
+      title: `Перейти: ${item.title}`,
+      icon: item.icon,
+      keywords: 'раздел открыть',
+      run: () => setSection(item.id),
+    })),
+    {
+      id: 'new-change',
+      title: 'Создать change…',
+      icon: 'plus',
+      keywords: 'новое изменение',
+      run: () => {
+        setSection('board');
+        setBoardRequest({ kind: 'create', nonce: Date.now() });
+      },
+    },
+    { id: 'refresh', title: 'Обновить рабочее пространство', icon: 'refresh', run: () => void reload() },
+    ...(selectedChange === null
+      ? []
+      : ([
+          {
+            id: 'validate',
+            title: `Проверить ${selectedChange}`,
+            icon: 'check',
+            keywords: 'валидация validate',
+            run: () => {
+              setSection('board');
+              setBoardRequest({ kind: 'detail', change: selectedChange, intent: 'validate', nonce: Date.now() });
+            },
+          },
+          {
+            id: 'archive',
+            title: 'Архивировать change…',
+            icon: 'archive',
+            keywords: `архивация ${selectedChange}`,
+            run: () => {
+              setSection('board');
+              setBoardRequest({ kind: 'detail', change: selectedChange, intent: 'archive', nonce: Date.now() });
+            },
+          },
+          {
+            id: 'trace',
+            title: `Трассировка ${selectedChange}`,
+            icon: 'trace',
+            keywords: 'покрытие сценарии',
+            run: () => openForChange('trace', selectedChange),
+          },
+        ] satisfies PaletteCommand[])),
+  ];
+
+  const compact = width !== null && width < COMPACT_BELOW_PX;
+  const needsChange = section === 'metrics' || section === 'deltas';
+  const ready = workspace?.state === 'ready';
+
   return (
-    <div className="app">
-      <nav className="rail" aria-label="Разделы">
-        {RAIL.filter((entry) => host === null || entry.section !== 'explorer').map((entry) => (
-          <button
-            key={entry.section}
-            type="button"
-            aria-current={section === entry.section}
-            aria-label={SECTION_TITLE[entry.section]}
-            title={SECTION_TITLE[entry.section]}
-            onClick={() => setSection(entry.section)}
-          >
-            {entry.short}
-          </button>
-        ))}
-      </nav>
+    <div ref={appRef} className={compact ? 'app compact' : 'app'}>
+      <header className="app-header">
+        <span className="brand" aria-hidden="true">
+          <Icon name="spec" size={14} />
+        </span>
+        <nav className="nav" aria-label="Разделы">
+          {visibleSections.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="nav-item"
+              aria-current={section === item.id ? 'page' : undefined}
+              aria-label={item.title}
+              title={item.title}
+              onClick={() => setSection(item.id)}
+              data-testid={`nav-${item.id}`}
+            >
+              <Icon name={item.icon} />
+              <span className="nav-label">{item.title}</span>
+            </button>
+          ))}
+        </nav>
+        <span className="spacer" />
+        <button
+          type="button"
+          className="search-trigger"
+          onClick={() => setPalette(true)}
+          aria-label="Поиск и команды (Ctrl+K)"
+          data-testid="open-palette"
+        >
+          <Icon name="search" size={15} />
+          <span className="label">Поиск и команды</span>
+          <span className="kbd">Ctrl</span>
+          <span className="kbd">K</span>
+        </button>
+        <span
+          className={`sync ${connection}`}
+          title={connection === 'connected' ? 'Изменения на диске подхватываются сразу' : CONNECTION_LABEL[connection]}
+          data-testid="connection-state"
+          data-state={connection}
+        >
+          <span className="dot" />
+          <span className="sync-label">{CONNECTION_LABEL[connection]}</span>
+        </span>
+        <button type="button" className="icon-btn" aria-label="Обновить" title="Обновить" onClick={() => void reload()}>
+          <Icon name="refresh" />
+        </button>
+      </header>
 
-      <div className="stage">
-        <header className="toolbar">
-          <h1>{SECTION_TITLE[section]}</h1>
-          <span className="crumbs">
-            {workspace?.state === 'ready' ? workspace.root : 'рабочее пространство не определено'}
-          </span>
-        </header>
+      <div className="app-main">
+        {section === 'explorer' && (
+          <aside className="explorer-tree" aria-label="Рабочее пространство">
+            <p className="pane-title">Рабочее пространство</p>
+            {tree === null ? <TreeSkeleton /> : <Tree tree={tree} selection={selection} onSelect={select} />}
+          </aside>
+        )}
 
-        {/* Доске дерево не нужно: всё, что оно давало, есть на карточке и в панели деталей. */}
-        <div className={FULL_WIDTH.has(section) ? 'panes single' : 'panes'}>
-          {!FULL_WIDTH.has(section) && (
-            <div className="pane">
-              <p className="pane-title">Рабочее пространство</p>
-              {tree === null ? (
-                <p className="empty">Загрузка…</p>
+        <main className="page">
+          <div className="toolbar">
+            <h1>{TITLE[section]}</h1>
+            {needsChange && ready && (
+              <ChangePicker changes={changes} value={selectedChange} onChange={chooseChange} />
+            )}
+            <div className="page-actions" ref={setActionsTarget} />
+          </div>
+
+          <Notices
+            workspace={workspace}
+            loadError={loadError}
+            staleBackend={staleBackend}
+            onRefresh={() => void reload()}
+          />
+
+          <ActionsTargetProvider value={actionsTarget}>
+            <div className={FLUSH.has(section) && ready ? 'page-body flush' : 'page-body'}>
+              {workspace === null && loadError === null ? (
+                <PageSkeleton />
+              ) : !ready ? null : section === 'processes' ? (
+                <Processes revision={revision} onChanged={() => void reload()} />
+              ) : section === 'structure' ? (
+                <Structure revision={revision} />
+              ) : section === 'context' ? (
+                <ContextMap revision={revision} />
+              ) : section === 'metrics' ? (
+                selectedChange !== null ? (
+                  <Metrics change={selectedChange} />
+                ) : (
+                  <ChooseChange changes={changes} what="его метрики" onChange={chooseChange} />
+                )
+              ) : section === 'board' ? (
+                <Board
+                  schemas={tree?.schemas ?? []}
+                  revision={revision}
+                  request={boardRequest}
+                  onChanged={() => void reload()}
+                  onNavigate={openForChange}
+                  onOpenArtifact={openArtifact}
+                  onOpenFile={openFile}
+                />
+              ) : section === 'deltas' ? (
+                selectedChange !== null ? (
+                  <Deltas
+                    key={selectedChange}
+                    change={selectedChange}
+                    revision={revision}
+                    tab={deltasTab}
+                    onTab={setDeltasTab}
+                    onOpenFile={openFile}
+                  />
+                ) : selection?.kind === 'capability' ? (
+                  <div className="deltas-page">
+                    <div className="deltas-main">
+                      <SpecView capability={selection.id} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="deltas-page">
+                    <div className="deltas-main">
+                      <p className="pane-title">Карта связей спеков и changes</p>
+                      <CapabilityMapView />
+                    </div>
+                  </div>
+                )
+              ) : tree === null ? null : selection?.kind === 'artifact' ? (
+                (() => {
+                  const change = tree.changes.find((item) => item.name === selection.parent);
+                  if (change === undefined) return <p className="empty">Изменение не найдено.</p>;
+                  const artifact = change.artifacts.find((item) => item.id === selection.id);
+                  return (
+                    <EditorPane
+                      key={`${change.name}/${selection.id}`}
+                      change={change}
+                      artifactId={selection.id}
+                      file={artifact?.files[0] ?? null}
+                      revealLine={revealLine}
+                    />
+                  );
+                })()
               ) : (
-                <Tree tree={tree} selection={selection} onSelect={select} />
+                <Detail tree={tree} selection={selection} />
               )}
             </div>
-          )}
-
-          <div className="pane">
-            {staleBackend && (
-              <div className="notice error" role="alert" data-testid="stale-backend">
-                <p>
-                  Бэкенд расширения старее интерфейса панели: новая сборка установлена, но в
-                  VS Code ещё работает прежняя. Часть разделов будет отвечать ошибками.
-                </p>
-                <p>
-                  Перезагрузите окно: палитра команд → <code>Developer: Reload Window</code>. Если
-                  не помогло — закройте все окна VS Code и откройте проект заново, затем проверьте
-                  версию расширения OpenSpec IDE в разделе «Расширения».
-                </p>
-              </div>
-            )}
-
-            {loadError !== null && (
-              <p className="notice error" role="alert">
-                {loadError}
-              </p>
-            )}
-
-            {workspace?.state === 'not-initialized' && (
-              <p className="notice info" data-testid="not-initialized">
-                {workspace.message} Выполните <code>{workspace.hint}</code>.
-              </p>
-            )}
-
-            {workspace?.state === 'cli-missing' && (
-              <div className="notice error" data-testid="cli-missing">
-                <p>
-                  {workspace.notice.title}.
-                  {workspace.notice.configured === null && (
-                    <>
-                      {' '}
-                      Установите <code>{workspace.notice.tool}</code>: <code>{workspace.notice.install}</code>.
-                    </>
-                  )}
-                </p>
-                <p data-testid="cli-missing-hint">{workspace.notice.hint}</p>
-                {workspace.notice.searched.length > 0 && (
-                  <details>
-                    <summary>Где искали ({workspace.notice.searched.length})</summary>
-                    <ul className="failure-details mono">
-                      {workspace.notice.searched.map((path) => (
-                        <li key={path}>{path}</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            )}
-
-            {workspace?.state === 'ready' &&
-              workspace.errors.map((error) => (
-                <p className="notice error" key={error}>
-                  {error}
-                </p>
-              ))}
-
-            {section === 'processes' ? (
-              workspace?.state === 'ready' ? (
-                <Processes revision={revision} onChanged={() => void reload()} />
-              ) : null
-            ) : section === 'structure' ? (
-              workspace?.state === 'ready' ? (
-                <Structure revision={revision} />
-              ) : null
-            ) : section === 'context' ? (
-              workspace?.state === 'ready' ? (
-                <ContextMap revision={revision} />
-              ) : null
-            ) : section === 'search' ? (
-              <Search />
-            ) : section === 'metrics' ? (
-              selection?.kind === 'change' || selection?.kind === 'artifact' ? (
-                <Metrics change={selection.parent ?? selection.id} />
-              ) : (
-                <p className="empty">Выберите изменение в дереве слева, чтобы увидеть его метрики.</p>
-              )
-            ) : section === 'board' ? (
-              <Board
-                schemas={tree?.schemas ?? []}
-                revision={revision}
-                onChanged={() => void reload()}
-                onNavigate={openForChange}
-                onOpenArtifact={openArtifact}
-                onOpenFile={openFile}
-              />
-            ) : section === 'deltas' ? (
-              selection?.kind === 'change' || selection?.kind === 'artifact' ? (
-                <Deltas key={selection.parent ?? selection.id} change={selection.parent ?? selection.id} revision={revision} />
-              ) : selection?.kind === 'capability' ? (
-                <SpecView capability={selection.id} />
-              ) : (
-                <>
-                  <p className="pane-title">Карта связей</p>
-                  <CapabilityMapView />
-                </>
-              )
-            ) : tree === null ? null : selection?.kind === 'artifact' ? (
-              (() => {
-                const change = tree.changes.find((item) => item.name === selection.parent);
-                if (change === undefined) return <p className="empty">Изменение не найдено.</p>;
-                const artifact = change.artifacts.find((item) => item.id === selection.id);
-                return (
-                  <EditorPane
-                    key={`${change.name}/${selection.id}`}
-                    change={change}
-                    artifactId={selection.id}
-                    file={artifact?.files[0] ?? null}
-                    revealLine={revealLine}
-                  />
-                );
-              })()
-            ) : (
-              <Detail tree={tree} selection={selection} />
-            )}
-          </div>
-        </div>
-
-        <footer className="statusbar">
-          <span>
-            корень <b>{workspace?.state === 'ready' ? workspace.root : '—'}</b>
-          </span>
-          {tree !== null && (
-            <span>
-              изменений <b>{tree.changes.length}</b> · спеков <b>{tree.capabilities.length}</b> ·
-              процессов <b>{tree.schemas.length}</b>
-            </span>
-          )}
-          <span className="spacer" />
-          <span
-            className={connection === 'connected' ? 'ok' : connection === 'connecting' ? 'warn' : 'err'}
-            data-testid="connection-state"
-            data-state={connection}
-          >
-            ● {CONNECTION_LABEL[connection]}
-          </span>
-        </footer>
+          </ActionsTargetProvider>
+        </main>
       </div>
+
+      {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} onOpenHit={openHit} />}
+    </div>
+  );
+}
+
+function Notices({
+  workspace,
+  loadError,
+  staleBackend,
+  onRefresh,
+}: {
+  readonly workspace: WorkspaceResponse | null;
+  readonly loadError: string | null;
+  readonly staleBackend: boolean;
+  readonly onRefresh: () => void;
+}) {
+  return (
+    <div className="page-notices">
+      {staleBackend && (
+        <div className="notice warn" role="alert" data-testid="stale-backend">
+          <p>
+            <b>Установлена новая сборка расширения.</b> В VS Code ещё работает прежний бэкенд, часть разделов
+            будет отвечать ошибками.
+          </p>
+          <p>
+            Перезагрузите окно: палитра команд → <code>Developer: Reload Window</code>. Если не помогло — закройте все
+            окна VS Code и откройте проект заново, затем проверьте версию расширения OpenSpec IDE в разделе
+            «Расширения».
+          </p>
+        </div>
+      )}
+
+      {loadError !== null && (
+        <p className="notice error" role="alert">
+          {loadError}
+        </p>
+      )}
+
+      {workspace?.state === 'not-initialized' && (
+        <div className="state-card" data-testid="not-initialized">
+          <span className="state-icon info">
+            <Icon name="folder" size={22} />
+          </span>
+          <h2>OpenSpec в проекте не заведён</h2>
+          <p>
+            {workspace.message} Выполните <code>{workspace.hint}</code> и обновите панель.
+          </p>
+          <button type="button" className="btn" onClick={onRefresh}>
+            <Icon name="refresh" size={14} />
+            Обновить
+          </button>
+        </div>
+      )}
+
+      {workspace?.state === 'cli-missing' && (
+        <div className="state-card" data-testid="cli-missing">
+          <span className="state-icon bad">
+            <Icon name="plug" size={22} />
+          </span>
+          <h2>{workspace.notice.title}</h2>
+          {workspace.notice.configured === null && (
+            <p>
+              Все операции над проектом идут через CLI. Установите <code>{workspace.notice.tool}</code>:{' '}
+              <code>{workspace.notice.install}</code>.
+            </p>
+          )}
+          <p data-testid="cli-missing-hint">{workspace.notice.hint}</p>
+          <button type="button" className="btn" onClick={onRefresh}>
+            <Icon name="refresh" size={14} />
+            Искать снова
+          </button>
+          {workspace.notice.searched.length > 0 && (
+            <details>
+              <summary>Где искали ({workspace.notice.searched.length})</summary>
+              <ul className="failure-details mono">
+                {workspace.notice.searched.map((path) => (
+                  <li key={path}>{path}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
+      {workspace?.state === 'ready' &&
+        workspace.errors.map((error) => (
+          <p className="notice error" key={error}>
+            {error}
+          </p>
+        ))}
+    </div>
+  );
+}
+
+/** Скелетон раздела до первого ответа бэкенда. */
+export function PageSkeleton() {
+  return (
+    <div className="page-skeleton" aria-busy="true" aria-label="Загрузка">
+      <div className="skeleton-row">
+        {[0, 1, 2, 3, 4].map((index) => (
+          <span key={index} className="skeleton" style={{ width: 96, height: 26, borderRadius: 13 }} />
+        ))}
+      </div>
+      <div className="skeleton-grid">
+        {[0, 1, 2].map((index) => (
+          <div key={index} className="skeleton-col">
+            <span className="skeleton" style={{ width: '60%', height: 14 }} />
+            <span className="skeleton" style={{ height: 96 }} />
+            <span className="skeleton" style={{ height: 96 }} />
+          </div>
+        ))}
+      </div>
+      <span className="muted skeleton-note">
+        <Icon name="refresh" size={13} /> Читаю проект через CLI OpenSpec…
+      </span>
+    </div>
+  );
+}
+
+function TreeSkeleton() {
+  return (
+    <div className="tree-skeleton" aria-busy="true" aria-label="Загрузка">
+      {[70, 55, 62, 48, 66, 40].map((width, index) => (
+        <span key={index} className="skeleton" style={{ width: `${width}%`, height: 12 }} />
+      ))}
     </div>
   );
 }

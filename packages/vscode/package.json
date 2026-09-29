@@ -126,7 +126,7 @@
       },
       {
         "command": "openspec.openSearch",
-        "title": "Поиск по требованиям",
+        "title": "Поиск и команды",
         "category": "OpenSpec",
         "icon": "$(search)"
       },
