@@ -4,8 +4,8 @@ context: |
   Проект: OpenSpec IDE — расширение VS Code для работы по методологии OpenSpec.
   Пользователь открывает в VS Code папку проекта; расширение поднимает бэкенд
   IDE внутри своего процесса (без сетевого порта), показывает нативное дерево и
-  диагностику, а доску, дельты, метрики, агент и конструктор процессов — в
-  панели webview. Источник истины — файлы `openspec/` на диске и CLI
+  диагностику, а доску, дельты, метрики, конструктор процессов, структуру
+  папок и карту контекста модулей — в панели webview. Источник истины — файлы `openspec/` на диске и CLI
   `@fission-ai/openspec`; IDE их читает, показывает и редактирует, но не
   дублирует их состояние в своей БД.
 
@@ -22,17 +22,21 @@ context: |
   - Локализация UI: русский по умолчанию, ключи вынесены в словарь.
 
   Интеграция с LLM:
-  - Единственный поддерживаемый агент MVP — GigaCode CLI (форк Qwen Code,
-    который форк Gemini CLI). Взаимодействие headless: одноразовый запуск
-    процесса с позиционным промптом и `--output-format stream-json`.
-  - Ключи и токены никогда не попадают в код и в репозиторий: только env
-    и локальный файл конфигурации вне git.
+  - IDE не вызывает LLM и не запускает агентов: агентов запускают вне IDE, а
+    IDE готовит для них контекст — модули, их домены, зависимости и ADR в
+    `openspec/context/` — и подхватывает изменения файлов.
 
   Домен и терминология (совпадает с OpenSpec):
   - change — предложение изменения, каталог в `openspec/changes/<name>/`.
   - artifact — proposal.md, specs/**/*.md, design.md, tasks.md.
   - spec / capability — файл `openspec/specs/<capability-path>/spec.md`.
   - delta — секции ADDED/MODIFIED/REMOVED/RENAMED Requirements в спеке change.
+  - module — папка `openspec/context/modules/<папка>/` с `index.md`
+    (frontmatter: module, description, domains, code_paths, depends_on) и
+    `context.md`.
+  - domain — спека модуля: путь из `openspec/specs/`; связь модуль ↔ домен —
+    многие-ко-многим.
+  - ADR — `openspec/context/adr/*.md` с полями modules и domains.
   - requirement / scenario — `### Requirement:` и `#### Scenario:`.
 
   Конвенции:

@@ -43,14 +43,7 @@ function download(name: string, data: unknown): void {
   URL.revokeObjectURL(url);
 }
 
-export function Metrics({
-  change,
-  onAgent,
-}: {
-  readonly change: string;
-  /** Открывает панель агента на пункте: запуск и история его запусков. */
-  readonly onAgent?: (key: string) => void;
-}) {
+export function Metrics({ change }: { readonly change: string }) {
   const [view, setView] = useState<MetricsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -313,16 +306,6 @@ export function Metrics({
                 data-testid="start-item"
               >
                 Взять в работу
-              </button>
-            )}
-            {onAgent !== undefined && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => onAgent(current.key)}
-                data-testid="item-agent"
-              >
-                {current.runs.total > 0 ? `Запуски агента (${current.runs.total})` : 'Запустить агента'}
               </button>
             )}
           </div>

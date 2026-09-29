@@ -62,38 +62,6 @@ describe('сервер: доступ', () => {
   });
 });
 
-describe('сервер: конфигурация', () => {
-  it('отдаёт значения по умолчанию и сохраняет правку', async () => {
-    const running = await start({ watch: false });
-
-    const initial = await fetch(`${running.url}/api/config`, authorized(running));
-    const loaded = (await initial.json()) as { config: { agent: { model: string | null } } };
-    expect(loaded.config.agent.model).toBeNull();
-
-    const saved = await fetch(`${running.url}/api/config`, {
-      method: 'PUT',
-      headers: { [SESSION_HEADER]: running.token, 'content-type': 'application/json' },
-      body: JSON.stringify({ agent: { model: 'GigaChat-2-Max' } }),
-    });
-    expect(saved.status).toBe(200);
-  });
-
-  it('отклоняет запись значения секретного поля с кодом 400', async () => {
-    const running = await start({ watch: false });
-
-    const response = await fetch(`${running.url}/api/config`, {
-      method: 'PUT',
-      headers: { [SESSION_HEADER]: running.token, 'content-type': 'application/json' },
-      body: JSON.stringify({ agent: { apiKey: 'секрет' } }),
-    });
-
-    expect(response.status).toBe(400);
-    const body = (await response.json()) as { error: string; field: string };
-    expect(body.field).toBe('agent.apiKey');
-    expect(body.error).toContain('переменной окружения');
-  });
-});
-
 describe('сервер: поток событий', () => {
   it('доставляет изменение файла подписчику потока', async () => {
     const running = await start({ debounceMs: 50 });

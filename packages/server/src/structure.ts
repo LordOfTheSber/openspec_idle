@@ -185,12 +185,14 @@ structure:
   openspec:
     structure.yaml: file
 ${openspecLines.join('\n')}
-  # Пример контекста для людей и агентов — раскомментируйте и поправьте:
-  # docs:
-  #   context:
-  #     README.md: file
-  #     glossary.md: file
-  #     "*.md": file
-  #     adr: "*"
+    # Контекст модулей для раздела «Контекст» — раскомментируйте и поправьте:
+    # context:
+    #   "*.md": file
+    #   modules:
+    #     "*":
+    #       index.md: file
+    #       context.md: file
+    #   adr?:
+    #     "*.md": file
 `;
 }

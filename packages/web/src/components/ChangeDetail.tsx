@@ -8,7 +8,6 @@ import {
   toggleItem,
 } from '../lib/api.js';
 import { formatAge } from '../lib/format.js';
-import { useGenerableArtifacts } from '../lib/generable.js';
 import { ArchivePreview, type PreviewState } from './ArchivePreview.js';
 import type { BoardProps } from './Board.js';
 import { Problems, type ValidationState } from './Problems.js';
@@ -28,7 +27,6 @@ interface ChangeDetailProps {
   readonly onOpenArtifact: BoardProps['onOpenArtifact'];
   readonly onOpenFile: BoardProps['onOpenFile'];
   /** Сгенерировать несозданный артефакт агентом. */
-  readonly onGenerate: (artifact: string) => void;
   /** Файлы change изменились действием панели — доску нужно перечитать. */
   readonly onChanged: () => Promise<void>;
   readonly onArchived: () => Promise<void>;
@@ -45,7 +43,6 @@ export function ChangeDetail({
   onNavigate,
   onOpenArtifact,
   onOpenFile,
-  onGenerate,
   onChanged,
   onArchived,
 }: ChangeDetailProps) {
@@ -56,7 +53,6 @@ export function ChangeDetail({
   const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState<{ message: string; output: string } | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
-  const generable = useGenerableArtifacts(card.change, revision);
 
   useEffect(() => {
     closeRef.current?.focus({ preventScroll: true });
@@ -199,9 +195,6 @@ export function ChangeDetail({
         <button type="button" className="btn" onClick={() => onNavigate('metrics', card.change)} data-testid="detail-metrics">
           Метрики
         </button>
-        <button type="button" className="btn" onClick={() => onNavigate('agent', card.change)} data-testid="detail-agent">
-          Агент
-        </button>
         <span className="spacer" />
         <button
           type="button"
@@ -285,17 +278,6 @@ export function ChangeDetail({
                 {artifact.id}
               </button>
               <span className="state">{artifact.path === null || artifact.path === undefined ? 'не создан' : artifact.path.split('/').pop()}</span>
-              {(artifact.path === null || artifact.path === undefined) && generable?.has(artifact.id) === true && (
-                <button
-                  type="button"
-                  className="btn small"
-                  title="Сгенерировать агентом по инструкции схемы"
-                  onClick={() => onGenerate(artifact.id)}
-                  data-testid={`detail-generate-${artifact.id}`}
-                >
-                  Сгенерировать
-                </button>
-              )}
             </li>
           ))}
         </ul>

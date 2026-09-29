@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import type { AgentIntent, HostEvent, HostMessage, PanelSection, PanelSelection } from '@openspec-ide/core';
+import type { HostEvent, HostMessage, PanelSection, PanelSelection } from '@openspec-ide/core';
 import type { EmbeddedBackend } from '@openspec-ide/server';
 import * as vscode from 'vscode';
 import { handleViewMessage } from './bridge.js';
@@ -10,11 +10,10 @@ export const SECTION_TITLE: Record<PanelSection, string> = {
   board: 'Доска',
   deltas: 'Дельты',
   metrics: 'Метрики',
-  agent: 'Агент',
   processes: 'Процессы',
-  settings: 'Настройки агента',
   search: 'Поиск',
   structure: 'Структура',
+  context: 'Контекст',
 };
 
 /** Что панели нужно от расширения. */
@@ -46,9 +45,8 @@ export class SectionPanel implements vscode.Disposable {
     return this.#panel !== null;
   }
 
-  async show(section: PanelSection, selection: PanelSelection | null, agent: AgentIntent | null = null): Promise<void> {
-    const navigate: HostMessage =
-      agent === null ? { kind: 'navigate', section, selection } : { kind: 'navigate', section, selection, agent };
+  async show(section: PanelSection, selection: PanelSelection | null): Promise<void> {
+    const navigate: HostMessage = { kind: 'navigate', section, selection };
     this.#last = navigate;
 
     if (this.#panel === null) {

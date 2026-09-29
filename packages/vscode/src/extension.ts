@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PanelSection, PanelSelection } from '@openspec-ide/core';
+import type { ContextMap, PanelSection, PanelSelection } from '@openspec-ide/core';
 import {
   type ArchivePreview,
   type EmbeddedBackend,
@@ -17,6 +17,7 @@ import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
 import { SectionPanel } from './panel.js';
 import { PREVIEW_SCHEME, PreviewDocuments } from './previewDocuments.js';
 import { structureDiagnostics } from './structureModel.js';
+import { contextDiagnostics } from './contextModel.js';
 import { pickWorkspaceRoot } from './root.js';
 import { type TreeNode, type WorkspaceState, buildTreeNodes, statusText } from './treeModel.js';
 import { OPEN_NODE_COMMAND, WorkspaceTreeProvider } from './treeProvider.js';
@@ -33,10 +34,9 @@ export const COMMANDS = {
   openBoard: 'openspec.openBoard',
   openDeltas: 'openspec.openDeltas',
   openMetrics: 'openspec.openMetrics',
-  openAgent: 'openspec.openAgent',
   openProcesses: 'openspec.openProcesses',
-  openSettings: 'openspec.openSettings',
   openSearch: 'openspec.openSearch',
+  openContext: 'openspec.openContext',
   openNode: OPEN_NODE_COMMAND,
 } as const;
 
@@ -44,15 +44,14 @@ const SECTION_COMMANDS: readonly (readonly [string, PanelSection])[] = [
   [COMMANDS.openBoard, 'board'],
   [COMMANDS.openDeltas, 'deltas'],
   [COMMANDS.openMetrics, 'metrics'],
-  [COMMANDS.openAgent, 'agent'],
   [COMMANDS.openProcesses, 'processes'],
-  [COMMANDS.openSettings, 'settings'],
   [COMMANDS.openSearch, 'search'],
   [COMMANDS.openStructure, 'structure'],
+  [COMMANDS.openContext, 'context'],
 ];
 
 /** Разделы, которые показывают данные одного change. */
-const CHANGE_SECTIONS: ReadonlySet<PanelSection> = new Set(['metrics', 'agent']);
+const CHANGE_SECTIONS: ReadonlySet<PanelSection> = new Set(['metrics']);
 
 /**
  * Состояние расширения в одном окне VS Code: бэкенд, дерево, диагностика,
@@ -67,6 +66,8 @@ class OpenspecController implements vscode.Disposable {
   readonly #previews = new PreviewDocuments();
   /** Замечания структуры папок — отдельно: они снимаются и ставятся целиком. */
   readonly #structure = vscode.languages.createDiagnosticCollection('openspec-structure');
+  /** Замечания карты контекста: неизвестные домены и модули, циклы, пропавшие пути кода. */
+  readonly #contextIssues = vscode.languages.createDiagnosticCollection('openspec-context');
   #structureTimer: NodeJS.Timeout | null = null;
   /** Файлы, на которые легли диагностики каждого change, — чтобы снимать устаревшие. */
   readonly #diagnosed = new Map<string, vscode.Uri[]>();
@@ -130,6 +131,7 @@ class OpenspecController implements vscode.Disposable {
     this.#panel.dispose();
     this.#previews.dispose();
     this.#structure.dispose();
+    this.#contextIssues.dispose();
     if (this.#structureTimer !== null) clearTimeout(this.#structureTimer);
     this.#tree.dispose();
     this.#diagnostics.dispose();
@@ -211,29 +213,12 @@ class OpenspecController implements vscode.Disposable {
   }
 
   async createArtifact(change: string, artifact: string, perCapability: boolean): Promise<void> {
-    const generate = 'Сгенерировать агентом';
-    const template = 'Пустой по шаблону';
-    const generable = await this.#generable(change);
-    const answer = generable.has(artifact)
-      ? await vscode.window.showInformationMessage(
-          `Артефакт «${artifact}» change «${change}» ещё не создан. Как его создать?`,
-          {
-            modal: true,
-            detail:
-              'Агент GigaCode CLI напишет его по инструкции схемы и вашему замыслу — запуск нужно будет подтвердить в разделе «Агент». По шаблону — файл с заголовками и заглушками.',
-          },
-          generate,
-          template,
-        )
-      : await vscode.window.showInformationMessage(
-          `Артефакт «${artifact}» change «${change}» ещё не создан. Создать его по шаблону схемы?`,
-          { modal: true },
-          template,
-        );
-    if (answer === generate) {
-      await this.#generate(change, artifact);
-      return;
-    }
+    const template = 'Создать по шаблону';
+    const answer = await vscode.window.showInformationMessage(
+      `Артефакт «${artifact}» change «${change}» ещё не создан. Создать его по шаблону схемы?`,
+      { modal: true },
+      template,
+    );
     if (answer !== template) return;
 
     let capabilityPath: string | undefined;
@@ -287,43 +272,6 @@ class OpenspecController implements vscode.Disposable {
     if (created === null) return;
     void vscode.window.showInformationMessage(`Change «${name.trim()}» создан по схеме «${picked.label}».`);
     await this.refresh();
-
-    // Замысел — по нему агент сразу напишет первый артефакт схемы, чтобы
-    // change не начинался с пустого файла.
-    const change = this.#workspace?.state === 'ready'
-      ? this.#workspace.tree.changes.find((item) => item.name === name.trim())
-      : undefined;
-    const first = change?.artifacts[0]?.id;
-    if (first === undefined || !(await this.#generable(name.trim())).has(first)) return;
-    const brief = await vscode.window.showInputBox({
-      title: `Замысел для «${name.trim()}»`,
-      prompt: `Что и зачем меняем — агент напишет по этому «${first}». Пусто или Esc — пропустить.`,
-      placeHolder: 'Например: выгрузка данных пользователя в CSV с ограничением объёма',
-    });
-    if (brief === undefined || brief.trim() === '') return;
-    await this.#panel.show('agent', { kind: 'change', id: name.trim() }, { artifact: first, brief: brief.trim() });
-  }
-
-  /** Открывает раздел «Агент» с запуском по артефакту, спросив замысел. */
-  async #generate(change: string, artifact: string): Promise<void> {
-    const brief = await vscode.window.showInputBox({
-      title: `Замысел для «${artifact}» change «${change}»`,
-      prompt: 'Что должно получиться (необязательно). Промпт и режим вы увидите перед запуском.',
-    });
-    if (brief === undefined) return;
-    await this.#panel.show(
-      'agent',
-      { kind: 'change', id: change },
-      { artifact, brief: brief.trim() === '' ? null : brief.trim() },
-    );
-  }
-
-  /** Артефакты change, у которых в схеме есть инструкция для агента. */
-  async #generable(change: string): Promise<ReadonlySet<string>> {
-    const targets = (await this.#request('GET', `/api/agent/targets?change=${encodeURIComponent(change)}`, undefined, {
-      quiet: true,
-    })) as { artifacts?: { id: string; available: boolean }[] } | null;
-    return new Set((targets?.artifacts ?? []).filter((item) => item.available).map((item) => item.id));
   }
 
   async validateCommand(node?: TreeNode): Promise<void> {
@@ -559,7 +507,31 @@ class OpenspecController implements vscode.Disposable {
     this.#structureTimer = setTimeout(() => {
       this.#structureTimer = null;
       void this.checkStructure(false);
+      void this.checkContext();
     }, 500);
+  }
+
+  /** Раскладывает замечания карты контекста в панель «Проблемы». */
+  async checkContext(): Promise<ContextMap | null> {
+    const map = (await this.#request('GET', '/api/context-map', undefined, { quiet: true })) as ContextMap | null;
+    this.#contextIssues.clear();
+    const root = this.root;
+    if (map === null || root === null) return map;
+    for (const [path, list] of contextDiagnostics(map)) {
+      this.#contextIssues.set(
+        vscode.Uri.file(join(root, path)),
+        list.map((item) => {
+          const diagnostic = new vscode.Diagnostic(
+            new vscode.Range(item.line, 0, item.line, Number.MAX_SAFE_INTEGER),
+            item.message,
+            item.severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning,
+          );
+          diagnostic.source = 'openspec-context';
+          return diagnostic;
+        }),
+      );
+    }
+    return map;
   }
 
   #watchFiles(): vscode.Disposable[] {
@@ -579,7 +551,7 @@ class OpenspecController implements vscode.Disposable {
       selection = { kind: 'capability', id: node.capability };
     } else if (node === undefined && CHANGE_SECTIONS.has(section)) {
       // Из палитры: предложить change, но и без выбора открыть раздел.
-      const change = await this.#pickChange(`Раздел «${section === 'metrics' ? 'Метрики' : 'Агент'}» — какой change?`);
+      const change = await this.#pickChange(`Раздел «Метрики» — какой change?`);
       if (change !== undefined) selection = { kind: 'change', id: change };
     }
     await this.#panel.show(section, selection);
@@ -602,11 +574,11 @@ class OpenspecController implements vscode.Disposable {
         const paths = (event.payload as { paths?: readonly string[] } | undefined)?.paths ?? [];
         for (const change of changesTouched(paths)) void this.validate(change);
       }
-      if (event.type === 'agent-finished') void this.refresh();
     });
 
     await this.refresh();
     void this.checkStructure(false);
+    void this.checkContext();
     // Замечания всех активных changes видны сразу, а не после первой правки.
     if (this.#workspace?.state === 'ready') {
       for (const change of this.#workspace.tree.changes) void this.validate(change.name);
