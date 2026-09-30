@@ -279,3 +279,26 @@ export {
   type DeltaMention,
   type WorkspaceSymbolEntry,
 } from './authoring.js';
+
+export {
+  FORGOTTEN_AFTER_DAYS,
+  archiveOrder,
+  archivedSince,
+  archivedTouches,
+  buildDriftReport,
+  compareBaseline,
+  findOverlaps,
+  forgottenDays,
+  requirementTouches,
+  type ArchivedTouch,
+  type ChangeDrift,
+  type ChangeOverlap,
+  type DeltaBaseline,
+  type DriftChangeInput,
+  type DriftInput,
+  type DriftReport,
+  type Overlap,
+  type RequirementDrift,
+  type RequirementTouch,
+  type StaleRequirement,
+} from './drift.js';

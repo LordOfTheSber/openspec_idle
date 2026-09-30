@@ -17,6 +17,7 @@ import { StructureExistsError, StructureService, watchedStructureDirs } from './
 import { ContextMapService, ContextModuleError } from './contextMap.js';
 import { TraceService } from './trace.js';
 import { AuthoringService } from './authoring.js';
+import { DriftService } from './drift.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
 import { MetricsService, UnknownItemError } from './metrics.js';
@@ -124,6 +125,13 @@ export function createApp(options: ServerOptions): AppParts {
 
   const trace = deltas === null || board === null ? null : new TraceService(deltas, board, metrics);
   const authoring = root === null || reader === null ? null : new AuthoringService(root, reader);
+  const drift =
+    root === null || reader === null || authoring === null
+      ? null
+      : new DriftService({ root, authoring, board, workspace: reader });
+  events.subscribe((event) => {
+    if (event.type === 'workspace-changed') drift?.invalidate();
+  });
 
   const validation =
     root !== null && location?.kind === 'found'
@@ -309,6 +317,11 @@ export function createApp(options: ServerOptions): AppParts {
       requirement: body.requirement,
       scenario: typeof body.scenario === 'string' && body.scenario !== '' ? body.scenario : null,
     });
+  });
+
+  app.get('/api/drift', async () => {
+    if (drift === null) throw new Error('CLI OpenSpec недоступен');
+    return drift.report();
   });
 
   app.get('/api/authoring', async () => {

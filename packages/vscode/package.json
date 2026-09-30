@@ -107,6 +107,12 @@
         "icon": "$(archive)"
       },
       {
+        "command": "openspec.archiveReady",
+        "title": "Архивировать готовые changes…",
+        "category": "OpenSpec",
+        "icon": "$(archive)"
+      },
+      {
         "command": "openspec.openBoard",
         "title": "Доска",
         "category": "OpenSpec",
@@ -212,6 +218,16 @@
           "command": "openspec.checkStructure",
           "when": "view == openspec.workspace && openspec.state == 'ready'",
           "group": "sections@5"
+        },
+        {
+          "command": "openspec.archiveReady",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "operations@1"
+        },
+        {
+          "command": "openspec.validateSpecs",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "operations@2"
         }
       ],
       "view/item/context": [

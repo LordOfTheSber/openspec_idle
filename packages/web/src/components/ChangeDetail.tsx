@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BoardCard, DeltaView } from '@openspec-ide/core';
+import type { BoardCard, ChangeDrift, DeltaView } from '@openspec-ide/core';
 import {
   type TrackedItemsResponse,
   type TraceResponse,
@@ -27,6 +27,8 @@ type DetailTab = 'overview' | 'plan' | 'checks';
 interface ChangeDetailProps {
   readonly card: BoardCard;
   readonly columnTitle: string;
+  /** Пересечения и устаревание change; `null` — отчёт не получен. */
+  readonly drift: ChangeDrift | null;
   readonly intent: DetailIntent;
   readonly revision: number;
   /** Панель раскрыта поверх доски, а не рядом с ней. */
@@ -44,6 +46,7 @@ interface ChangeDetailProps {
 export function ChangeDetail({
   card,
   columnTitle,
+  drift,
   intent,
   revision,
   overlay,
@@ -403,6 +406,10 @@ export function ChangeDetail({
               </ul>
             </div>
 
+            {drift !== null && (drift.overlaps.length > 0 || drift.stale.length > 0) && (
+              <DriftBlock drift={drift} onOpenFile={onOpenFile} />
+            )}
+
             {deltas !== null && deltas.length > 0 && (
               <div className="detail-block">
                 <p className="section-label">
@@ -590,4 +597,73 @@ function groupItems(items: TrackedItemsResponse | null): {
     }
   }
   return result;
+}
+
+/** Пересечения с другими changes и требования, устаревшие после начала change. */
+function DriftBlock({ drift, onOpenFile }: { readonly drift: ChangeDrift; readonly onOpenFile: BoardProps['onOpenFile'] }) {
+  return (
+    <div className="detail-block" data-testid="drift">
+      <p className="section-label">
+        Пересечения и устаревание <span className="badge warn">{drift.overlaps.length + drift.stale.length}</span>
+      </p>
+      <ul className="detail-rows">
+        {drift.overlaps.map((item) => (
+          <li key={`o:${item.capability}:${item.requirement}`}>
+            <button
+              type="button"
+              className="detail-row row-hover drift-row"
+              onClick={() => onOpenFile(item.path, item.line)}
+              data-testid="drift-overlap"
+            >
+              <Icon name="alert" size={16} className="warn-icon" />
+              <span className="drift-text">
+                <span>
+                  «{item.requirement}» — также{' '}
+                  {item.others.map((other) => `${other.change} (${other.operation})`).join(', ')}
+                </span>
+                <span className="muted small">
+                  <span className="mono">{item.capability}</span> · здесь {item.operation}. Кто архивируется вторым, должен
+                  учесть правки первого
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+        {drift.stale.map((item) => (
+          <li key={`s:${item.capability}:${item.requirement}`}>
+            <button
+              type="button"
+              className="detail-row row-hover drift-row"
+              onClick={() => onOpenFile(item.path, item.line)}
+              data-testid="drift-stale"
+            >
+              <Icon name="alert" size={16} className="warn-icon" />
+              <span className="drift-text">
+                <span>
+                  «{item.requirement}» —{' '}
+                  {item.certainty === 'stale'
+                    ? item.removedFromMain
+                      ? 'требования больше нет в основном спеке'
+                      : 'основной спек изменился после начала change'
+                    : 'возможно устарела'}
+                </span>
+                <span className="muted small">{staleDetail(item)}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function staleDetail(item: ChangeDrift['stale'][number]): string {
+  const parts: string[] = [];
+  if (item.changedScenarios.length > 0) parts.push(`изменены сценарии: ${item.changedScenarios.join(', ')}`);
+  if (item.addedScenarios.length > 0) parts.push(`добавлены: ${item.addedScenarios.join(', ')}`);
+  if (item.removedScenarios.length > 0) parts.push(`убраны: ${item.removedScenarios.join(', ')}`);
+  if (item.certainty === 'stale' && parts.length === 0) parts.push('изменён текст требования');
+  if (item.archivedAfter.length > 0) parts.push(`после этого архивированы: ${item.archivedAfter.join(', ')}`);
+  if (item.baseline !== null) parts.push(`дельта написана по ${item.baseline}`);
+  return parts.join(' · ');
 }

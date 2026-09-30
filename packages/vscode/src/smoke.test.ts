@@ -526,3 +526,39 @@ describe('расширение VS Code: помощь в редакторе', () 
     expect(readFileSync(join(root, 'openspec/changes/add-limits/tasks.md'), 'utf8')).toContain('↳ data-export / Выгрузка данных');
   });
 });
+
+describe('расширение VS Code: пересечения и пакетная архивация', () => {
+  it('пересечение двух change — предупреждение на строке заголовка в обеих дельтах', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+    for (const change of ['add-limits', 'rework-export']) {
+      const path = join(root, `openspec/changes/${change}/specs/data-export/spec.md`);
+      await until(
+        () =>
+          (state.diagnostics.get(path) ?? []).some(
+            (item) => item.source === 'openspec-drift' && item.range.start.line === 4 && item.message.includes('Выгрузка данных'),
+          ),
+        `предупреждение о пересечении в ${change}`,
+      );
+    }
+  });
+
+  it('пакетная архивация архивирует готовые changes и сообщает итог', async () => {
+    const root = copyFixture('full-change');
+    const tasks = join(root, 'openspec/changes/full-feature/tasks.md');
+    writeFileSync(tasks, readFileSync(tasks, 'utf8').replaceAll('- [ ]', '- [x]'));
+    const state = await activate([root]);
+
+    state.answers.push(['full-feature'], 'Архивировать');
+    await command(state, 'openspec.archiveReady');
+
+    expect(existsSync(join(root, 'openspec/changes/full-feature'))).toBe(false);
+    expect(state.messages.at(-1)?.text).toBe('Архивировано: 1 из 1. full-feature');
+  });
+
+  it('без готовых changes архивировать нечего', async () => {
+    const state = await activate([copyFixture('full-change')]);
+    await command(state, 'openspec.archiveReady');
+    expect(state.messages.at(-1)?.text).toContain('архивировать нечего');
+  });
+});

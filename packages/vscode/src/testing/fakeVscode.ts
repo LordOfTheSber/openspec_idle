@@ -431,6 +431,8 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
       showInputBox: answer,
       showQuickPick: async (items: { label: string }[]) => {
         const wanted = await answer();
+        // Мультивыбор: тест отвечает массивом подписей.
+        if (Array.isArray(wanted)) return items.filter((item) => wanted.includes(item.label));
         return items.find((item) => item.label === wanted);
       },
       showTextDocument: async (document: { uri: Uri }, options?: { selection?: Range }) => {

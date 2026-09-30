@@ -8,7 +8,9 @@ import { archiveSummary, specLine } from './archiveSummary.js';
 import { structureDiagnostics } from './structureModel.js';
 import { contextDiagnostics } from './contextModel.js';
 import { handleViewMessage, resolvePanelPath } from './bridge.js';
+import type { DriftReport } from '@openspec-ide/core';
 import { LENS_COMMANDS, authoringDiagnostics, lensCommand, relativeToRoot } from './authoringModel.js';
+import { driftDiagnostics, staleAt, staleMessage } from './driftModel.js';
 import { changesTouched, diagnosticsByFile, fileDiagnostics, specsTouched } from './diagnosticsModel.js';
 import { renderPanelHtml } from './panelHtml.js';
 import { pickWorkspaceRoot } from './root.js';
@@ -393,5 +395,68 @@ describe('функции редактора: перевод для VS Code', () 
     ]);
     expect(byFile.get('a.md')).toEqual([{ line: 4, level: 'error', message: 'm' }]);
     expect(byFile.get('b.md')).toEqual([{ line: 0, level: 'warning', message: 'w' }]);
+  });
+});
+
+describe('пересечения и устаревание: перевод для VS Code', () => {
+  const stale = {
+    capability: 'data-export',
+    requirement: 'Выгрузка данных',
+    operation: 'MODIFIED' as const,
+    path: 'openspec/changes/a/specs/data-export/spec.md',
+    line: 5,
+    certainty: 'stale' as const,
+    baseline: 'abcdef1',
+    since: '2026-09-20T10:00:00Z',
+    removedFromMain: false,
+    addedScenarios: [],
+    removedScenarios: [],
+    changedScenarios: ['Успешная выгрузка'],
+    archivedAfter: ['2026-09-25-tune'],
+    before: 'тогда',
+    after: 'сейчас',
+  };
+  const report: DriftReport = {
+    git: true,
+    generatedAt: '2026-09-30T00:00:00Z',
+    overlaps: [],
+    archiveOrder: [],
+    changes: {
+      a: {
+        created: '2026-09-20',
+        lastActivity: null,
+        forgottenDays: null,
+        stale: [stale, { ...stale, line: 9, certainty: 'possible', before: null, after: null, changedScenarios: [] }],
+        overlaps: [
+          {
+            capability: 'data-export',
+            requirement: 'Выгрузка данных',
+            operation: 'MODIFIED',
+            path: stale.path,
+            line: 5,
+            others: [{ change: 'b', operation: 'REMOVED', path: 'x', line: 3 }],
+          },
+        ],
+      },
+    },
+  };
+
+  it('пересечение и устаревание — предупреждения, «возможно» — сведение', () => {
+    const list = driftDiagnostics(report).get(stale.path) ?? [];
+    expect(list.map((item) => [item.line, item.level])).toEqual([
+      [4, 'warning'],
+      [4, 'warning'],
+      [8, 'info'],
+    ]);
+    expect(list[0]?.message).toContain('«b» (REMOVED)');
+    expect(list[1]?.message).toContain('изменены сценарии: Успешная выгрузка');
+    expect(list[1]?.message).toContain('архивированы: 2026-09-25-tune');
+  });
+
+  it('сравнение доступно только там, где есть базовая версия', () => {
+    expect(staleAt(report, stale.path, 5)?.change).toBe('a');
+    expect(staleAt(report, stale.path, 9)).toBeNull();
+    expect(staleAt(null, stale.path, 5)).toBeNull();
+    expect(staleMessage({ ...stale, removedFromMain: true })).toContain('больше нет в основном спеке');
   });
 });

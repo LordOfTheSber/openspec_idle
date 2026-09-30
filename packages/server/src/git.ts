@@ -1,0 +1,88 @@
+import { execFile } from 'node:child_process';
+
+/** Предел времени одного вызова git, мс. */
+const GIT_TIMEOUT_MS = 15_000;
+
+/**
+ * История проекта из git — для устаревших дельт и забытых changes.
+ *
+ * git вызывается без оболочки, аргументами-массивом, в корне проекта. Пути —
+ * относительно корня, через `/`; `<коммит>:./<путь>` у `git show` тоже
+ * считается от текущего каталога, поэтому корень OpenSpec может лежать в
+ * подкаталоге репозитория. Любой сбой git — «ничего не известно», а не ошибка:
+ * без истории проверки работают по запасным путям.
+ */
+export class GitHistory {
+  readonly #root: string;
+  #available: Promise<boolean> | null = null;
+
+  constructor(root: string) {
+    this.#root = root;
+  }
+
+  /** Корень проекта лежит в рабочем дереве git, и git запускается. */
+  available(): Promise<boolean> {
+    this.#available ??= this.#run(['rev-parse', '--is-inside-work-tree']).then((out) => out?.trim() === 'true');
+    return this.#available;
+  }
+
+  /** Коммит, в котором файл появился (первый по времени), и его дата. */
+  async firstAdded(path: string): Promise<{ commit: string; date: string } | null> {
+    const out = await this.#run(['log', '--diff-filter=A', '--format=%H%x09%cI', '--', path]);
+    const last = out
+      ?.split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '')
+      .at(-1);
+    if (last === undefined) return null;
+    const [commit, date] = last.split('\t');
+    return commit === undefined || date === undefined ? null : { commit, date };
+  }
+
+  /** Содержимое файла в коммите; `null`, если его там не было. */
+  async show(commit: string, path: string): Promise<string | null> {
+    return this.#run(['show', `${commit}:./${path}`]);
+  }
+
+  /** Дата последнего коммита, затронувшего путь. */
+  async lastCommitDate(path: string): Promise<string | null> {
+    const out = (await this.#run(['log', '-1', '--format=%cI', '--', path]))?.trim();
+    return out === undefined || out === '' ? null : out;
+  }
+
+  /** Дата первого коммита, затронувшего путь. */
+  async firstCommitDate(path: string): Promise<string | null> {
+    const out = await this.#run(['log', '--format=%cI', '--', path]);
+    return (
+      out
+        ?.split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== '')
+        .at(-1) ?? null
+    );
+  }
+
+  /** В пути есть незакоммиченные правки или неотслеживаемые файлы. */
+  async hasChanges(path: string): Promise<boolean> {
+    const out = await this.#run(['status', '--porcelain', '--untracked-files=all', '--', path]);
+    return out !== null && out.trim() !== '';
+  }
+
+  #run(args: readonly string[]): Promise<string | null> {
+    return new Promise((resolve) => {
+      execFile(
+        'git',
+        [...args],
+        {
+          cwd: this.#root,
+          timeout: GIT_TIMEOUT_MS,
+          maxBuffer: 64 * 1024 * 1024,
+          windowsHide: true,
+          // Чтение истории не должно брать блокировку индекса у git самого пользователя.
+          env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
+        },
+        (error, stdout) => resolve(error === null ? stdout : null),
+      );
+    });
+  }
+}

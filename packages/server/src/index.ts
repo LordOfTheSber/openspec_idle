@@ -94,6 +94,8 @@ export {
 } from './validation.js';
 
 export { AuthoringService } from './authoring.js';
+export { DriftService } from './drift.js';
+export { GitHistory } from './git.js';
 
 export {
   DeltaReader,
