@@ -287,6 +287,29 @@ describe('расширение VS Code: валидация и команды', (
     expect(state.messages.at(-1)?.level).toBe('warning');
   });
 
+  it('замечания основного спека ложатся на строку требования и исчезают после исправления', async () => {
+    const root = copyFixture('full-change');
+    const specPath = join(root, 'openspec', 'specs', 'broken', 'spec.md');
+    mkdirSync(join(root, 'openspec', 'specs', 'broken'), { recursive: true });
+    const header = ['# broken', '', '## Purpose', 'Спек для проверки диагностики основных спеков в панели.', '', '## Requirements', ''];
+    writeFileSync(specPath, [...header, '### Requirement: Без сценария', 'The system SHALL work.', ''].join('\n'));
+    const state = await activate([root]);
+
+    await command(state, 'openspec.validateSpecs');
+    const errors = (state.diagnostics.get(specPath) ?? []).filter((item) => item.severity === DiagnosticSeverity.Error);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]?.range.start.line).toBe(7);
+    expect(state.messages.at(-1)?.level).toBe('warning');
+
+    writeFileSync(
+      specPath,
+      [...header, '### Requirement: Без сценария', 'The system SHALL work.', '', '#### Scenario: Работает', '', '- **WHEN** запуск', '- **THEN** работает', ''].join('\n'),
+    );
+    await until(() => (state.diagnostics.get(specPath) ?? []).length === 0, 'замечания исправленного спека сняты');
+    await command(state, 'openspec.validateSpecs');
+    expect(state.messages.at(-1)?.text).toContain('проходят openspec validate --specs --strict');
+  });
+
   it('создаёт change командой с выбором схемы', async () => {
     const root = copyFixture('empty');
     const state = await activate([root]);

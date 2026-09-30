@@ -85,6 +85,10 @@ export {
 } from './files.js';
 export {
   ValidationRunner,
+  requirementLine,
+  requirementNameFromMessage,
+  specIssueLine,
+  type SpecValidationRun,
   type ValidationEntry,
   type ValidationRun,
 } from './validation.js';

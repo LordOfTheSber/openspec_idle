@@ -8,7 +8,7 @@ import { archiveSummary, specLine } from './archiveSummary.js';
 import { structureDiagnostics } from './structureModel.js';
 import { contextDiagnostics } from './contextModel.js';
 import { handleViewMessage, resolvePanelPath } from './bridge.js';
-import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
+import { changesTouched, diagnosticsByFile, fileDiagnostics, specsTouched } from './diagnosticsModel.js';
 import { renderPanelHtml } from './panelHtml.js';
 import { pickWorkspaceRoot } from './root.js';
 
@@ -88,6 +88,24 @@ describe('диагностики валидации', () => {
         'openspec/specs/x/spec.md',
       ]),
     ).toEqual(['a', 'b']);
+  });
+
+  it('замечания основных спеков: строка с нуля, без файла — отбрасываются', () => {
+    const result = fileDiagnostics([
+      { level: 'ERROR', message: 'нет сценария', file: 'openspec/specs/x/spec.md', line: 8 },
+      { level: 'INFO', message: 'длинно', file: 'openspec/specs/x/spec.md', line: null },
+      { level: 'WARNING', message: 'без файла', file: null, line: null },
+    ]);
+    expect([...result.keys()]).toEqual(['openspec/specs/x/spec.md']);
+    expect(result.get('openspec/specs/x/spec.md')).toEqual([
+      { line: 7, level: 'error', message: 'нет сценария' },
+      { line: 0, level: 'info', message: 'длинно' },
+    ]);
+  });
+
+  it('изменение основного спека требует перепроверки спеков', () => {
+    expect(specsTouched(['openspec/changes/a/tasks.md'])).toBe(false);
+    expect(specsTouched(['openspec\\specs\\x\\spec.md'])).toBe(true);
   });
 });
 

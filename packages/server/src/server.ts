@@ -525,6 +525,11 @@ export function createApp(options: ServerOptions): AppParts {
     return validation.run(change);
   });
 
+  app.get('/api/validate/specs', async () => {
+    if (validation === null) throw new Error('CLI OpenSpec недоступен');
+    return validation.runSpecs();
+  });
+
   app.get('/api/events', (request, reply) => {
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',

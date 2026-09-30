@@ -5,6 +5,7 @@ import {
   type ArchivePreview,
   type EmbeddedBackend,
   type SpecPreview,
+  type SpecValidationRun,
   type StructureReport,
   type ValidationRun,
   CLI_SETTING,
@@ -13,7 +14,7 @@ import {
 import * as vscode from 'vscode';
 import { archiveSummary, specLine } from './archiveSummary.js';
 import { resolvePanelPath } from './bridge.js';
-import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
+import { type FileDiagnostic, changesTouched, diagnosticsByFile, fileDiagnostics, specsTouched } from './diagnosticsModel.js';
 import { SectionPanel } from './panel.js';
 import { PREVIEW_SCHEME, PreviewDocuments } from './previewDocuments.js';
 import { structureDiagnostics } from './structureModel.js';
@@ -29,6 +30,7 @@ export const COMMANDS = {
   validateChange: 'openspec.validateChange',
   archiveChange: 'openspec.archiveChange',
   previewArchive: 'openspec.previewArchive',
+  validateSpecs: 'openspec.validateSpecs',
   checkStructure: 'openspec.checkStructure',
   openStructure: 'openspec.openStructure',
   openBoard: 'openspec.openBoard',
@@ -68,6 +70,8 @@ class OpenspecController implements vscode.Disposable {
   readonly #structure = vscode.languages.createDiagnosticCollection('openspec-structure');
   /** Замечания карты контекста: неизвестные домены и модули, циклы, пропавшие пути кода. */
   readonly #contextIssues = vscode.languages.createDiagnosticCollection('openspec-context');
+  /** Замечания основных спеков — снимаются и ставятся целиком за прогон. */
+  readonly #specIssues = vscode.languages.createDiagnosticCollection('openspec-specs');
   #structureTimer: NodeJS.Timeout | null = null;
   /** Файлы, на которые легли диагностики каждого change, — чтобы снимать устаревшие. */
   readonly #diagnosed = new Map<string, vscode.Uri[]>();
@@ -109,6 +113,7 @@ class OpenspecController implements vscode.Disposable {
       vscode.commands.registerCommand(COMMANDS.previewArchive, (node?: TreeNode) => this.previewArchiveCommand(node)),
       vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, this.#previews),
       vscode.commands.registerCommand(COMMANDS.checkStructure, () => this.checkStructure(true)),
+      vscode.commands.registerCommand(COMMANDS.validateSpecs, () => this.validateSpecsCommand()),
       // Лишний файл может появиться где угодно в рабочей области, а не только
       // в openspec/, за которым следит бэкенд.
       ...this.#watchFiles(),
@@ -132,6 +137,7 @@ class OpenspecController implements vscode.Disposable {
     this.#previews.dispose();
     this.#structure.dispose();
     this.#contextIssues.dispose();
+    this.#specIssues.dispose();
     if (this.#structureTimer !== null) clearTimeout(this.#structureTimer);
     this.#tree.dispose();
     this.#diagnostics.dispose();
@@ -310,22 +316,41 @@ class OpenspecController implements vscode.Disposable {
       uris.push(uri);
       this.#diagnostics.set(
         uri,
-        list.map((item) => {
-          const diagnostic = new vscode.Diagnostic(
-            new vscode.Range(item.line, 0, item.line, Number.MAX_SAFE_INTEGER),
-            item.message,
-            item.level === 'error'
-              ? vscode.DiagnosticSeverity.Error
-              : item.level === 'warning'
-                ? vscode.DiagnosticSeverity.Warning
-                : vscode.DiagnosticSeverity.Information,
-          );
-          diagnostic.source = 'openspec';
-          return diagnostic;
-        }),
+        list.map((item) => toDiagnostic(item, 'openspec')),
       );
     }
     this.#diagnosed.set(change, uris);
+    return run;
+  }
+
+  async validateSpecsCommand(): Promise<void> {
+    if (!this.#requireReady()) return;
+    const run = await this.validateSpecs();
+    if (run === null || run.superseded) return;
+    const errors = run.entries.filter((entry) => entry.level === 'ERROR').length;
+    const warnings = run.entries.filter((entry) => entry.level === 'WARNING').length;
+    if (run.error !== null) {
+      void vscode.window.showErrorMessage(`Проверка основных спеков не выполнилась: ${run.error}`);
+    } else if (errors === 0 && warnings === 0) {
+      void vscode.window.showInformationMessage(
+        `Основные спеки (${run.specCount}) проходят openspec validate --specs --strict.`,
+      );
+    } else {
+      void vscode.window.showWarningMessage(
+        `Основные спеки: ошибок ${errors}, предупреждений ${warnings}. Подробности — в панели «Проблемы».`,
+      );
+    }
+  }
+
+  /** Проверяет основные спеки и раскладывает замечания в панель «Проблемы». */
+  async validateSpecs(): Promise<SpecValidationRun | null> {
+    const run = (await this.#request('GET', '/api/validate/specs', undefined, { quiet: true })) as SpecValidationRun | null;
+    const root = this.root;
+    if (run === null || run.superseded || run.error !== null || root === null) return run;
+    this.#specIssues.clear();
+    for (const [path, list] of fileDiagnostics(run.entries)) {
+      this.#specIssues.set(vscode.Uri.file(join(root, path)), list.map((item) => toDiagnostic(item, 'openspec')));
+    }
     return run;
   }
 
@@ -364,6 +389,7 @@ class OpenspecController implements vscode.Disposable {
     const archived = await this.#request('POST', '/api/archive', { name: change });
     if (archived === null) return;
     this.#forgetDiagnostics(change);
+    void this.validateSpecs();
     void vscode.window.showInformationMessage(`Change «${change}» архивирован.`);
     await this.refresh();
   }
@@ -573,12 +599,14 @@ class OpenspecController implements vscode.Disposable {
         this.#scheduleStructureCheck();
         const paths = (event.payload as { paths?: readonly string[] } | undefined)?.paths ?? [];
         for (const change of changesTouched(paths)) void this.validate(change);
+        if (specsTouched(paths)) void this.validateSpecs();
       }
     });
 
     await this.refresh();
     void this.checkStructure(false);
     void this.checkContext();
+    if (this.#workspace?.state === 'ready') void this.validateSpecs();
     // Замечания всех активных changes видны сразу, а не после первой правки.
     if (this.#workspace?.state === 'ready') {
       for (const change of this.#workspace.tree.changes) void this.validate(change.name);
@@ -683,6 +711,23 @@ class OpenspecController implements vscode.Disposable {
 }
 
 const CLI_SETTING_BUTTON = 'Указать путь к CLI';
+
+const SEVERITY: Record<FileDiagnostic['level'], vscode.DiagnosticSeverity> = {
+  error: vscode.DiagnosticSeverity.Error,
+  warning: vscode.DiagnosticSeverity.Warning,
+  info: vscode.DiagnosticSeverity.Information,
+};
+
+/** Диагностика VS Code на всю строку. */
+function toDiagnostic(item: FileDiagnostic, source: string): vscode.Diagnostic {
+  const diagnostic = new vscode.Diagnostic(
+    new vscode.Range(item.line, 0, item.line, Number.MAX_SAFE_INTEGER),
+    item.message,
+    SEVERITY[item.level],
+  );
+  diagnostic.source = source;
+  return diagnostic;
+}
 
 let controller: OpenspecController | null = null;
 

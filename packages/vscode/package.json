@@ -89,6 +89,12 @@
         "icon": "$(check)"
       },
       {
+        "command": "openspec.validateSpecs",
+        "title": "Проверить основные спеки",
+        "category": "OpenSpec",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "openspec.previewArchive",
         "title": "Предпросмотр архивации",
         "category": "OpenSpec",
