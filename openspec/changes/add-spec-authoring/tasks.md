@@ -14,4 +14,4 @@
 
 ## 4. Документация
 
-- [ ] 4.1 README: раздел «Помощь в редакторе»; проверка — `npm run verify` проходит, `openspec validate add-spec-authoring --strict` без замечаний
+- [x] 4.1 README: раздел «Помощь в редакторе»; проверка — `npm run verify` проходит, `openspec validate add-spec-authoring --strict` без замечаний

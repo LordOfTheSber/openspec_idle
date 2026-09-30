@@ -9,7 +9,6 @@ import {
   buildDriftReport,
 } from '@openspec-ide/core';
 import type { AuthoringService } from './authoring.js';
-import type { BoardService } from './board.js';
 import { capabilityFromPath } from './deltas.js';
 import { GitHistory } from './git.js';
 import type { WorkspaceReader } from './workspace.js';
@@ -24,7 +23,6 @@ const REPORT_TTL_MS = 30_000;
 export class DriftService {
   readonly #root: string;
   readonly #authoring: AuthoringService;
-  readonly #board: BoardService | null;
   readonly #workspace: WorkspaceReader;
   readonly #git: GitHistory;
   readonly #now: () => Date;
@@ -33,13 +31,11 @@ export class DriftService {
   constructor(options: {
     root: string;
     authoring: AuthoringService;
-    board: BoardService | null;
     workspace: WorkspaceReader;
     now?: () => Date;
   }) {
     this.#root = options.root;
     this.#authoring = options.authoring;
-    this.#board = options.board;
     this.#workspace = options.workspace;
     this.#git = new GitHistory(options.root);
     this.#now = options.now ?? (() => new Date());
@@ -64,13 +60,24 @@ export class DriftService {
 
   async #build(): Promise<DriftReport> {
     const now = this.#now().toISOString();
-    const [sources, { tree }, board, git] = await Promise.all([
+    const [sources, { tree }, git] = await Promise.all([
       this.#authoring.sources(),
       this.#workspace.readTree(),
-      this.#board === null ? Promise.resolve(null) : this.#board.readBoard().catch(() => null),
       this.#git.available(),
     ]);
-    const ready = new Set((board?.cards ?? []).filter((card) => card.column === 'to-archive').map((card) => card.change));
+    // «Готово к архивации» — как на доске: все артефакты созданы и план выполнен
+    // целиком. Считается по дереву, а не по доске, чтобы не звать CLI ещё раз.
+    const ready = new Set(
+      tree.changes
+        .filter(
+          (change) =>
+            change.artifacts.every((artifact) => artifact.state !== 'missing') &&
+            change.progress !== null &&
+            change.progress.total > 0 &&
+            change.progress.complete >= change.progress.total,
+        )
+        .map((change) => change.name),
+    );
 
     const changes: DriftChangeInput[] = await Promise.all(
       tree.changes.map(async (change) => {

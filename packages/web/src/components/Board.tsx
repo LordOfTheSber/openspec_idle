@@ -63,12 +63,12 @@ export function Board({ schemas, revision, request = null, onChanged, onNavigate
   const handled = useRef<number | null>(null);
 
   const reload = useCallback(async () => {
-    // Отчёт о пересечениях читает историю git и не должен задерживать доску.
-    void fetchDrift()
-      .then(setDrift)
-      .catch(() => setDrift(null));
     try {
       setBoard(await fetchBoard());
+      // Отчёт о пересечениях читает историю git — после доски, чтобы её не задерживать.
+      void fetchDrift()
+        .then(setDrift)
+        .catch(() => setDrift(null));
     } catch (problem) {
       setError({ message: problem instanceof Error ? problem.message : String(problem), output: '' });
     }

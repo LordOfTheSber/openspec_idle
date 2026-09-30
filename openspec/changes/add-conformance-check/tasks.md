@@ -9,4 +9,4 @@
 
 ## 3. Документация
 
-- [ ] 3.1 README: раздел «Проверка в CI» с примером GitHub Actions и pre-commit; проверка — `npm run verify` проходит, `npm run check:openspec` на этом репозитории завершается с кодом 0, `openspec validate add-conformance-check --strict` без замечаний
+- [x] 3.1 README: раздел «Проверка в CI» с примером GitHub Actions и pre-commit; проверка — `npm run verify` проходит, `npm run check:openspec` на этом репозитории завершается с кодом 0, `openspec validate add-conformance-check --strict` без замечаний

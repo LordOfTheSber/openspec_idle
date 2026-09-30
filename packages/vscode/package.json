@@ -2,7 +2,7 @@
   "name": "openspec-ide",
   "displayName": "OpenSpec IDE",
   "description": "Работа по методологии OpenSpec в VS Code: дерево changes и спеков, валидация, доска, дельты, метрики, конструктор процессов, структура папок и карта контекста модулей",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "publisher": "openspec-ide",
   "private": true,
   "license": "MIT",

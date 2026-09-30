@@ -16,4 +16,4 @@
 
 ## 5. Документация
 
-- [ ] 5.1 README: раздел «Пересечения и устаревание»; проверка — `npm run verify` и `npm run test:e2e` проходят, `openspec validate add-change-drift --strict` без замечаний
+- [x] 5.1 README: раздел «Пересечения и устаревание»; проверка — `npm run verify` и `npm run test:e2e` проходят, `openspec validate add-change-drift --strict` без замечаний

@@ -9,4 +9,4 @@
 
 ## 3. Документация
 
-- [ ] 3.1 README: основные спеки в панели «Проблемы» и новая команда; проверка — `npm run verify` проходит, `openspec validate validate-main-specs --strict` без замечаний
+- [x] 3.1 README: основные спеки в панели «Проблемы» и новая команда; проверка — `npm run verify` проходит, `openspec validate validate-main-specs --strict` без замечаний

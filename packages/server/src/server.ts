@@ -133,7 +133,7 @@ export function createApp(options: ServerOptions): AppParts {
   const drift =
     root === null || reader === null || authoring === null
       ? null
-      : new DriftService({ root, authoring, board, workspace: reader });
+      : new DriftService({ root, authoring, workspace: reader });
   events.subscribe((event) => {
     if (event.type === 'workspace-changed') drift?.invalidate();
   });
