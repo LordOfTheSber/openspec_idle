@@ -7,7 +7,19 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { FIXTURES_ROOT } from '../../../tests/fixtures.js';
 // @ts-expect-error — модуль сборки на JavaScript без объявлений типов.
 import { bundleExtension } from '../bundle.mjs';
-import { DiagnosticSeverity, type FakeState, type FakeWebviewPanel, Uri, createFakeVscode } from './testing/fakeVscode.js';
+import {
+  type CodeAction,
+  type CodeLens,
+  type CompletionItem,
+  DiagnosticSeverity,
+  type FakeState,
+  FakeTextDocument,
+  type FakeWebviewPanel,
+  Position,
+  Range,
+  Uri,
+  createFakeVscode,
+} from './testing/fakeVscode.js';
 import type { TreeNode } from './treeModel.js';
 
 /**
@@ -435,3 +447,82 @@ describe('расширение VS Code: структура папок', () => {
   });
 });
 
+
+describe('расширение VS Code: помощь в редакторе', () => {
+  const DELTA = 'openspec/changes/add-limits/specs/data-export/spec.md';
+
+  function providerOf<T>(state: FakeState, kind: string): T {
+    const found = state.providers.get(kind)?.[0];
+    if (found === undefined) throw new Error(`Провайдер ${kind} не зарегистрирован`);
+    return found as T;
+  }
+
+  it('регистрирует провайдеры и находит ссылку дельты на несуществующее требование', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+
+    for (const kind of ['completion', 'codeAction', 'hover', 'definition', 'codeLens', 'documentSymbol', 'workspaceSymbol']) {
+      expect(state.providers.get(kind)?.length, kind).toBe(1);
+    }
+    // В фикстуре REMOVED «Устаревшая выгрузка» — такого требования в основном спеке нет.
+    const removed = join(root, 'openspec/changes/rework-export/specs/data-export/spec.md');
+    await until(
+      () => (state.diagnostics.get(removed) ?? []).some((item) => item.source === 'openspec-authoring' && item.range.start.line === 15),
+      'ошибка REMOVED на строке заголовка',
+    );
+  });
+
+  it('опечатка в MODIFIED при наборе: ошибка на строке и исправление заменой имени', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+    const path = join(root, DELTA);
+    await until(() => state.commands.has('openspec.addPlanItem'), 'команды подсказок');
+    // Источники загружаются после активации: ждём, пока поиск символов их увидит.
+    const symbols = providerOf<{ provideWorkspaceSymbols(query: string): { name: string }[] }>(state, 'workspaceSymbol');
+    await until(() => symbols.provideWorkspaceSymbols('Ограничение').length > 0, 'источники функций редактора');
+
+    const text = readFileSync(path, 'utf8');
+    const document = new FakeTextDocument(Uri.file(path), text);
+    state.textDocuments.push(document);
+    state.changeDocument(document, text.replace('### Requirement: Выгрузка данных', '### Requirement: Выгрузка даных'));
+    await until(
+      () => (state.diagnostics.get(path) ?? []).some((item) => item.source === 'openspec-authoring' && item.range.start.line === 4),
+      'ошибка опечатки на строке заголовка',
+    );
+
+    const actions = providerOf<{ provideCodeActions(d: unknown, r: Range, c: { diagnostics: unknown[] }): CodeAction[] }>(
+      state,
+      'codeAction',
+    ).provideCodeActions(document, new Range(4, 0, 4, 0), { diagnostics: state.diagnostics.get(path) ?? [] });
+    expect(actions[0]?.title).toBe('Заменить на «Выгрузка данных»');
+    expect(actions[0]?.edit?.replacements[0]?.newText).toBe('Выгрузка данных');
+  });
+
+  it('дополнение имени для MODIFIED и подсказки над требованиями', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+    const path = join(root, DELTA);
+    const symbols = providerOf<{ provideWorkspaceSymbols(query: string): { name: string }[] }>(state, 'workspaceSymbol');
+    await until(() => symbols.provideWorkspaceSymbols('Ограничение').length > 0, 'источники функций редактора');
+
+    const text = readFileSync(path, 'utf8').replace('## ADDED Requirements', '### Requirement: \n\n## ADDED Requirements');
+    const document = new FakeTextDocument(Uri.file(path), text);
+    const line = text.split('\n').indexOf('### Requirement: ');
+    const items = providerOf<{ provideCompletionItems(d: unknown, p: Position): CompletionItem[] }>(state, 'completion').provideCompletionItems(
+      document,
+      new Position(line, '### Requirement: '.length),
+    );
+    expect(items.filter((item) => item.kind === 6).map((item) => item.label)).toEqual(['Кодировка файла']);
+
+    const lenses = providerOf<{ provideCodeLenses(d: unknown): CodeLens[] }>(state, 'codeLens').provideCodeLenses(
+      new FakeTextDocument(Uri.file(path), readFileSync(path, 'utf8')),
+    );
+    const titles = lenses.map((lens) => lens.command?.title);
+    expect(titles).toContain('Основной спек');
+    expect(titles).toContain('Не покрыт планом — добавить пункт');
+
+    const add = lenses.find((lens) => lens.command?.title === 'Не покрыт планом — добавить пункт');
+    await command(state, add?.command?.command ?? '', ...(add?.command?.arguments ?? []));
+    expect(readFileSync(join(root, 'openspec/changes/add-limits/tasks.md'), 'utf8')).toContain('↳ data-export / Выгрузка данных');
+  });
+});

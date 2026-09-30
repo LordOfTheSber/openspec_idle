@@ -93,6 +93,8 @@ export {
   type ValidationRun,
 } from './validation.js';
 
+export { AuthoringService } from './authoring.js';
+
 export {
   DeltaReader,
   capabilityFromPath,

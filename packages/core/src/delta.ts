@@ -143,7 +143,7 @@ export function compareRequirement(
     return {
       name: deltaRequirement.name,
       missingInMainSpec: true,
-      similarNames: similarTo(deltaRequirement.name, main.requirements.map((item) => item.name)),
+      similarNames: similarNames(deltaRequirement.name, main.requirements.map((item) => item.name)),
       description: deltaRequirement.description
         .split('\n')
         .filter((line) => line.trim() !== '')
@@ -183,7 +183,7 @@ function normalizeHeader(value: string): string {
  * Нужно ровно для одной подсказки: «такого требования нет, не это ли имелось в
  * виду» — поэтому расстояние редактирования здесь избыточно.
  */
-function similarTo(name: string, candidates: readonly string[]): string[] {
+export function similarNames(name: string, candidates: readonly string[]): string[] {
   const words = new Set(normalizeHeader(name).split(' ').filter((word) => word.length > 2));
   if (words.size === 0) return [];
 

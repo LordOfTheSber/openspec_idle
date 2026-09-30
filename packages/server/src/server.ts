@@ -16,6 +16,7 @@ import { ArchivePreviewService, UnknownChangeError } from './archivePreview.js';
 import { StructureExistsError, StructureService, watchedStructureDirs } from './structure.js';
 import { ContextMapService, ContextModuleError } from './contextMap.js';
 import { TraceService } from './trace.js';
+import { AuthoringService } from './authoring.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
 import { MetricsService, UnknownItemError } from './metrics.js';
@@ -122,6 +123,7 @@ export function createApp(options: ServerOptions): AppParts {
         });
 
   const trace = deltas === null || board === null ? null : new TraceService(deltas, board, metrics);
+  const authoring = root === null || reader === null ? null : new AuthoringService(root, reader);
 
   const validation =
     root !== null && location?.kind === 'found'
@@ -292,20 +294,26 @@ export function createApp(options: ServerOptions): AppParts {
 
   app.post('/api/trace/item', async (request) => {
     if (trace === null) throw new Error('CLI OpenSpec недоступен');
-    const body = (request.body ?? {}) as { change?: string; capability?: string; requirement?: string; scenario?: string };
+    const body = (request.body ?? {}) as { change?: string; capability?: string; requirement?: string; scenario?: string | null };
     if (
       typeof body.change !== 'string' ||
       typeof body.capability !== 'string' ||
       typeof body.requirement !== 'string' ||
-      typeof body.scenario !== 'string'
+      (body.scenario !== undefined && body.scenario !== null && typeof body.scenario !== 'string')
     ) {
-      throw new Error('Нужны имя change, capability, требование и сценарий');
+      throw new Error('Нужны имя change, capability и требование; сценарий — строкой или не указан');
     }
+    // Без сценария пункт ссылается на требование целиком и покрывает все его сценарии.
     return trace.addItem(body.change, {
       capability: body.capability,
       requirement: body.requirement,
-      scenario: body.scenario,
+      scenario: typeof body.scenario === 'string' && body.scenario !== '' ? body.scenario : null,
     });
+  });
+
+  app.get('/api/authoring', async () => {
+    if (authoring === null) throw new Error('CLI OpenSpec недоступен');
+    return authoring.sources();
   });
 
   app.get('/api/archive/preview', async (request) => {

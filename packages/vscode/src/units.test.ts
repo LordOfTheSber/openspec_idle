@@ -8,6 +8,7 @@ import { archiveSummary, specLine } from './archiveSummary.js';
 import { structureDiagnostics } from './structureModel.js';
 import { contextDiagnostics } from './contextModel.js';
 import { handleViewMessage, resolvePanelPath } from './bridge.js';
+import { LENS_COMMANDS, authoringDiagnostics, lensCommand, relativeToRoot } from './authoringModel.js';
 import { changesTouched, diagnosticsByFile, fileDiagnostics, specsTouched } from './diagnosticsModel.js';
 import { renderPanelHtml } from './panelHtml.js';
 import { pickWorkspaceRoot } from './root.js';
@@ -363,5 +364,34 @@ describe('диагностики карты контекста', () => {
       { line: 3, message: 'нет домена', severity: 'error' },
       { line: 0, message: 'нет context.md', severity: 'warning' },
     ]);
+  });
+});
+
+describe('функции редактора: перевод для VS Code', () => {
+  it('путь документа — относительно корня, вне корня — null', () => {
+    expect(relativeToRoot('/p', '/p/openspec/specs/x/spec.md')).toBe('openspec/specs/x/spec.md');
+    expect(relativeToRoot('/p', '/other/spec.md')).toBeNull();
+    expect(relativeToRoot(null, '/p/spec.md')).toBeNull();
+  });
+
+  it('подсказка над строкой превращается во внутреннюю команду', () => {
+    expect(lensCommand({ kind: 'open', location: { path: 'a.md', line: 3 } })).toEqual({
+      command: LENS_COMMANDS.openLocation,
+      arguments: ['a.md', 3],
+    });
+    expect(lensCommand({ kind: 'add-plan-item', change: 'c', capability: 'x', requirement: 'R' })).toEqual({
+      command: LENS_COMMANDS.addPlanItem,
+      arguments: ['c', 'x', 'R'],
+    });
+    expect(lensCommand({ kind: 'none' })).toBeNull();
+  });
+
+  it('замечания ссылок раскладываются по файлам со строкой с нуля', () => {
+    const byFile = authoringDiagnostics([
+      { path: 'a.md', line: 5, level: 'error', code: 'delta/missing-target', message: 'm', suggestions: [] },
+      { path: 'b.md', line: 1, level: 'warning', code: 'plan/unresolved-reference', message: 'w', suggestions: [] },
+    ]);
+    expect(byFile.get('a.md')).toEqual([{ line: 4, level: 'error', message: 'm' }]);
+    expect(byFile.get('b.md')).toEqual([{ line: 0, level: 'warning', message: 'w' }]);
   });
 });

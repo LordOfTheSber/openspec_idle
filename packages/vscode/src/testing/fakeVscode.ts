@@ -118,6 +118,123 @@ export class Diagnostic {
   ) {}
 }
 
+export enum CompletionItemKind {
+  Method = 1,
+  Class = 6,
+  Module = 8,
+  Snippet = 14,
+  Reference = 17,
+}
+
+export class SnippetString {
+  constructor(readonly value: string) {}
+}
+
+export class MarkdownString {
+  constructor(readonly value: string) {}
+}
+
+export class CompletionItem {
+  insertText?: string | SnippetString;
+  filterText?: string;
+  detail?: string;
+  documentation?: MarkdownString;
+  range?: Range;
+
+  constructor(
+    readonly label: string,
+    readonly kind: CompletionItemKind,
+  ) {}
+}
+
+export class CodeActionKind {
+  static readonly QuickFix = new CodeActionKind('quickfix');
+  constructor(readonly value: string) {}
+}
+
+export class WorkspaceEdit {
+  readonly replacements: { uri: Uri; range: Range; newText: string }[] = [];
+  replace(uri: Uri, range: Range, newText: string): void {
+    this.replacements.push({ uri, range, newText });
+  }
+}
+
+export class CodeAction {
+  edit?: WorkspaceEdit;
+  isPreferred?: boolean;
+  diagnostics?: Diagnostic[];
+  constructor(
+    readonly title: string,
+    readonly kind: CodeActionKind,
+  ) {}
+}
+
+export class Hover {
+  constructor(readonly contents: MarkdownString) {}
+}
+
+export class Location {
+  constructor(
+    readonly uri: Uri,
+    readonly range: Position | Range,
+  ) {}
+}
+
+export enum SymbolKind {
+  Namespace = 2,
+  Class = 4,
+  Method = 5,
+  Event = 23,
+}
+
+export class DocumentSymbol {
+  children: DocumentSymbol[] = [];
+  constructor(
+    readonly name: string,
+    readonly detail: string,
+    readonly kind: SymbolKind,
+    readonly range: Range,
+    readonly selectionRange: Range,
+  ) {}
+}
+
+export class SymbolInformation {
+  constructor(
+    readonly name: string,
+    readonly kind: SymbolKind,
+    readonly containerName: string,
+    readonly location: Location,
+  ) {}
+}
+
+export class CodeLens {
+  constructor(
+    readonly range: Range,
+    readonly command?: { title: string; command: string; arguments?: unknown[] },
+  ) {}
+}
+
+/** Документ редактора: текст задаёт тест. */
+export class FakeTextDocument {
+  isDirty = false;
+  constructor(
+    readonly uri: Uri,
+    public text: string,
+  ) {}
+
+  getText(): string {
+    return this.text;
+  }
+
+  get lineCount(): number {
+    return this.text.split('\n').length;
+  }
+
+  lineAt(line: number): { text: string } {
+    return { text: this.text.split('\n')[line] ?? '' };
+  }
+}
+
 export enum StatusBarAlignment {
   Left = 1,
   Right = 2,
@@ -198,6 +315,12 @@ export interface FakeState {
   /** Провайдеры виртуальных документов по схеме. */
   readonly contentProviders: Map<string, { provideTextDocumentContent(uri: Uri): string }>;
   readonly diagnostics: Map<string, Diagnostic[]>;
+  /** Языковые провайдеры по виду: `completion`, `codeAction`, `hover`, `definition`, `codeLens`, `documentSymbol`, `workspaceSymbol`. */
+  readonly providers: Map<string, unknown[]>;
+  /** Открытые документы редактора. */
+  readonly textDocuments: FakeTextDocument[];
+  /** Сообщает расширению о правке документа, как VS Code. */
+  changeDocument(document: FakeTextDocument, text: string): void;
   readonly statusBar: { text: string; tooltip?: string; command?: string };
   /** Очередь ответов на showInputBox / showQuickPick / модальные вопросы. */
   readonly answers: unknown[];
@@ -220,6 +343,13 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
     fileWatchers: [],
     contentProviders: new Map(),
     diagnostics: new Map(),
+    providers: new Map(),
+    textDocuments: [],
+    changeDocument: (document, text) => {
+      document.text = text;
+      document.isDirty = true;
+      documentEvents.fire({ document });
+    },
     statusBar: { text: '' },
     answers: [],
     workspaceFolders: folders.map((folder) => ({ uri: Uri.file(folder) })),
@@ -230,6 +360,15 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
     },
   };
   const configurationEvents = new EventEmitter<{ affectsConfiguration(section: string): boolean }>();
+  const documentEvents = new EventEmitter<{ document: FakeTextDocument }>();
+  const collections = new Set<Map<string, Diagnostic[]>>();
+  const provider =
+    (kind: string) =>
+    (...args: unknown[]) => {
+      const found = args.find((arg) => typeof arg === 'object' && arg !== null && !Array.isArray(arg) && Object.values(arg).some((value) => typeof value === 'function'));
+      state.providers.set(kind, [...(state.providers.get(kind) ?? []), found]);
+      return { dispose: () => undefined };
+    };
   const folderEvents = new EventEmitter<void>();
   const disposable = { dispose: () => undefined };
 
@@ -256,6 +395,19 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
     Range,
     Diagnostic,
     DiagnosticSeverity,
+    CompletionItem,
+    CompletionItemKind,
+    SnippetString,
+    MarkdownString,
+    CodeAction,
+    CodeActionKind,
+    WorkspaceEdit,
+    Hover,
+    Location,
+    SymbolKind,
+    DocumentSymbol,
+    SymbolInformation,
+    CodeLens,
     StatusBarAlignment,
     ViewColumn,
     ProgressLocation,
@@ -301,6 +453,10 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
         },
       }),
       openTextDocument: async (uri: Uri) => ({ uri }),
+      get textDocuments() {
+        return state.textDocuments;
+      },
+      onDidChangeTextDocument: documentEvents.event,
       createFileSystemWatcher: () => {
         const created = new EventEmitter<Uri>();
         const deleted = new EventEmitter<Uri>();
@@ -316,25 +472,41 @@ export function createFakeVscode(folders: readonly string[]): { module: Record<s
       },
     },
     languages: {
-      // Коллекции пишут в общую таблицу, но снимают только свои замечания.
+      registerCompletionItemProvider: provider('completion'),
+      registerCodeActionsProvider: provider('codeAction'),
+      registerHoverProvider: provider('hover'),
+      registerDefinitionProvider: provider('definition'),
+      registerCodeLensProvider: provider('codeLens'),
+      registerDocumentSymbolProvider: provider('documentSymbol'),
+      registerWorkspaceSymbolProvider: provider('workspaceSymbol'),
+      // У каждой коллекции свои замечания; общая таблица — их объединение по
+      // файлу, как панель «Проблемы».
       createDiagnosticCollection: () => {
-        const own = new Set<string>();
+        const own = new Map<string, Diagnostic[]>();
+        collections.add(own);
+        const merge = (path: string): void => {
+          const all = [...collections].flatMap((collection) => collection.get(path) ?? []);
+          if (all.length === 0) state.diagnostics.delete(path);
+          else state.diagnostics.set(path, all);
+        };
+        const clear = (): void => {
+          const paths = [...own.keys()];
+          own.clear();
+          for (const path of paths) merge(path);
+        };
         return {
           set: (uri: Uri, list: Diagnostic[]) => {
-            own.add(uri.fsPath);
-            state.diagnostics.set(uri.fsPath, list);
+            own.set(uri.fsPath, list);
+            merge(uri.fsPath);
           },
           delete: (uri: Uri) => {
             own.delete(uri.fsPath);
-            state.diagnostics.delete(uri.fsPath);
+            merge(uri.fsPath);
           },
-          clear: () => {
-            for (const path of own) state.diagnostics.delete(path);
-            own.clear();
-          },
+          clear,
           dispose: () => {
-            for (const path of own) state.diagnostics.delete(path);
-            own.clear();
+            clear();
+            collections.delete(own);
           },
         };
       },

@@ -13,6 +13,7 @@ import {
 } from '@openspec-ide/server';
 import * as vscode from 'vscode';
 import { archiveSummary, specLine } from './archiveSummary.js';
+import { AuthoringFeatures } from './authoring.js';
 import { resolvePanelPath } from './bridge.js';
 import { type FileDiagnostic, changesTouched, diagnosticsByFile, fileDiagnostics, specsTouched } from './diagnosticsModel.js';
 import { SectionPanel } from './panel.js';
@@ -72,6 +73,8 @@ class OpenspecController implements vscode.Disposable {
   readonly #contextIssues = vscode.languages.createDiagnosticCollection('openspec-context');
   /** Замечания основных спеков — снимаются и ставятся целиком за прогон. */
   readonly #specIssues = vscode.languages.createDiagnosticCollection('openspec-specs');
+  /** Функции редактора для спеков, дельт и плана. */
+  readonly #authoring: AuthoringFeatures;
   #structureTimer: NodeJS.Timeout | null = null;
   /** Файлы, на которые легли диагностики каждого change, — чтобы снимать устаревшие. */
   readonly #diagnosed = new Map<string, vscode.Uri[]>();
@@ -92,6 +95,11 @@ class OpenspecController implements vscode.Disposable {
       previewArchive: (change, capability) => this.previewArchive(change, capability),
     });
     this.#status.command = COMMANDS.openBoard;
+    this.#authoring = new AuthoringFeatures({
+      root: () => this.root,
+      request: (method, path, body, quiet) => this.#request(method, path, body, { quiet: quiet === true }),
+      openFile: (path, line) => this.openFile(path, line),
+    });
   }
 
   get root(): string | null {
@@ -112,6 +120,7 @@ class OpenspecController implements vscode.Disposable {
       vscode.commands.registerCommand(COMMANDS.archiveChange, (node?: TreeNode) => this.archiveChange(node)),
       vscode.commands.registerCommand(COMMANDS.previewArchive, (node?: TreeNode) => this.previewArchiveCommand(node)),
       vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, this.#previews),
+      ...this.#authoring.register(),
       vscode.commands.registerCommand(COMMANDS.checkStructure, () => this.checkStructure(true)),
       vscode.commands.registerCommand(COMMANDS.validateSpecs, () => this.validateSpecsCommand()),
       // Лишний файл может появиться где угодно в рабочей области, а не только
@@ -138,6 +147,7 @@ class OpenspecController implements vscode.Disposable {
     this.#structure.dispose();
     this.#contextIssues.dispose();
     this.#specIssues.dispose();
+    this.#authoring.dispose();
     if (this.#structureTimer !== null) clearTimeout(this.#structureTimer);
     this.#tree.dispose();
     this.#diagnostics.dispose();
@@ -600,13 +610,17 @@ class OpenspecController implements vscode.Disposable {
         const paths = (event.payload as { paths?: readonly string[] } | undefined)?.paths ?? [];
         for (const change of changesTouched(paths)) void this.validate(change);
         if (specsTouched(paths)) void this.validateSpecs();
+        void this.#authoring.reload();
       }
     });
 
     await this.refresh();
     void this.checkStructure(false);
     void this.checkContext();
-    if (this.#workspace?.state === 'ready') void this.validateSpecs();
+    if (this.#workspace?.state === 'ready') {
+      void this.validateSpecs();
+      void this.#authoring.reload();
+    }
     // Замечания всех активных changes видны сразу, а не после первой правки.
     if (this.#workspace?.state === 'ready') {
       for (const change of this.#workspace.tree.changes) void this.validate(change.name);
@@ -614,6 +628,7 @@ class OpenspecController implements vscode.Disposable {
   }
 
   async #stopBackend(): Promise<void> {
+    this.#authoring.clear();
     this.#unsubscribe?.();
     this.#unsubscribe = null;
     const backend = this.#backend;
