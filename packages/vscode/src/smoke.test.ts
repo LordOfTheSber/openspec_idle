@@ -461,9 +461,11 @@ describe('расширение VS Code: помощь в редакторе', () 
     const root = copyFixture('delta-ops');
     const state = await activate([root]);
 
-    for (const kind of ['completion', 'codeAction', 'hover', 'definition', 'codeLens', 'documentSymbol', 'workspaceSymbol']) {
+    for (const kind of ['completion', 'hover', 'definition', 'codeLens', 'documentSymbol', 'workspaceSymbol']) {
       expect(state.providers.get(kind)?.length, kind).toBe(1);
     }
+    // Исправления ссылок и сравнение устаревшего требования — два поставщика действий.
+    expect(state.providers.get('codeAction')?.length).toBe(2);
     // В фикстуре REMOVED «Устаревшая выгрузка» — такого требования в основном спеке нет.
     const removed = join(root, 'openspec/changes/rework-export/specs/data-export/spec.md');
     await until(

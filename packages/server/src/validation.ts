@@ -68,6 +68,29 @@ export class ValidationRunner {
     return { ...outcome, specCount };
   }
 
+  /**
+   * Проверяет, что у архивных changes выполнены все пункты плана
+   * (`validate --archived`). Замечания ложатся на файлы в архиве.
+   */
+  async runArchived(): Promise<SpecValidationRun> {
+    let specCount = 0;
+    const outcome = await this.#run(ARCHIVED_KEY, ['validate', '--archived', '--json'], async (report) => {
+      specCount = report.items.length;
+      return report.items.flatMap((item) =>
+        item.issues.map((issue) => ({
+          level: normalizeLevel(issue.level),
+          message: issue.message,
+          file:
+            issue.path === undefined || issue.path === '' || issue.path === 'file'
+              ? `${OPENSPEC_DIR}/changes/archive/${item.id}`
+              : `${OPENSPEC_DIR}/changes/archive/${item.id}/${issue.path.replaceAll('\\', '/')}`,
+          line: extractLine(issue.message),
+        })),
+      );
+    });
+    return { ...outcome, specCount };
+  }
+
   async #run(
     key: string,
     args: readonly string[],
@@ -174,10 +197,11 @@ export class ValidationRunner {
 
 /** Ключ прогона по основным спекам — не пересекается с именами changes. */
 const SPECS_KEY = '\u0000specs';
+const ARCHIVED_KEY = '\u0000archived';
 
 /** Итог проверки основных спеков. */
 export interface SpecValidationRun extends Omit<ValidationRun, 'change'> {
-  /** Сколько спеков проверил CLI. */
+  /** Сколько элементов проверил CLI: спеков или архивных changes. */
   readonly specCount: number;
 }
 

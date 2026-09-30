@@ -381,3 +381,54 @@ export function buildDriftReport(input: DriftInput): DriftReport {
     archiveOrder: archiveOrder(input.changes.filter((change) => change.readyToArchive)),
   };
 }
+
+/** Замечание отчёта на строке файла дельты (строка с 1). */
+export interface DriftFinding {
+  readonly path: string;
+  readonly line: number;
+  readonly level: 'warning' | 'info';
+  readonly message: string;
+}
+
+/**
+ * Замечания отчёта по строкам дельт: пересечение и устаревание —
+ * предупреждения, «возможно устарела» — сведение. Их показывают и панель
+ * «Проблемы», и команда проверки для CI.
+ */
+export function driftFindings(report: DriftReport): DriftFinding[] {
+  const findings: DriftFinding[] = [];
+  for (const drift of Object.values(report.changes)) {
+    for (const overlap of drift.overlaps) {
+      findings.push({
+        path: overlap.path,
+        line: overlap.line,
+        level: 'warning',
+        message:
+          `Требование «${overlap.requirement}» (${overlap.capability}) меняет и ` +
+          `${overlap.others.map((other) => `«${other.change}» (${other.operation})`).join(', ')}. ` +
+          'Change, архивированный вторым, должен учесть правки первого',
+      });
+    }
+    for (const stale of drift.stale) {
+      findings.push({ path: stale.path, line: stale.line, level: stale.certainty === 'stale' ? 'warning' : 'info', message: staleMessage(stale) });
+    }
+  }
+  return findings;
+}
+
+/** Текст замечания об устаревшем требовании. */
+export function staleMessage(stale: StaleRequirement): string {
+  const head =
+    stale.certainty === 'possible'
+      ? `Дельта «${stale.requirement}», возможно, устарела: после создания change архивированы changes, менявшие это требование`
+      : stale.removedFromMain
+        ? `Требования «${stale.requirement}» больше нет в основном спеке — его убрали после того, как дельта была написана`
+        : `Основной спек изменил «${stale.requirement}» после того, как дельта была написана (${stale.baseline ?? '?'}) — при архивации эти правки будут перезаписаны`;
+  const parts = [
+    stale.changedScenarios.length > 0 ? `изменены сценарии: ${stale.changedScenarios.join(', ')}` : null,
+    stale.addedScenarios.length > 0 ? `добавлены: ${stale.addedScenarios.join(', ')}` : null,
+    stale.removedScenarios.length > 0 && !stale.removedFromMain ? `убраны: ${stale.removedScenarios.join(', ')}` : null,
+    stale.archivedAfter.length > 0 ? `архивированы: ${stale.archivedAfter.join(', ')}` : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length === 0 ? head : `${head}. ${parts.join('; ')}`;
+}

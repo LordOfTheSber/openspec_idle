@@ -55,6 +55,11 @@ export interface ServerOptions {
    * каталогах npm.
    */
   readonly cliPath?: string | null;
+  /**
+   * Вести метрики пунктов плана в `.openspec-ide/`. Выключается там, где
+   * бэкенд не должен ничего писать в проект, — в команде проверки для CI.
+   */
+  readonly metrics?: boolean;
 }
 
 /** Запущенный сервер. */
@@ -114,7 +119,7 @@ export function createApp(options: ServerOptions): AppParts {
   // Карте контекста CLI тоже не нужен: модули, ADR и спеки читаются с диска.
   const contextMap = root === null ? null : new ContextMapService(root);
   const metrics =
-    root === null || board === null || reader === null
+    root === null || board === null || reader === null || options.metrics === false
       ? null
       : new MetricsService({
           root,
@@ -549,6 +554,11 @@ export function createApp(options: ServerOptions): AppParts {
   app.get('/api/validate/specs', async () => {
     if (validation === null) throw new Error('CLI OpenSpec недоступен');
     return validation.runSpecs();
+  });
+
+  app.get('/api/validate/archived', async () => {
+    if (validation === null) throw new Error('CLI OpenSpec недоступен');
+    return validation.runArchived();
   });
 
   app.get('/api/events', (request, reply) => {
