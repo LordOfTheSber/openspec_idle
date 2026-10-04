@@ -238,6 +238,9 @@ export {
 export {
   DUPLICATE_MIN_CHARS,
   LARGE_FILE_TOKENS,
+  LOW_USEFULNESS,
+  STALE_HALF_COMMITS,
+  USEFULNESS_MIN_TOKENS,
   codePathPrefix,
   countLines,
   estimateTokens,
@@ -245,9 +248,13 @@ export {
   findDuplicates,
   isActiveAdrStatus,
   isEmptyContext,
+  measureUsefulness,
   normalizeProjectPath,
   referenceCandidates,
+  type ContextBallast,
   type ContextDuplicate,
+  type ContextUsefulness,
+  type UsefulnessOptions,
   type MarkdownReference,
   type TextLocation,
 } from './contextControl.js';

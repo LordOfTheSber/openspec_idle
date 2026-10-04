@@ -22,7 +22,7 @@
 | `src/trackedItems.ts`, `src/metrics.ts`, `src/acceptance.ts` | пункты плана, снимок метрик из журнала событий, проверка приёмки |
 | `src/sdd.ts`, `src/schemaDocument.ts`, `src/schemaPreview.ts` | правила SDD и правка схемы процесса |
 | `src/structure.ts` | проверка раскладки по `openspec/structure.yaml` |
-| `src/contextMap.ts`, `src/contextControl.ts` | карта модулей, доменов и ADR, набор контекста, объём, лишнее, ссылки |
+| `src/contextMap.ts`, `src/contextControl.ts` | карта модулей, доменов и ADR, набор контекста, объём, полезность, лишнее, ссылки |
 | `src/trace.ts`, `src/authoring.ts`, `src/drift.ts` | трассировка `↳`, помощь в редакторе, пересечения и устаревшие дельты |
 | `src/workspaceTree.ts`, `src/search.ts` | дерево рабочего пространства и поиск |
 | `src/hostProtocol.ts`, `src/constants.ts` | сообщения панель ↔ хост, `API_REVISION` |

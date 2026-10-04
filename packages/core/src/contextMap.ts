@@ -18,13 +18,17 @@
 
 import {
   type ContextDuplicate,
+  type ContextUsefulness,
   LARGE_FILE_TOKENS,
+  LOW_USEFULNESS,
+  USEFULNESS_MIN_TOKENS,
   countLines,
   estimateTokens,
   extractReferences,
   findDuplicates,
   isActiveAdrStatus,
   isEmptyContext,
+  measureUsefulness,
   referenceCandidates,
 } from './contextControl.js';
 
@@ -172,6 +176,8 @@ export interface ContextModule {
   readonly maxTokens: number | null;
   /** Оценка токенов набора модуля (с зависимостями, спеками и ADR). */
   readonly bundleTokens: number;
+  /** Полезные токены набора модуля — по коэффициентам полезности файлов. */
+  readonly bundleUsefulTokens: number;
   readonly freshness: ModuleFreshness | null;
 }
 
@@ -207,6 +213,8 @@ export interface ContextFile {
   readonly lines: number;
   /** Оценка числа токенов. */
   readonly tokens: number;
+  /** Коэффициент полезности и из чего он сложился. */
+  readonly usefulness: ContextUsefulness;
 }
 
 /** Ссылка из текста контекста на путь в проекте. */
@@ -265,7 +273,8 @@ export type ContextIssueKind =
   | 'unused-file'
   | 'broken-reference'
   | 'stale-context'
-  | 'no-code-paths';
+  | 'no-code-paths'
+  | 'low-usefulness';
 
 /** Замечание к контексту. */
 export interface ContextIssue {
@@ -296,6 +305,8 @@ export interface ContextMap {
   readonly files: readonly ContextFile[];
   /** Оценка токенов всех файлов контекста. */
   readonly totalTokens: number;
+  /** Полезные токены всех файлов контекста. */
+  readonly usefulTokens: number;
   /** Абзацы, повторяющиеся в общем контексте, `context.md` и ADR. */
   readonly duplicates: readonly ContextDuplicate[];
   /** Пути, на которые ссылаются тексты контекста. */
@@ -736,8 +747,9 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
     }
   }
 
-  const files = contextFiles(input, modules, domains, adrs);
-  const control = controlIssues(input, modules, adrs, files, issues);
+  const sizes = contextFiles(input, modules, domains, adrs);
+  const control = controlIssues(input, modules, adrs, sizes, issues);
+  const files = withUsefulness(input, modules, sizes, control, issues);
 
   const contextModules: ContextModule[] = [...modules.values()].map((module) => ({
     id: module.id,
@@ -753,6 +765,7 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
     adrs: adrLinks.filter((link) => link.kind === 'module' && link.target === module.id).map((link) => link.adr),
     maxTokens: module.maxTokens,
     bundleTokens: 0,
+    bundleUsefulTokens: 0,
     freshness: module.freshness,
   }));
 
@@ -768,6 +781,7 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
     issues,
     files,
     totalTokens: files.reduce((sum, file) => sum + file.tokens, 0),
+    usefulTokens: files.reduce((sum, file) => sum + file.usefulness.usefulTokens, 0),
     duplicates: control.duplicates,
     references: control.references,
     unusedFiles: [...(input.unusedFiles ?? [])].sort(byName),
@@ -775,16 +789,19 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
   return withBudgets(map, (id) => modules.get(id)?.lineOf('max_tokens') ?? null);
 }
 
+/** Файл контекста с оценкой объёма, но ещё без оценки полезности. */
+type SizedFile = Omit<ContextFile, 'usefulness'>;
+
 /** Файлы контекста, чей текст прочитан, с оценкой объёма — в порядке набора. */
 function contextFiles(
   input: ContextMapInput,
   modules: ReadonlyMap<string, ParsedModule>,
   domains: readonly ContextDomain[],
   adrs: readonly ContextAdr[],
-): ContextFile[] {
+): SizedFile[] {
   const texts = input.texts;
   if (texts === undefined) return [];
-  const files: ContextFile[] = [];
+  const files: SizedFile[] = [];
   const add = (path: string, kind: ContextFile['kind'], owner: string | null): void => {
     const text = texts.get(path);
     if (text === undefined || files.some((file) => file.path === path)) return;
@@ -807,7 +824,7 @@ function controlIssues(
   input: ContextMapInput,
   modules: ReadonlyMap<string, ParsedModule>,
   adrs: readonly ContextAdr[],
-  files: readonly ContextFile[],
+  files: readonly SizedFile[],
   issues: ContextIssue[],
 ): { duplicates: ContextDuplicate[]; references: ContextReference[] } {
   const texts = input.texts ?? new Map<string, string>();
@@ -939,6 +956,83 @@ function controlIssues(
   return { duplicates, references };
 }
 
+/**
+ * Коэффициент полезности каждого файла — по повторам и битым путям, которые
+ * нашёл контроль, и по свежести модуля; сведение о низкой полезности.
+ */
+function withUsefulness(
+  input: ContextMapInput,
+  modules: ReadonlyMap<string, ParsedModule>,
+  files: readonly SizedFile[],
+  control: { readonly duplicates: readonly ContextDuplicate[]; readonly references: readonly ContextReference[] },
+  issues: ContextIssue[],
+): ContextFile[] {
+  const texts = input.texts ?? new Map<string, string>();
+  const linesOf = (map: Map<string, Set<number>>, path: string, line: number): void => {
+    const set = map.get(path) ?? new Set<number>();
+    set.add(line);
+    map.set(path, set);
+  };
+  const repeats = new Map<string, Set<number>>();
+  for (const duplicate of control.duplicates) {
+    for (const place of duplicate.occurrences.slice(1)) linesOf(repeats, place.path, place.line);
+  }
+  const broken = new Map<string, Set<number>>();
+  for (const reference of control.references) if (!reference.resolved) linesOf(broken, reference.path, reference.line);
+  const moduleOf = new Map<string, ParsedModule>();
+  for (const module of modules.values()) {
+    if (module.hasContext) moduleOf.set(modulePath(module.folder, MODULE_CONTEXT_FILE), module);
+  }
+
+  return files.map((file) => {
+    const module = file.kind === 'module' ? moduleOf.get(file.path) : undefined;
+    const freshness = module?.freshness ?? null;
+    const usefulness = measureUsefulness(texts.get(file.path) ?? '', {
+      duplicateLines: repeats.get(file.path) ?? new Set(),
+      brokenLines: broken.get(file.path) ?? new Set(),
+      grounding: file.kind === 'module',
+      commitsAfter: freshness === null ? null : freshness.uncommitted ? 0 : freshness.commitsAfter,
+    });
+    if (usefulness.tokens >= USEFULNESS_MIN_TOKENS && usefulness.ballast.empty === 0 && usefulness.score < LOW_USEFULNESS) {
+      issues.push({
+        kind: 'low-usefulness',
+        severity: 'info',
+        path: file.path,
+        line: null,
+        message: usefulnessMessage(usefulness),
+        ...(module === undefined ? {} : { module: module.id }),
+        ...(file.kind === 'spec' && file.owner !== null ? { domain: file.owner } : {}),
+      });
+    }
+    return { ...file, usefulness };
+  });
+}
+
+/** Процент для сообщений: `0.427` → `43 %`. */
+function percent(value: number): string {
+  return `${Math.round(value * 100)} %`;
+}
+
+/** Сведение о низкой полезности: коэффициент и то, что его снизило. */
+function usefulnessMessage(usefulness: ContextUsefulness): string {
+  const { ballast } = usefulness;
+  const parts = [
+    ballast.duplicate > 0 ? `повторы ≈ ${ballast.duplicate}` : null,
+    ballast.placeholder > 0 ? `заготовки ≈ ${ballast.placeholder}` : null,
+    ballast.broken > 0 ? `абзацы с ненайденными путями ≈ ${ballast.broken}` : null,
+  ].filter((part): part is string => part !== null);
+  const reasons = [
+    parts.length > 0 ? `балласт: ${parts.join(', ')} токенов` : null,
+    usefulness.grounding !== null && usefulness.grounding < 0.5 ? `привязка к коду ${percent(usefulness.grounding)}` : null,
+    usefulness.freshness !== null && usefulness.freshness < 1 ? `отставание от кода — множитель ${usefulness.freshness.toFixed(2).replace('.', ',')}` : null,
+  ].filter((part): part is string => part !== null);
+  return (
+    `Полезная доля файла ≈ ${percent(usefulness.score)} из ≈ ${usefulness.tokens} токенов` +
+    (reasons.length > 0 ? ` — ${reasons.join('; ')}` : '') +
+    ': уберите повторы и заготовки, исправьте пути, привяжите описание к коду'
+  );
+}
+
 function commitsWord(count: number): string {
   const tens = count % 100;
   const ones = count % 10;
@@ -952,7 +1046,7 @@ function commitsWord(count: number): string {
 function withBudgets(map: ContextMap, budgetLine: (module: string) => number | null): ContextMap {
   const issues = [...map.issues];
   const modules = map.modules.map((module) => {
-    const bundleTokens = contextBundle(map, { modules: [module.id] }).tokens;
+    const { tokens: bundleTokens, usefulTokens: bundleUsefulTokens } = contextBundle(map, { modules: [module.id] });
     if (module.maxTokens !== null && bundleTokens > module.maxTokens) {
       issues.push({
         kind: 'over-budget',
@@ -963,7 +1057,7 @@ function withBudgets(map: ContextMap, budgetLine: (module: string) => number | n
         module: module.id,
       });
     }
-    return { ...module, bundleTokens };
+    return { ...module, bundleTokens, bundleUsefulTokens };
   });
   return { ...map, modules, issues };
 }
@@ -1003,6 +1097,8 @@ export interface ContextBundle {
   readonly skippedAdrs: readonly string[];
   /** Оценка токенов набора — по файлам, чей объём известен карте. */
   readonly tokens: number;
+  /** Полезные токены набора — по коэффициентам полезности файлов. */
+  readonly usefulTokens: number;
 }
 
 /**
@@ -1064,7 +1160,12 @@ export function contextBundle(
   for (const id of order) add(byId.get(id)?.contextPath);
   for (const id of domains) add(specs.get(id));
   for (const path of adrs) add(path);
-  const sizes = new Map((map.files ?? []).map((file) => [file.path, file.tokens]));
-  const tokens = files.reduce((sum, path) => sum + (sizes.get(path) ?? 0), 0);
-  return { modules: order, domains, adrs, files, skippedAdrs, tokens };
+  const known = new Map((map.files ?? []).map((file) => [file.path, file]));
+  const tokens = files.reduce((sum, path) => sum + (known.get(path)?.tokens ?? 0), 0);
+  // Карта старше оценки полезности её не знает — тогда полезным считается весь объём.
+  const usefulTokens = files.reduce((sum, path) => {
+    const file = known.get(path);
+    return sum + (file === undefined ? 0 : ((file.usefulness as ContextUsefulness | undefined)?.usefulTokens ?? file.tokens));
+  }, 0);
+  return { modules: order, domains, adrs, files, skippedAdrs, tokens, usefulTokens };
 }

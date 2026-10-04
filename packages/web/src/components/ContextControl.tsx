@@ -2,8 +2,11 @@ import { useState } from 'react';
 import {
   type ContextFile,
   type ContextMap as ContextMapModel,
+  type ContextUsefulness,
   type ModuleFreshness,
   LARGE_FILE_TOKENS,
+  LOW_USEFULNESS,
+  USEFULNESS_MIN_TOKENS,
   contextBundle,
 } from '@openspec-ide/core';
 import { nodeKey } from '../lib/contextLayout.js';
@@ -68,10 +71,23 @@ function fileKind(file: ContextFile): string {
   }
 }
 
-function Meter({ value, max, label, over = false }: { readonly value: number; readonly max: number; readonly label: string; readonly over?: boolean }) {
+function Meter({
+  value,
+  max,
+  label,
+  over = false,
+  tone,
+}: {
+  readonly value: number;
+  readonly max: number;
+  readonly label: string;
+  readonly over?: boolean;
+  /** Цвет полосы по качеству: `good`, `mid`, `low`; без него — обычный. */
+  readonly tone?: 'good' | 'mid' | 'low';
+}) {
   const width = max <= 0 ? 0 : Math.min(100, Math.round((value / max) * 100));
   return (
-    <span className={over ? 'bar over' : 'bar'}>
+    <span className={['bar', over ? 'over' : null, tone ?? null].filter(Boolean).join(' ')}>
       <span className="track">
         <span className="fill" style={{ width: `${width}%` }} />
       </span>
@@ -88,6 +104,7 @@ export function ContextControl({ map, onShow }: { readonly map: ContextMapModel;
   return (
     <div className="ctx-control" data-testid="context-control">
       <VolumeCard map={map} onShow={onShow} />
+      <UsefulnessCard map={map} />
       <ExcessCard map={map} />
       <RealityCard map={map} onShow={onShow} />
     </div>
@@ -170,6 +187,7 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
                   Файлов
                 </th>
                 <th scope="col">Токенов</th>
+                <th scope="col">Полезных</th>
                 <th scope="col">Бюджет</th>
               </tr>
             </thead>
@@ -187,6 +205,10 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
                     <td>
                       <Meter value={module.bundleTokens} max={largest} label={tokens(module.bundleTokens)} over={over} />
                     </td>
+                    <td className="ctx-useful-cell" data-testid={`ctx-control-bundle-useful-${module.id}`}>
+                      <span className="wide">{tokens(module.bundleUsefulTokens)} · </span>
+                      {formatShare(module.bundleTokens === 0 ? null : module.bundleUsefulTokens / module.bundleTokens)}
+                    </td>
                     <td>
                       {module.maxTokens === null ? (
                         <span className="muted">—</span>
@@ -202,6 +224,156 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
             </tbody>
           </table>
         </>
+      )}
+    </section>
+  );
+}
+
+/** Файл отмечен сведением о низкой полезности — по тем же правилам, что и в карте. */
+function isLowUseful(file: ContextFile): boolean {
+  const usefulness = file.usefulness;
+  return usefulness.ballast.empty === 0 && file.tokens >= USEFULNESS_MIN_TOKENS && usefulness.score < LOW_USEFULNESS;
+}
+
+/** Цвет коэффициента: от 80 % — хорошо, от 50 % — средне, ниже — плохо. */
+function usefulTone(score: number): 'good' | 'mid' | 'low' {
+  if (score >= 0.8) return 'good';
+  if (score >= LOW_USEFULNESS) return 'mid';
+  return 'low';
+}
+
+/** Разбивка коэффициента одной строкой — для подсказки и узкой панели. */
+export function usefulnessSummary(usefulness: ContextUsefulness): string {
+  const { ballast } = usefulness;
+  const parts = [
+    `плотность ${formatShare(usefulness.density)}`,
+    ballast.empty > 0 ? 'пустой файл' : null,
+    ballast.duplicate > 0 ? `повторы ≈ ${ballast.duplicate}` : null,
+    ballast.placeholder > 0 ? `заготовки ≈ ${ballast.placeholder}` : null,
+    ballast.broken > 0 ? `битые пути ≈ ${ballast.broken}` : null,
+    usefulness.grounding === null ? null : `привязка ${formatShare(usefulness.grounding)}`,
+    usefulness.freshness === null ? null : `свежесть ${usefulness.freshness.toFixed(2).replace('.', ',')}`,
+  ];
+  return parts.filter((part): part is string => part !== null).join(' · ');
+}
+
+function BallastChips({ usefulness }: { readonly usefulness: ContextUsefulness }) {
+  const { ballast } = usefulness;
+  const chips = [
+    ballast.empty > 0 ? 'пустой' : null,
+    ballast.duplicate > 0 ? `повторы ${tokens(ballast.duplicate)}` : null,
+    ballast.placeholder > 0 ? `заготовки ${tokens(ballast.placeholder)}` : null,
+    ballast.broken > 0 ? `битые пути ${tokens(ballast.broken)}` : null,
+  ].filter((chip): chip is string => chip !== null);
+  if (chips.length === 0) return <span className="muted">—</span>;
+  return (
+    <span className="ctx-ballast">
+      {chips.map((chip) => (
+        <span key={chip} className="chip warn">
+          {chip}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function FreshnessFactor({ usefulness, file, map }: { readonly usefulness: ContextUsefulness; readonly file: ContextFile; readonly map: ContextMapModel }) {
+  if (file.kind !== 'module') return <span className="muted">—</span>;
+  const module = map.modules.find((item) => item.contextPath === file.path);
+  if (module !== undefined && module.codePaths.length === 0) return <span className="muted">не привязан к коду</span>;
+  if (usefulness.freshness === null) return <span className="muted">нет данных git</span>;
+  if (usefulness.freshness >= 1) return <span className="chip ok">актуален</span>;
+  const behind = module?.freshness?.commitsAfter ?? 0;
+  return (
+    <span className="chip warn">
+      {usefulness.freshness.toFixed(2).replace('.', ',')} · {plural(behind, ['коммит', 'коммита', 'коммитов'])}
+    </span>
+  );
+}
+
+/**
+ * Карточка «Полезность»: сколько токенов контекста работает, у каких файлов
+ * потери и из чего они сложились.
+ */
+function UsefulnessCard({ map }: { readonly map: ContextMapModel }) {
+  const [all, setAll] = useState(false);
+  const lost = (file: ContextFile): number => file.tokens - file.usefulness.usefulTokens;
+  const losing = map.files.filter((file) => lost(file) > 0).sort((a, b) => lost(b) - lost(a) || a.path.localeCompare(b.path));
+  const shown = all ? losing : losing.slice(0, TOP_FILES);
+  const rest = map.files.length - losing.length;
+
+  return (
+    <section className="ctx-control-card" aria-labelledby="ctx-useful" data-testid="ctx-control-usefulness">
+      <h3 id="ctx-useful">Полезность</h3>
+      <p className="muted" data-testid="ctx-control-useful-total">
+        {tokens(map.usefulTokens)} полезных токенов из {tokens(map.totalTokens)} —{' '}
+        {formatShare(map.totalTokens === 0 ? null : map.usefulTokens / map.totalTokens)}.
+      </p>
+      <p className="muted small">
+        Коэффициент = плотность × (0,5 + 0,5 × привязка) × свежесть. Плотность — доля токенов без балласта: повторов, заготовок
+        шаблона, абзацев с ненайденными путями. Привязка и свежесть — только у context.md модулей. Это оценка по тексту, а не по
+        работе агента.
+      </p>
+      {losing.length === 0 ? (
+        map.files.length > 0 && <p className="muted">Потерь нет: повторов, заготовок и ненайденных путей в контексте нет.</p>
+      ) : (
+        <table className="ctx-control-table" data-testid="ctx-control-useful-files">
+          <thead>
+            <tr>
+              <th scope="col">Файл</th>
+              <th scope="col">Полезно</th>
+              <th scope="col" className="num">
+                Потеряно
+              </th>
+              <th scope="col" className="wide">
+                Балласт
+              </th>
+              <th scope="col" className="wide">
+                Привязка
+              </th>
+              <th scope="col" className="wide">
+                Свежесть
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((file) => {
+              const usefulness = file.usefulness;
+              const low = isLowUseful(file);
+              return (
+                <tr key={file.path} data-testid={`ctx-control-useful-${file.path}`} title={usefulnessSummary(usefulness)}>
+                  <td>
+                    <FileLink path={file.path} />
+                    {low && <span className="chip bad">низкая</span>}
+                  </td>
+                  <td>
+                    <Meter value={usefulness.score} max={1} label={formatShare(usefulness.score)} tone={usefulTone(usefulness.score)} />
+                  </td>
+                  <td className="num">{tokens(lost(file))}</td>
+                  <td className="wide">
+                    <BallastChips usefulness={usefulness} />
+                  </td>
+                  <td className="wide">{usefulness.grounding === null ? <span className="muted">—</span> : formatShare(usefulness.grounding)}</td>
+                  <td className="wide">
+                    <FreshnessFactor usefulness={usefulness} file={file} map={map} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {losing.length > TOP_FILES && (
+        <button type="button" className="btn small" onClick={() => setAll(!all)}>
+          {all ? 'Только с наибольшими потерями' : `Показать все (${losing.length})`}
+        </button>
+      )}
+      {losing.length > 0 && rest > 0 && (
+        <p className="muted small">
+          {rest === 1 ? 'Остальной' : 'Остальные'} {plural(rest, ['файл', 'файла', 'файлов'])} — без потерь.
+          {losing.some(isLowUseful) &&
+            ' Файл с коэффициентом ниже 50 % отмечен «низкая» — то же сведение есть в списке замечаний.'}
+        </p>
       )}
     </section>
   );

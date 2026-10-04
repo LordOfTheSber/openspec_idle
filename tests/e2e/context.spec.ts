@@ -94,7 +94,7 @@ test.describe('карта контекста', () => {
     writeFileSync(join(ide.root, 'openspec/context/1.md'), `# Общий контекст 1\n\n${paragraph}\n`);
     writeFileSync(
       join(ide.root, 'openspec/context/modules/master/context.md'),
-      `# Контекст sds-master\n\n${paragraph}\n\nТочка входа — \`Main.java\`, сессии — \`session/Store.java\`.\n`,
+      `# Контекст sds-master\n\n<!-- Опишите назначение модуля и пути к коду. -->\n\n${paragraph}\n\nТочка входа — \`Main.java\`, сессии — \`session/Store.java\`.\n`,
     );
     writeFileSync(join(ide.root, 'openspec/context/modules/master/notes.md'), '# черновик\n');
     writeFileSync(
@@ -105,6 +105,7 @@ test.describe('карта контекста', () => {
     await page.goto(ide.url);
     await page.getByTestId('nav-context').click();
     await expect(page.getByTestId('context-summary')).toContainText('токенов');
+    await expect(page.getByTestId('context-summary')).toContainText('полезных');
 
     await page.getByTestId('context-view-control').click();
     const control = page.getByTestId('context-control');
@@ -112,6 +113,14 @@ test.describe('карта контекста', () => {
     // Объём: каждый файл с оценкой, наборы модулей.
     await expect(page.getByTestId('ctx-control-file-openspec/context/modules/master/context.md')).toContainText('≈');
     await expect(page.getByTestId('ctx-control-bundle-sds-master')).toBeVisible();
+    // Полезность: у context.md модуля — повтор, заготовка и абзац с ненайденным путём; у наборов — доля полезных.
+    await expect(page.getByTestId('ctx-control-useful-total')).toContainText('полезных токенов');
+    const useful = page.getByTestId('ctx-control-useful-openspec/context/modules/master/context.md');
+    await expect(useful).toContainText('повторы');
+    await expect(useful).toContainText('заготовки');
+    await expect(useful).toContainText('битые пути');
+    await expect(page.getByTestId('ctx-control-useful-openspec/context/1.md')).toHaveCount(0);
+    await expect(page.getByTestId('ctx-control-bundle-useful-sds-master')).toContainText('%');
     // Лишнее: повтор, пустой контекст, файл вне наборов, недействующий ADR.
     await expect(page.getByTestId('ctx-control-duplicates')).toContainText('openspec/context/1.md:3');
     await expect(page.getByTestId('ctx-control-empty')).toContainText('modules/sds-impl/context.md');
@@ -127,6 +136,8 @@ test.describe('карта контекста', () => {
     await page.getByTestId('ctx-control-bundle-sds-master').getByRole('button', { name: 'sds-master' }).click();
     await expect(page.getByTestId('context-graph')).toBeVisible();
     await expect(page.getByTestId('context-module-volume')).toContainText('набор ≈');
+    await expect(page.getByTestId('context-module-volume')).toContainText('полезно');
+    await expect(page.getByTestId('context-bundle-useful')).toContainText('%');
     await expect(page.getByTestId('context-bundle-tokens')).toContainText('токенов');
     await expect(page.getByTestId('context-bundle-skipped')).toContainText('ADR-000-async.md');
     await expect(page.getByTestId('context-bundle').locator('ol')).not.toContainText('ADR-000-async.md');

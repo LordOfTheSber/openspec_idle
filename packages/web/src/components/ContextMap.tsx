@@ -3,6 +3,7 @@ import {
   type ContextBundle,
   type ContextIssue,
   type ContextMap as ContextMapModel,
+  LOW_USEFULNESS,
   contextBundle,
 } from '@openspec-ide/core';
 import { createContextModule, fetchContextMap } from '../lib/api.js';
@@ -17,11 +18,11 @@ import {
   nodeKey,
 } from '../lib/contextLayout.js';
 import { bundleKeys, parseNodeKey, selectionOf, togglePicked } from '../lib/contextSelection.js';
-import { formatTokens, plural } from '../lib/format.js';
+import { formatShare, formatTokens, plural } from '../lib/format.js';
 import { inVsCode, openInEditor } from '../lib/host.js';
 import { readListPref, readPref, writeListPref, writePref } from '../lib/prefs.js';
 import { PageActions, useNotify } from '../lib/ui.js';
-import { ContextControl, FileLink, FreshnessNote, tokens } from './ContextControl.js';
+import { ContextControl, FileLink, FreshnessNote, tokens, usefulnessSummary } from './ContextControl.js';
 import { Icon } from './Icon.js';
 
 type View = 'graph' | 'matrix' | 'control';
@@ -169,9 +170,9 @@ export function ContextMap({ revision }: { readonly revision: number }) {
           {plural(map.links.length, ['связь', 'связи', 'связей'])}
           {map.adrs.length > 0 && <> · {map.adrs.length} ADR</>}
           {map.files.length > 0 && (
-            <span title="Оценка токенов всех файлов контекста: общего, модулей, спек доменов и ADR">
+            <span title="Оценка токенов всех файлов контекста: общего, модулей, спек доменов и ADR; полезных — по коэффициенту полезности файлов">
               {' '}
-              · {tokens(map.totalTokens)} токенов
+              · {tokens(map.totalTokens)} токенов, полезных ≈&nbsp;{formatShare(map.totalTokens === 0 ? null : map.usefulTokens / map.totalTokens)}
             </span>
           )}
         </span>
@@ -760,6 +761,11 @@ function BundleFiles({
       </p>
       <p className="ctx-bundle-total" data-testid="context-bundle-tokens">
         <b>{tokens(bundle.tokens)} токенов</b>
+        {bundle.tokens > 0 && (
+          <span className="muted" data-testid="context-bundle-useful">
+            полезных ≈&nbsp;{formatShare(bundle.usefulTokens / bundle.tokens)}
+          </span>
+        )}
         {budget !== null && (
           <span className={over ? 'chip bad' : 'chip ok'}>
             {over ? 'сверх бюджета' : 'в бюджете'} {formatTokens(budget)}
@@ -968,6 +974,7 @@ function Details({
       );
     }
     const bundle = contextBundle(map, { modules: [module.id] });
+    const contextFile = map.files.find((file) => file.path === module.contextPath);
     return (
       <aside className="context-details" data-testid="context-details">
         <header>
@@ -1000,9 +1007,19 @@ function Details({
           </dd>
           <dt>Объём</dt>
           <dd data-testid="context-module-volume">
-            context.md {tokens(map.files.find((file) => file.path === module.contextPath)?.tokens ?? 0)} · набор{' '}
-            {tokens(module.bundleTokens)}
-            {module.maxTokens !== null && <> из {formatTokens(module.maxTokens)}</>}
+            {contextFile === undefined ? (
+              <>context.md {tokens(0)}</>
+            ) : (
+              <>
+                context.md {tokens(contextFile.tokens)}, полезно{' '}
+                <span className={contextFile.usefulness.score < LOW_USEFULNESS ? 'chip bad' : undefined} title={usefulnessSummary(contextFile.usefulness)}>
+                  {formatShare(contextFile.usefulness.score)}
+                </span>
+              </>
+            )}{' '}
+            · набор {tokens(module.bundleTokens)}
+            {module.maxTokens !== null && <> из {formatTokens(module.maxTokens)}</>}, полезных {tokens(module.bundleUsefulTokens)} (
+            {formatShare(module.bundleTokens === 0 ? null : module.bundleUsefulTokens / module.bundleTokens)})
           </dd>
           <dt>Свежесть</dt>
           <dd>
