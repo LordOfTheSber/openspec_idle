@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import {
+  ANTIPATTERN_LABELS,
   type ContextFile,
   type ContextMap as ContextMapModel,
   type ContextUsefulness,
   type ModuleFreshness,
   LARGE_FILE_TOKENS,
+  antipatternMessage,
   LOW_USEFULNESS,
   USEFULNESS_MIN_TOKENS,
   contextBundle,
@@ -105,6 +107,7 @@ export function ContextControl({ map, onShow }: { readonly map: ContextMapModel;
     <div className="ctx-control" data-testid="context-control">
       <VolumeCard map={map} onShow={onShow} />
       <UsefulnessCard map={map} />
+      <AntipatternsCard map={map} />
       <ExcessCard map={map} />
       <RealityCard map={map} onShow={onShow} />
     </div>
@@ -374,6 +377,79 @@ function UsefulnessCard({ map }: { readonly map: ContextMapModel }) {
           {losing.some(isLowUseful) &&
             ' Файл с коэффициентом ниже 50 % отмечен «низкая» — то же сведение есть в списке замечаний.'}
         </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Карточка «Антипаттерны»: за что в контексте платят токенами без пользы —
+ * язык, копии кода, base64, псевдографика, HTML, «вода», капс — и сколько
+ * можно сэкономить.
+ */
+function AntipatternsCard({ map }: { readonly map: ContextMapModel }) {
+  const [all, setAll] = useState(false);
+  // Карта старше проверки антипаттернов их не знает.
+  const files = map.files
+    .filter((file) => (file.antipatterns ?? []).length > 0)
+    .sort((a, b) => b.savableTokens - a.savableTokens || a.path.localeCompare(b.path));
+  const shown = all ? files : files.slice(0, TOP_FILES);
+  const savable = map.savableTokens ?? 0;
+
+  return (
+    <section className="ctx-control-card" aria-labelledby="ctx-antipatterns" data-testid="ctx-control-antipatterns">
+      <h3 id="ctx-antipatterns">Антипаттерны</h3>
+      <p className="muted" data-testid="ctx-control-savable-total">
+        {files.length === 0
+          ? 'Антипаттернов по токенам нет.'
+          : `Можно сэкономить ${tokens(savable)} токенов из ${tokens(map.totalTokens)} — ${formatShare(map.totalTokens === 0 ? null : savable / map.totalTokens)}, в ${plural(files.length, ['файле', 'файлах', 'файлах'])}.`}
+      </p>
+      <p className="muted small">
+        Что стоит токенов и не несёт смысла: текст не на английском, большие блоки кода, base64 и хеши, эмодзи и
+        псевдографика, HTML-разметка, вводные фразы, капс. Экономия — оценка той же эвристикой, что и объём; у текста не на
+        английском она зависит от токенизатора модели.
+      </p>
+      {files.length > 0 && (
+        <table className="ctx-control-table" data-testid="ctx-control-antipattern-files">
+          <thead>
+            <tr>
+              <th scope="col">Файл</th>
+              <th scope="col">Находки</th>
+              <th scope="col" className="num">
+                Экономия
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((file) => (
+              <tr key={file.path} data-testid={`ctx-control-antipattern-${file.path}`}>
+                <td>
+                  <FileLink path={file.path} />
+                </td>
+                <td>
+                  <span className="ctx-ballast">
+                    {file.antipatterns.map((found) => (
+                      <span
+                        key={`${found.kind}:${found.line ?? 0}`}
+                        className="chip warn"
+                        title={antipatternMessage(found, file.tokens)}
+                        data-testid={`ctx-antipattern-${found.kind}`}
+                      >
+                        {ANTIPATTERN_LABELS[found.kind]} {tokens(found.savings)}
+                      </span>
+                    ))}
+                  </span>
+                </td>
+                <td className="num">{tokens(file.savableTokens)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {files.length > TOP_FILES && (
+        <button type="button" className="btn small" onClick={() => setAll(!all)}>
+          {all ? 'Только с наибольшей экономией' : `Показать все (${files.length})`}
+        </button>
       )}
     </section>
   );

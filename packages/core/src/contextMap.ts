@@ -13,8 +13,17 @@
  *
  * Кроме связей карта контролирует сам контекст (`contextControl.ts`): объём
  * файлов и наборов, лишнее (повторы, пустые и неиспользуемые файлы) и связь с
- * реальностью (пути в тексте, отставание контекста от кода).
+ * реальностью (пути в тексте, отставание контекста от кода), а также
+ * антипаттерны по токенам (`contextAntipatterns.ts`).
  */
+
+import {
+  type TokenAntipattern,
+  type TokenAntipatternKind,
+  antipatternMessage,
+  antipatternSavings,
+  findTokenAntipatterns,
+} from './contextAntipatterns.js';
 
 import {
   type ContextDuplicate,
@@ -215,6 +224,10 @@ export interface ContextFile {
   readonly tokens: number;
   /** Коэффициент полезности и из чего он сложился. */
   readonly usefulness: ContextUsefulness;
+  /** Антипаттерны по токенам; у недействующего ADR не ищутся. */
+  readonly antipatterns: readonly TokenAntipattern[];
+  /** Сколько токенов можно сэкономить, исправив антипаттерны, — не больше `tokens`. */
+  readonly savableTokens: number;
 }
 
 /** Ссылка из текста контекста на путь в проекте. */
@@ -274,7 +287,8 @@ export type ContextIssueKind =
   | 'broken-reference'
   | 'stale-context'
   | 'no-code-paths'
-  | 'low-usefulness';
+  | 'low-usefulness'
+  | TokenAntipatternKind;
 
 /** Замечание к контексту. */
 export interface ContextIssue {
@@ -307,6 +321,8 @@ export interface ContextMap {
   readonly totalTokens: number;
   /** Полезные токены всех файлов контекста. */
   readonly usefulTokens: number;
+  /** Токены, которые можно сэкономить, исправив антипаттерны во всех файлах. */
+  readonly savableTokens: number;
   /** Абзацы, повторяющиеся в общем контексте, `context.md` и ADR. */
   readonly duplicates: readonly ContextDuplicate[];
   /** Пути, на которые ссылаются тексты контекста. */
@@ -749,7 +765,7 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
 
   const sizes = contextFiles(input, modules, domains, adrs);
   const control = controlIssues(input, modules, adrs, sizes, issues);
-  const files = withUsefulness(input, modules, sizes, control, issues);
+  const files = withAntipatterns(input, adrs, withUsefulness(input, modules, sizes, control, issues), issues);
 
   const contextModules: ContextModule[] = [...modules.values()].map((module) => ({
     id: module.id,
@@ -782,6 +798,7 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
     files,
     totalTokens: files.reduce((sum, file) => sum + file.tokens, 0),
     usefulTokens: files.reduce((sum, file) => sum + file.usefulness.usefulTokens, 0),
+    savableTokens: files.reduce((sum, file) => sum + file.savableTokens, 0),
     duplicates: control.duplicates,
     references: control.references,
     unusedFiles: [...(input.unusedFiles ?? [])].sort(byName),
@@ -789,8 +806,11 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
   return withBudgets(map, (id) => modules.get(id)?.lineOf('max_tokens') ?? null);
 }
 
-/** Файл контекста с оценкой объёма, но ещё без оценки полезности. */
-type SizedFile = Omit<ContextFile, 'usefulness'>;
+/** Файл контекста с оценкой объёма, но ещё без оценки полезности и антипаттернов. */
+type SizedFile = Omit<ContextFile, 'usefulness' | 'antipatterns' | 'savableTokens'>;
+
+/** Файл с оценкой полезности, но ещё без антипаттернов. */
+type MeasuredFile = Omit<ContextFile, 'antipatterns' | 'savableTokens'>;
 
 /** Файлы контекста, чей текст прочитан, с оценкой объёма — в порядке набора. */
 function contextFiles(
@@ -966,7 +986,7 @@ function withUsefulness(
   files: readonly SizedFile[],
   control: { readonly duplicates: readonly ContextDuplicate[]; readonly references: readonly ContextReference[] },
   issues: ContextIssue[],
-): ContextFile[] {
+): MeasuredFile[] {
   const texts = input.texts ?? new Map<string, string>();
   const linesOf = (map: Map<string, Set<number>>, path: string, line: number): void => {
     const set = map.get(path) ?? new Set<number>();
@@ -1005,6 +1025,35 @@ function withUsefulness(
       });
     }
     return { ...file, usefulness };
+  });
+}
+
+/**
+ * Антипаттерны по токенам в каждом файле, кроме недействующих ADR: они не
+ * входят в набор, и токенов агента не тратят. Каждая находка — сведение.
+ */
+function withAntipatterns(
+  input: ContextMapInput,
+  adrs: readonly ContextAdr[],
+  files: readonly MeasuredFile[],
+  issues: ContextIssue[],
+): ContextFile[] {
+  const texts = input.texts ?? new Map<string, string>();
+  const inactive = new Set(adrs.filter((adr) => !adr.active).map((adr) => adr.path));
+  return files.map((file) => {
+    const antipatterns = inactive.has(file.path) ? [] : findTokenAntipatterns(texts.get(file.path) ?? '');
+    for (const found of antipatterns) {
+      issues.push({
+        kind: found.kind,
+        severity: 'info',
+        path: file.path,
+        line: found.line,
+        message: antipatternMessage(found, file.tokens),
+        ...(file.kind === 'module' && file.owner !== null ? { module: file.owner } : {}),
+        ...(file.kind === 'spec' && file.owner !== null ? { domain: file.owner } : {}),
+      });
+    }
+    return { ...file, antipatterns, savableTokens: antipatternSavings(antipatterns, file.tokens) };
   });
 }
 
