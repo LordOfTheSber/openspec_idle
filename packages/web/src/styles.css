@@ -2789,6 +2789,127 @@ code {
   align-self: flex-start;
 }
 
+.ctx-bundle-total {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ctx-bundle-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ctx-bundle-file {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ctx-bundle-size {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- контекст: вид «Контроль» ---------- */
+
+.ctx-control {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ctx-control-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.ctx-control-card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.ctx-control-card h4 {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+}
+
+.ctx-control-card p {
+  margin: 0;
+}
+
+.ctx-control-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ctx-control-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ctx-control-table td {
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px solid var(--border-2);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.ctx-control-table td .chip {
+  margin-left: 6px;
+}
+
+.ctx-control-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ctx-control-table .bar .val {
+  width: 112px;
+}
+
+.bar.over .fill {
+  background: var(--modified);
+}
+
+.ctx-control-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.ctx-control-list q {
+  font-style: italic;
+}
+
+.ctx-control-where {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 11.5px;
+}
+
 @media (max-width: 900px) {
   .context-body {
     flex-direction: column;

@@ -4,7 +4,8 @@ import type { ContextMap } from '@openspec-ide/core';
 export interface ContextDiagnostic {
   readonly line: number;
   readonly message: string;
-  readonly severity: 'error' | 'warning';
+  /** `info` — сведение: в панели «Проблемы» уровнем Information. */
+  readonly severity: 'error' | 'warning' | 'info';
 }
 
 /**
@@ -13,7 +14,7 @@ export interface ContextDiagnostic {
  * на начало файла. На папку диагностику не повесить, поэтому замечание о
  * модуле без `index.md` в панель не попадает — оно видно в разделе «Контекст».
  */
-export function contextDiagnostics(map: ContextMap): Map<string, ContextDiagnostic[]> {
+export function contextDiagnostics(map: Pick<ContextMap, 'issues'>): Map<string, ContextDiagnostic[]> {
   const byFile = new Map<string, ContextDiagnostic[]>();
   for (const issue of map.issues) {
     if (issue.kind === 'missing-index') continue;

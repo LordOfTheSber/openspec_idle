@@ -54,6 +54,23 @@ describe('проверка проекта для CI', () => {
     expect(errors.every((finding) => finding.check === 'context' && finding.file?.endsWith('.md'))).toBe(true);
   });
 
+  it('контроль контекста: пустой контекст и пропавший путь — предупреждения, модуль без кода — сведение', async () => {
+    const dir = copy('context-map');
+    writeFileSync(join(dir, 'openspec/context/modules/master/context.md'), '# sds-master\n\nХранилище — `sds-master/src/main/java/Store.java`.\n');
+    writeFileSync(join(dir, 'openspec/context/modules/sds-impl/index.md'), '---\nmodule: sds-impl\ndomains: [replication]\n---\n');
+
+    const report = await runCheck({ cwd: dir, only: ['context'] });
+
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ level: 'warning', file: 'openspec/context/modules/master/context.md', line: 3 }),
+    );
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ level: 'warning', file: 'openspec/context/modules/sds-impl/context.md', line: null }),
+    );
+    expect(report.findings).toContainEqual(expect.objectContaining({ level: 'info', file: 'openspec/context/modules/sds-impl/index.md' }));
+    expect(report.checks).toEqual([expect.objectContaining({ check: 'context', status: 'passed', infos: 1 })]);
+  });
+
   it('дельты и план: несуществующее требование, непокрытый сценарий и пересечение', async () => {
     const report = await runCheck({ cwd: copy('delta-ops'), only: ['authoring', 'coverage', 'drift'] });
 

@@ -225,12 +225,32 @@ export {
   type ContextMap,
   type ContextMapInput,
   type ContextModule,
+  type ContextFile,
+  type ContextReference,
   type Frontmatter,
   type KeyLine,
   type ModuleDependency,
   type ModuleDomainLink,
+  type ModuleFreshness,
   type ModuleSource,
 } from './contextMap.js';
+
+export {
+  DUPLICATE_MIN_CHARS,
+  LARGE_FILE_TOKENS,
+  codePathPrefix,
+  countLines,
+  estimateTokens,
+  extractReferences,
+  findDuplicates,
+  isActiveAdrStatus,
+  isEmptyContext,
+  normalizeProjectPath,
+  referenceCandidates,
+  type ContextDuplicate,
+  type MarkdownReference,
+  type TextLocation,
+} from './contextControl.js';
 
 export {
   MIN_INFERRED_NAME,

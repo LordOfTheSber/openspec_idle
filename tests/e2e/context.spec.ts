@@ -89,6 +89,54 @@ test.describe('карта контекста', () => {
     await expect(page.getByTestId('context-selection')).toContainText('session-data');
   });
 
+  test('вид «Контроль» показывает объём, лишнее и ненайденные пути', async ({ page }) => {
+    const paragraph = 'Мастер хранит данные сессии в памяти и реплицирует их синхронно на резервный узел до ответа клиенту.';
+    writeFileSync(join(ide.root, 'openspec/context/1.md'), `# Общий контекст 1\n\n${paragraph}\n`);
+    writeFileSync(
+      join(ide.root, 'openspec/context/modules/master/context.md'),
+      `# Контекст sds-master\n\n${paragraph}\n\nТочка входа — \`Main.java\`, сессии — \`session/Store.java\`.\n`,
+    );
+    writeFileSync(join(ide.root, 'openspec/context/modules/master/notes.md'), '# черновик\n');
+    writeFileSync(
+      join(ide.root, 'openspec/context/adr/ADR-000-async.md'),
+      '---\nstatus: superseded\nmodules: [sds-master]\n---\n# ADR-000: Асинхронная репликация\n',
+    );
+
+    await page.goto(ide.url);
+    await page.getByTestId('nav-context').click();
+    await expect(page.getByTestId('context-summary')).toContainText('токенов');
+
+    await page.getByTestId('context-view-control').click();
+    const control = page.getByTestId('context-control');
+    await expect(control).toBeVisible();
+    // Объём: каждый файл с оценкой, наборы модулей.
+    await expect(page.getByTestId('ctx-control-file-openspec/context/modules/master/context.md')).toContainText('≈');
+    await expect(page.getByTestId('ctx-control-bundle-sds-master')).toBeVisible();
+    // Лишнее: повтор, пустой контекст, файл вне наборов, недействующий ADR.
+    await expect(page.getByTestId('ctx-control-duplicates')).toContainText('openspec/context/1.md:3');
+    await expect(page.getByTestId('ctx-control-empty')).toContainText('modules/sds-impl/context.md');
+    await expect(page.getByTestId('ctx-control-unused')).toContainText('modules/master/notes.md');
+    await expect(page.getByTestId('ctx-control-inactive')).toContainText('ADR-000-async.md');
+    // Связь с реальностью: путь, которого нет; проект не в git — свежесть неизвестна.
+    await expect(page.getByTestId('ctx-control-broken')).toContainText('session/Store.java');
+    await expect(page.getByTestId('ctx-control-fresh-sds-master')).toContainText('нет данных git');
+    await expect(page.getByTestId('context-issue-duplicate-text')).toBeAttached();
+    await expect(page.getByTestId('context-issue-broken-reference')).toContainText('session/Store.java');
+
+    // Переход к модулю: карточка с объёмом набора; недействующий ADR — вне набора.
+    await page.getByTestId('ctx-control-bundle-sds-master').getByRole('button', { name: 'sds-master' }).click();
+    await expect(page.getByTestId('context-graph')).toBeVisible();
+    await expect(page.getByTestId('context-module-volume')).toContainText('набор ≈');
+    await expect(page.getByTestId('context-bundle-tokens')).toContainText('токенов');
+    await expect(page.getByTestId('context-bundle-skipped')).toContainText('ADR-000-async.md');
+    await expect(page.getByTestId('context-bundle').locator('ol')).not.toContainText('ADR-000-async.md');
+
+    // В наборе флажок возвращает недействующий ADR.
+    await page.getByTestId('context-pick').click();
+    await page.getByTestId('context-opt-inactive-adrs').check();
+    await expect(page.getByTestId('context-selection').locator('ol')).toContainText('ADR-000-async.md');
+  });
+
   test('матрица и обновление при правке index.md', async ({ page }) => {
     await page.goto(ide.url);
     await page.getByTestId('nav-context').click();

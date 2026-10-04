@@ -92,8 +92,9 @@ describe('карта контекста: модули и домены', () => {
     expect(map.modules[1]?.dependents).toEqual(['sds-master']);
   });
 
-  it('домен без модулей — предупреждение; общий контекст отсортирован', () => {
-    expect(map.issues.map((issue) => issue.kind)).toEqual(['uncovered-domain']);
+  it('домен без модулей — предупреждение; модуль без code_paths — сведение; общий контекст отсортирован', () => {
+    expect(map.issues.map((issue) => issue.kind)).toEqual(['uncovered-domain', 'no-code-paths']);
+    expect(map.issues[1]).toMatchObject({ module: 'sds-impl', severity: 'info' });
     expect(map.issues[0]?.domain).toBe('cm-cluster-api');
     expect(map.issues[0]?.severity).toBe('warning');
     expect(map.general).toEqual(['openspec/context/1.md', 'openspec/context/2.md']);
@@ -114,6 +115,8 @@ describe('карта контекста: модули и домены', () => {
         'openspec/specs/replication/spec.md',
         'openspec/specs/servant-master-api/spec.md',
       ],
+      skippedAdrs: [],
+      tokens: 0,
     });
   });
 
@@ -146,6 +149,8 @@ describe('карта контекста: модули и домены', () => {
       domains: ['session-data'],
       adrs: [],
       files: ['openspec/context/1.md', 'openspec/context/2.md', 'openspec/specs/session-data/spec.md'],
+      skippedAdrs: [],
+      tokens: 0,
     });
   });
 
@@ -300,5 +305,103 @@ describe('карта контекста: ADR', () => {
     expect(contextBundle(map, { adrs: ['openspec/context/adr/ADR-002.md'] }).files).toEqual([
       'openspec/context/adr/ADR-002.md',
     ]);
+  });
+});
+
+describe('контроль контекста', () => {
+  const paragraph = 'Мастер хранит данные сессии в памяти и реплицирует их синхронно на резервный узел до ответа клиенту.';
+  const texts = new Map<string, string>([
+    ['openspec/context/1.md', `# Общее\n\n${paragraph}\n`],
+    ['openspec/context/modules/master/context.md', `# Мастер\n\n${paragraph}\n\nКод в \`main/App.java\` и \`gone/Old.java\`.\n`],
+    ['openspec/context/modules/impl/context.md', '# Контекст impl\n'],
+    ['openspec/specs/replication/spec.md', 'х'.repeat(25_000)],
+    ['openspec/context/adr/ADR-001.md', '---\nstatus: superseded\nmodules: [sds-master]\n---\n# ADR-001\n'],
+    ['openspec/context/adr/ADR-002.md', '---\nstatus: accepted\nmodules: [sds-master]\n---\n# ADR-002\n'],
+  ]);
+  const freshness = { contextDate: '2026-09-01T10:00:00+03:00', codeDate: '2026-10-01T10:00:00+03:00', commitsAfter: 3, uncommitted: false };
+  const map = buildContextMap({
+    domains: ['replication'],
+    general: ['openspec/context/1.md'],
+    adrs: [
+      { ...adr('openspec/context/adr/ADR-001.md', { status: 'superseded', modules: ['sds-master'] }) },
+      { ...adr('openspec/context/adr/ADR-002.md', { status: 'accepted', modules: ['sds-master'] }) },
+    ],
+    modules: [
+      module(
+        'master',
+        { module: 'sds-master', domains: ['replication'], code_paths: ['svc/src'], max_tokens: 100 },
+        { existingCodePaths: new Set(['svc/src']), freshness, lineOf: (key) => (key === 'max_tokens' ? 7 : (LINES[key] ?? null)) },
+      ),
+      module('impl', { module: 'impl', code_paths: ['impl/src'], max_tokens: 'много' }, { existingCodePaths: new Set(['impl/src']) }),
+    ],
+    texts,
+    existingPaths: new Set(['svc/src/main/App.java']),
+    unusedFiles: ['openspec/context/modules/master/notes.md'],
+  });
+  const issue = (kind: string) => map.issues.filter((item) => item.kind === kind);
+
+  it('объём каждого файла и сумма; тяжёлый файл — предупреждение', () => {
+    expect(map.files.map((file) => [file.path, file.kind])).toEqual([
+      ['openspec/context/1.md', 'general'],
+      ['openspec/context/modules/impl/context.md', 'module'],
+      ['openspec/context/modules/master/context.md', 'module'],
+      ['openspec/specs/replication/spec.md', 'spec'],
+      ['openspec/context/adr/ADR-001.md', 'adr'],
+      ['openspec/context/adr/ADR-002.md', 'adr'],
+    ]);
+    expect(map.totalTokens).toBe(map.files.reduce((sum, file) => sum + file.tokens, 0));
+    expect(issue('large-file')).toEqual([
+      expect.objectContaining({ path: 'openspec/specs/replication/spec.md', severity: 'warning', domain: 'replication' }),
+    ]);
+  });
+
+  it('бюджет набора модуля: превышение — предупреждение на строке max_tokens, не число — ошибка', () => {
+    const master = map.modules.find((item) => item.id === 'sds-master');
+    expect(master?.maxTokens).toBe(100);
+    expect(master?.bundleTokens).toBe(contextBundle(map, { modules: ['sds-master'] }).tokens);
+    expect(issue('over-budget')).toEqual([expect.objectContaining({ module: 'sds-master', line: 7, severity: 'warning' })]);
+    expect(issue('bad-field')).toEqual([expect.objectContaining({ module: 'impl', path: 'openspec/context/modules/impl/index.md' })]);
+  });
+
+  it('лишнее: повтор абзаца, пустой контекст, файл вне наборов', () => {
+    expect(issue('duplicate-text')).toEqual([
+      expect.objectContaining({ path: 'openspec/context/modules/master/context.md', line: 3, module: 'sds-master' }),
+    ]);
+    expect(issue('duplicate-text')[0]?.message).toContain('openspec/context/1.md:3');
+    expect(map.duplicates).toHaveLength(1);
+    expect(issue('empty-context')).toEqual([expect.objectContaining({ module: 'impl' })]);
+    expect(issue('unused-file').map((item) => item.path)).toEqual(['openspec/context/modules/master/notes.md']);
+  });
+
+  it('связь с реальностью: путь от кода модуля найден, пропавший — предупреждение; отставание — сведение', () => {
+    expect(map.references.map((ref) => [ref.target, ref.resolved])).toEqual([
+      ['main/App.java', true],
+      ['gone/Old.java', false],
+    ]);
+    expect(issue('broken-reference')).toEqual([
+      expect.objectContaining({ path: 'openspec/context/modules/master/context.md', line: 5, severity: 'warning' }),
+    ]);
+    expect(issue('stale-context')).toEqual([expect.objectContaining({ module: 'sds-master', severity: 'info' })]);
+    expect(issue('stale-context')[0]?.message).toContain('3 коммита');
+    expect(map.modules.find((item) => item.id === 'sds-master')?.freshness).toEqual(freshness);
+  });
+
+  it('недействующий ADR вне набора по умолчанию, с флажком или явным выбором — в наборе', () => {
+    expect(map.adrs.map((item) => [item.id, item.active])).toEqual([
+      ['ADR-001', false],
+      ['ADR-002', true],
+    ]);
+    const bundle = contextBundle(map, { modules: ['sds-master'] });
+    expect(bundle.adrs).toEqual(['openspec/context/adr/ADR-002.md']);
+    expect(bundle.skippedAdrs).toEqual(['openspec/context/adr/ADR-001.md']);
+    expect(contextBundle(map, { modules: ['sds-master'] }, { inactiveAdrs: true }).adrs).toHaveLength(2);
+    expect(contextBundle(map, { adrs: ['openspec/context/adr/ADR-001.md'] }).adrs).toEqual(['openspec/context/adr/ADR-001.md']);
+  });
+
+  it('без текстов и путей контроль молчит', () => {
+    const plain = buildContextMap({ domains: [], general: [], adrs: [], modules: [module('m', { code_paths: ['x'] }, { existingCodePaths: new Set(['x']) })] });
+    expect(plain.files).toEqual([]);
+    expect(plain.references).toEqual([]);
+    expect(plain.issues).toEqual([]);
   });
 });
