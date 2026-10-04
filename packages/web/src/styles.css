@@ -2890,6 +2890,43 @@ code {
   background: var(--modified);
 }
 
+/* Коэффициент полезности: цвет по качеству. */
+.bar.good .fill {
+  background: var(--success);
+}
+
+.bar.mid .fill {
+  background: var(--warning);
+}
+
+.bar.low .fill {
+  background: var(--danger);
+}
+
+.ctx-control-table .bar.good .val,
+.ctx-control-table .bar.mid .val,
+.ctx-control-table .bar.low .val {
+  width: 40px;
+}
+
+.ctx-ballast {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ctx-control-table .ctx-ballast .chip {
+  margin-left: 0;
+}
+
+.ctx-useful-cell {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
 .ctx-control-list {
   margin: 0;
   padding-left: 18px;
@@ -2903,7 +2940,7 @@ code {
   font-style: italic;
 }
 
-/* Узкая панель: остаются файл, объём и бюджет. */
+/* Узкая панель: остаются файл, объём, полезность и бюджет. */
 @media (max-width: 640px) {
   .ctx-control-table .wide {
     display: none;

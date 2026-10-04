@@ -7,6 +7,7 @@ import {
   findDuplicates,
   isActiveAdrStatus,
   isEmptyContext,
+  measureUsefulness,
   normalizeProjectPath,
   referenceCandidates,
 } from './contextControl.js';
@@ -115,5 +116,87 @@ describe('лишнее', () => {
     expect(isActiveAdrStatus('Superseded by ADR-007')).toBe(false);
     expect(isActiveAdrStatus('отменено')).toBe(false);
     expect(isActiveAdrStatus('deprecated: см. ADR-3')).toBe(false);
+  });
+});
+
+describe('коэффициент полезности', () => {
+  const content = 'Модуль отвечает за хранение сессий пользователей, их продление и удаление по таймауту.';
+  const anchored = 'Сессии хранит класс `Store` в `session/Store.java`, таймауты считает `Expiry`.';
+
+  it('файл без балласта — плотность 1, коэффициент 1', () => {
+    const result = measureUsefulness(`# Модуль\n\n${content}\n`);
+    expect(result.ballast).toEqual({ duplicate: 0, placeholder: 0, broken: 0, empty: 0 });
+    expect(result.density).toBe(1);
+    expect(result.grounding).toBeNull();
+    expect(result.freshness).toBeNull();
+    expect(result.score).toBe(1);
+    expect(result.usefulTokens).toBe(result.tokens);
+  });
+
+  it('балласт: повтор, заготовки и абзац с битым путём — каждый абзац один раз', () => {
+    const text = [
+      '# Модуль', // 1
+      '', // 2
+      '<!-- Опишите назначение модуля и пути к коду. -->', // 3
+      '', // 4
+      content, // 5
+      '', // 6
+      'TODO: описать ограничения по памяти.', // 7
+      '', // 8
+      '<описание сценариев отказа>', // 9
+      '', // 10
+      anchored, // 11
+      '', // 12
+      `${content} Повтор.`, // 13
+    ].join('\n');
+    const result = measureUsefulness(text, { duplicateLines: new Set([13]), brokenLines: new Set([11, 13]) });
+    expect(result.ballast.duplicate).toBe(estimateTokens(`${content} Повтор.`));
+    expect(result.ballast.broken).toBe(estimateTokens(anchored));
+    expect(result.ballast.placeholder).toBe(
+      estimateTokens('<!-- Опишите назначение модуля и пути к коду. -->') +
+        estimateTokens('TODO: описать ограничения по памяти.') +
+        estimateTokens('<описание сценариев отказа>'),
+    );
+    const waste = result.ballast.duplicate + result.ballast.placeholder + result.ballast.broken;
+    expect(result.density).toBeCloseTo((result.tokens - waste) / result.tokens);
+    expect(result.score).toBeCloseTo(result.density);
+  });
+
+  it('слово в начале абзаца, похожее на заготовку, заготовкой не считается', () => {
+    const result = measureUsefulness('# A\n\nTODOist — внешний сервис задач, с ним модуль не работает.\n\n---\n\nMap<string, number> хранит счётчики.\n');
+    expect(result.ballast.placeholder).toBe(0);
+  });
+
+  it('привязка к коду снижает коэффициент не больше чем вдвое', () => {
+    const half = measureUsefulness(`# A\n\n${anchored}\n\n${content}\n`, { grounding: true });
+    const share = estimateTokens(anchored) / (estimateTokens(anchored) + estimateTokens(content));
+    expect(half.grounding).toBeCloseTo(share);
+    expect(half.score).toBeCloseTo(0.5 + 0.5 * share);
+    expect(measureUsefulness(`# A\n\n${content}\n`, { grounding: true }).score).toBe(0.5);
+    expect(measureUsefulness(`# A\n\n[схема](docs/a.md) — ${content}\n`, { grounding: true }).grounding).toBe(1);
+  });
+
+  it('свежесть: 10 коммитов отставания — множитель 0,5, без данных — не учитывается', () => {
+    const text = `# A\n\n${content}\n`;
+    expect(measureUsefulness(text, { commitsAfter: 0 }).freshness).toBe(1);
+    expect(measureUsefulness(text, { commitsAfter: 10 }).score).toBe(0.5);
+    expect(measureUsefulness(text, { commitsAfter: 30 }).freshness).toBe(0.25);
+    expect(measureUsefulness(text, { commitsAfter: null }).freshness).toBeNull();
+  });
+
+  it('пустой файл — балласт целиком, коэффициент 0', () => {
+    const result = measureUsefulness('# Контекст sds-impl\n\n<!-- заполнить -->\n', { grounding: true });
+    expect(result.ballast.empty).toBe(result.tokens);
+    expect(result.score).toBe(0);
+    expect(result.usefulTokens).toBe(0);
+    expect(measureUsefulness('').score).toBe(0);
+  });
+
+  it('HTML-комментарии в поиске повторов не участвуют', () => {
+    const comment = '<!-- Опишите назначение модуля, его границы, ключевые классы и пути к коду модуля. -->';
+    expect(findDuplicates([
+      { path: 'a.md', text: `# A\n\n${comment}\n` },
+      { path: 'b.md', text: `# B\n\n${comment}\n` },
+    ])).toEqual([]);
   });
 });

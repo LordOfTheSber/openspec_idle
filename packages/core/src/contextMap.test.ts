@@ -117,6 +117,7 @@ describe('карта контекста: модули и домены', () => {
       ],
       skippedAdrs: [],
       tokens: 0,
+      usefulTokens: 0,
     });
   });
 
@@ -151,6 +152,7 @@ describe('карта контекста: модули и домены', () => {
       files: ['openspec/context/1.md', 'openspec/context/2.md', 'openspec/specs/session-data/spec.md'],
       skippedAdrs: [],
       tokens: 0,
+      usefulTokens: 0,
     });
   });
 
@@ -396,6 +398,42 @@ describe('контроль контекста', () => {
     expect(bundle.skippedAdrs).toEqual(['openspec/context/adr/ADR-001.md']);
     expect(contextBundle(map, { modules: ['sds-master'] }, { inactiveAdrs: true }).adrs).toHaveLength(2);
     expect(contextBundle(map, { adrs: ['openspec/context/adr/ADR-001.md'] }).adrs).toEqual(['openspec/context/adr/ADR-001.md']);
+  });
+
+  it('полезность: повтор и битый путь — балласт, привязка и свежесть — у context.md, сумма по набору', () => {
+    const master = map.files.find((file) => file.path === 'openspec/context/modules/master/context.md')?.usefulness;
+    expect(master?.ballast.duplicate).toBeGreaterThan(0);
+    expect(master?.ballast.broken).toBeGreaterThan(0);
+    expect(master?.grounding).toBe(0);
+    expect(master?.freshness).toBeCloseTo(1 / 1.3);
+    expect(map.files.find((file) => file.path === 'openspec/context/1.md')?.usefulness.score).toBe(1);
+    expect(map.files.find((file) => file.path === 'openspec/context/modules/impl/context.md')?.usefulness.score).toBe(0);
+    expect(map.usefulTokens).toBe(map.files.reduce((sum, file) => sum + file.usefulness.usefulTokens, 0));
+    const bundle = contextBundle(map, { modules: ['sds-master'] });
+    expect(bundle.usefulTokens).toBeLessThan(bundle.tokens);
+    expect(map.modules.find((item) => item.id === 'sds-master')?.bundleUsefulTokens).toBe(bundle.usefulTokens);
+    // Файлы легче порога сведением не отмечаются, пустой контекст — уже предупреждение.
+    expect(issue('low-usefulness')).toEqual([]);
+  });
+
+  it('низкая полезность заметного файла — сведение с причинами', () => {
+    const paragraphs = Array.from({ length: 6 }, (_, index) => `Абзац ${index + 1}: модуль принимает запросы балансировщика и отдаёт данные сессии другим узлам кластера.`);
+    const text = ['# Мастер', '', '<!-- Опишите назначение модуля, его границы и ключевые классы. Укажите пути к коду. -->', '', ...paragraphs.flatMap((item) => [item, '', `TODO: ${item}`, ''])].join('\n');
+    const low = buildContextMap({
+      domains: [],
+      general: [],
+      adrs: [],
+      modules: [module('master', { module: 'sds-master', code_paths: ['svc/src'] }, { existingCodePaths: new Set(['svc/src']), freshness })],
+      texts: new Map([['openspec/context/modules/master/context.md', text]]),
+      existingPaths: new Set(),
+    });
+    const found = low.issues.filter((item) => item.kind === 'low-usefulness');
+    expect(found).toEqual([
+      expect.objectContaining({ path: 'openspec/context/modules/master/context.md', line: null, severity: 'info', module: 'sds-master' }),
+    ]);
+    expect(found[0]?.message).toContain('заготовки ≈');
+    expect(found[0]?.message).toContain('привязка к коду 0 %');
+    expect(found[0]?.message).toContain('множитель 0,77');
   });
 
   it('без текстов и путей контроль молчит', () => {

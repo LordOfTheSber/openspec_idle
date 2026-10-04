@@ -189,19 +189,31 @@ interface Paragraph {
   readonly key: string;
   /** Исходный текст абзаца. */
   readonly text: string;
+  /** Первая строка абзаца в файле (с 1). */
   readonly line: number;
+  /** Последняя строка абзаца в файле. */
+  readonly end: number;
 }
 
 const RE_LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
 
+/** HTML-комментарии `<!-- … -->`; номера строк сохраняются. */
+const RE_COMMENT = /<!--[\s\S]*?-->/g;
+
+/** Текст без HTML-комментариев: строки комментария остаются пустыми. */
+function withoutComments(text: string): string {
+  return text.replace(RE_COMMENT, (comment) => comment.replace(/[^\n]/g, ''));
+}
+
 /**
  * Абзацы текста: блоки между пустыми строками, каждый пункт списка — отдельно.
- * Заголовки, frontmatter и блоки кода пропускаются.
+ * Заголовки, frontmatter, блоки кода и HTML-комментарии пропускаются.
  */
 function paragraphs(text: string): Paragraph[] {
   const result: Paragraph[] = [];
   let lines: string[] = [];
   let first = 0;
+  let last = 0;
   const flush = (): void => {
     if (lines.length === 0) return;
     const original = lines.join('\n').trim();
@@ -211,11 +223,11 @@ function paragraphs(text: string): Paragraph[] {
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
-    result.push({ key, text: original, line: first });
+    result.push({ key, text: original, line: first, end: last });
     lines = [];
   };
   let previous = 0;
-  for (const { text: line, line: number } of proseLines(text)) {
+  for (const { text: line, line: number } of proseLines(withoutComments(text))) {
     // Пропущенный блок кода разрывает абзац.
     if (number !== previous + 1) flush();
     previous = number;
@@ -225,6 +237,7 @@ function paragraphs(text: string): Paragraph[] {
     }
     if (RE_LIST_ITEM.test(line)) flush();
     if (lines.length === 0) first = number;
+    last = number;
     lines.push(line);
   }
   flush();
@@ -278,10 +291,137 @@ export function findDuplicates(files: readonly { readonly path: string; readonly
 
 /** В файле контекста нет ничего, кроме frontmatter, заголовков и комментариев. */
 export function isEmptyContext(text: string): boolean {
-  const body = proseLines(text.replace(/<!--[\s\S]*?-->/g, (comment) => comment.replace(/[^\n]/g, '')))
+  const body = proseLines(withoutComments(text))
     .map(({ text: line }) => line.trim())
     .filter((line) => line !== '' && !/^#{1,6}(\s|$)/.test(line));
   return body.length === 0 && !/^\s*(`{3,}|~{3,})/m.test(text);
+}
+
+/** Полезная доля ниже этой — сведение о низкой полезности файла. */
+export const LOW_USEFULNESS = 0.5;
+
+/** Файлы легче этого числа токенов сведением о полезности не отмечаются. */
+export const USEFULNESS_MIN_TOKENS = 200;
+
+/** Отставание контекста от кода в коммитах, при котором множитель свежести — 0,5. */
+export const STALE_HALF_COMMITS = 10;
+
+/** Токены, которые занимают место в файле без пользы, — по причинам. */
+export interface ContextBallast {
+  /** Абзацы, повторяющие более раннее вхождение. */
+  readonly duplicate: number;
+  /** Заготовки: HTML-комментарии, `TODO`, «заполнить», одни `<…>` или `…`. */
+  readonly placeholder: number;
+  /** Абзацы со ссылкой на путь, которого нет. */
+  readonly broken: number;
+  /** Весь файл, если в нём нет ничего, кроме заголовков. */
+  readonly empty: number;
+}
+
+/**
+ * Оценка полезности файла контекста — эвристика, а не измерение: сколько
+ * токенов не балласт, насколько текст привязан к коду и не отстал ли от него.
+ */
+export interface ContextUsefulness {
+  /** Оценка токенов файла. */
+  readonly tokens: number;
+  readonly ballast: ContextBallast;
+  /** Плотность: доля токенов без балласта, 0…1. */
+  readonly density: number;
+  /**
+   * Привязка: доля токенов содержательных абзацев, где есть `` `код` `` или
+   * ссылка, 0…1; `null` — для файла не оценивается.
+   */
+  readonly grounding: number | null;
+  /** Множитель свежести, 0…1; `null` — не оценивается или нет данных git. */
+  readonly freshness: number | null;
+  /** Коэффициент полезности: плотность × (0,5 + 0,5 × привязка) × свежесть. */
+  readonly score: number;
+  /** Полезные токены: коэффициент × токены, с округлением. */
+  readonly usefulTokens: number;
+}
+
+/** Что известно о файле помимо текста. */
+export interface UsefulnessOptions {
+  /** Строки, с которых начинаются абзацы-повторы ({@link findDuplicates}). */
+  readonly duplicateLines?: ReadonlySet<number>;
+  /** Строки ссылок на пути, которых нет. */
+  readonly brokenLines?: ReadonlySet<number>;
+  /** Оценивать привязку к коду — для `context.md` модуля. */
+  readonly grounding?: boolean;
+  /** Коммитов в коде после правки контекста; не задано — свежесть не оценивается. */
+  readonly commitsAfter?: number | null;
+}
+
+const RE_PLACEHOLDER_START = /^(?:todo|tbd|fixme|xxx|заполнить|дописать|описать позже|будет (?:добавлено|описано|заполнено))(?![\p{L}\p{N}])/u;
+const RE_ANCHOR = /`[^`\n]+`|\]\([^)\s]+\)/;
+
+/**
+ * Абзац — заготовка: начинается с `TODO` и т. п. или состоит из одних `<…>` и
+ * многоточий. Черта `---` заготовкой не считается.
+ */
+function isPlaceholder(key: string): boolean {
+  if (RE_PLACEHOLDER_START.test(key)) return true;
+  const marked = /<[^<>\n]*>|\.\.\.|…/.test(key);
+  return marked && key.replace(/<[^<>\n]*>/g, '').replace(/[\s.…:;,—-]/g, '') === '';
+}
+
+/**
+ * Коэффициент полезности файла контекста. Балласт — повторы, заготовки и
+ * абзацы с битыми путями (абзац считается один раз, в этом порядке);
+ * пустой файл — балласт целиком. Привязка смягчена: текст без путей тоже
+ * бывает нужен, поэтому она снижает коэффициент не больше чем вдвое.
+ */
+export function measureUsefulness(text: string, options: UsefulnessOptions = {}): ContextUsefulness {
+  const tokens = estimateTokens(text);
+  const freshness =
+    options.commitsAfter === undefined || options.commitsAfter === null
+      ? null
+      : 1 / (1 + Math.max(0, options.commitsAfter) / STALE_HALF_COMMITS);
+  if (tokens === 0 || isEmptyContext(text)) {
+    return {
+      tokens,
+      ballast: { duplicate: 0, placeholder: 0, broken: 0, empty: tokens },
+      density: 0,
+      grounding: options.grounding === true ? 0 : null,
+      freshness,
+      score: 0,
+      usefulTokens: 0,
+    };
+  }
+
+  const duplicateLines = options.duplicateLines ?? new Set<number>();
+  const brokenLines = [...(options.brokenLines ?? [])];
+  let duplicate = 0;
+  let placeholder = 0;
+  let broken = 0;
+  for (const comment of text.match(RE_COMMENT) ?? []) placeholder += estimateTokens(comment);
+  let content = 0;
+  let anchored = 0;
+  for (const paragraph of paragraphs(text)) {
+    const size = estimateTokens(paragraph.text);
+    if (duplicateLines.has(paragraph.line)) duplicate += size;
+    else if (isPlaceholder(paragraph.key)) placeholder += size;
+    else if (brokenLines.some((line) => line >= paragraph.line && line <= paragraph.end)) broken += size;
+    else {
+      content += size;
+      if (RE_ANCHOR.test(paragraph.text)) anchored += size;
+    }
+  }
+
+  const waste = Math.min(tokens, duplicate + placeholder + broken);
+  const density = (tokens - waste) / tokens;
+  const grounding = options.grounding === true ? (content === 0 ? 0 : anchored / content) : null;
+  const score = density * (grounding === null ? 1 : 0.5 + 0.5 * grounding) * (freshness ?? 1);
+  return {
+    tokens,
+    ballast: { duplicate, placeholder, broken, empty: 0 },
+    density,
+    grounding,
+    freshness,
+    score,
+    usefulTokens: Math.round(score * tokens),
+  };
 }
 
 /** Статусы ADR, при которых решение больше не действует. */
