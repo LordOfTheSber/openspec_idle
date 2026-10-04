@@ -13,6 +13,8 @@ export interface EmbeddedBackendOptions {
   readonly debounceMs?: number;
   /** Путь к CLI OpenSpec из настроек расширения. */
   readonly cliPath?: string | null;
+  /** Вести метрики в `.openspec-ide/`; по умолчанию — да. */
+  readonly metrics?: boolean;
 }
 
 /** Ответ бэкенда — те же код и тело, что и в HTTP-режиме. */
@@ -48,6 +50,7 @@ export async function createEmbeddedBackend(options: EmbeddedBackendOptions): Pr
     ...(options.watch === undefined ? {} : { watch: options.watch }),
     ...(options.debounceMs === undefined ? {} : { debounceMs: options.debounceMs }),
     cliPath: options.cliPath ?? null,
+    ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
   });
 
   await app.ready();

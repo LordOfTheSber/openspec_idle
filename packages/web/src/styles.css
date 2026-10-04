@@ -3717,6 +3717,28 @@ button.thread-hit:hover .thread-node {
   margin-top: -4px;
 }
 
+.card-flags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.card-flags .chip {
+  gap: 4px;
+}
+
+.drift-row {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.drift-row .drift-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .card-meta > span + span::before {
   content: '·';
   margin-right: 8px;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BoardCard, BoardColumn, Board as BoardModel, TreeSchema } from '@openspec-ide/core';
-import { createArtifactFile, createChange, fetchBoard } from '../lib/api.js';
+import type { BoardCard, BoardColumn, Board as BoardModel, ChangeDrift, DriftReport, TreeSchema } from '@openspec-ide/core';
+import { createArtifactFile, createChange, fetchBoard, fetchDrift } from '../lib/api.js';
 import { formatAge, plural } from '../lib/format.js';
 import { COLUMN_TITLE, columnTitle } from '../lib/phase.js';
 import { readPref, writePref } from '../lib/prefs.js';
@@ -48,6 +48,7 @@ export interface BoardProps {
 
 export function Board({ schemas, revision, request = null, onChanged, onNavigate, onOpenArtifact, onOpenFile }: BoardProps) {
   const [board, setBoard] = useState<BoardModel | null>(null);
+  const [drift, setDrift] = useState<DriftReport | null>(null);
   const [error, setError] = useState<{ message: string; output: string } | null>(null);
   const [selected, setSelected] = useState<{ change: string; intent: DetailIntent } | null>(null);
   const [creating, setCreating] = useState(false);
@@ -64,6 +65,10 @@ export function Board({ schemas, revision, request = null, onChanged, onNavigate
   const reload = useCallback(async () => {
     try {
       setBoard(await fetchBoard());
+      // Отчёт о пересечениях читает историю git — после доски, чтобы её не задерживать.
+      void fetchDrift()
+        .then(setDrift)
+        .catch(() => setDrift(null));
     } catch (problem) {
       setError({ message: problem instanceof Error ? problem.message : String(problem), output: '' });
     }
@@ -161,6 +166,7 @@ export function Board({ schemas, revision, request = null, onChanged, onNavigate
   const counts = new Map((board?.columns ?? []).map((column) => [column.id, visible.filter((item) => item.column === column.id).length]));
 
   const cardProps = {
+    drift,
     selected: selected?.change ?? null,
     onSelect: select,
     onOpenArtifact,
@@ -307,6 +313,7 @@ export function Board({ schemas, revision, request = null, onChanged, onNavigate
                 key={`${card.change}:${selected.intent}`}
                 card={card}
                 columnTitle={columnTitle(card.column)}
+                drift={drift?.changes[card.change] ?? null}
                 intent={selected.intent}
                 revision={revision}
                 overlay={!detailBeside}
@@ -378,6 +385,8 @@ function PhaseStrip({
 
 interface CardListProps {
   readonly cards: readonly BoardCard[];
+  /** Пересечения, устаревание и ожидание архивации; `null` — отчёт ещё не получен. */
+  readonly drift: DriftReport | null;
   readonly selected: string | null;
   readonly onSelect: (change: string, intent?: DetailIntent) => void;
   readonly onOpenArtifact: BoardProps['onOpenArtifact'];
@@ -460,6 +469,7 @@ function ListView({
 
 function Card({
   card,
+  drift: report,
   selected,
   onSelect,
   onOpenArtifact,
@@ -467,6 +477,7 @@ function Card({
   row = false,
 }: Omit<CardListProps, 'cards'> & { readonly card: BoardCard; readonly row?: boolean }) {
   const [capability, setCapability] = useState<string | null>(null);
+  const drift = report?.changes[card.change] ?? null;
   const age = formatAge(card.lastModified);
   const thread = buildThread(card);
   const next = thread.next === null ? undefined : card.artifacts.find((artifact) => artifact.id === thread.next);
@@ -500,6 +511,7 @@ function Card({
           </span>
         )}
       </div>
+      {drift !== null && <DriftChips drift={drift} />}
       <div className="card-meta">
         <span>{card.schema}</span>
         {age !== null && (
@@ -614,6 +626,44 @@ function BoardSkeleton() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Отметки пересечения, устаревания и ожидания архивации на карточке. */
+function DriftChips({ drift }: { readonly drift: ChangeDrift }) {
+  const sure = drift.stale.filter((item) => item.certainty === 'stale');
+  if (drift.overlaps.length === 0 && drift.stale.length === 0 && drift.forgottenDays === null) return null;
+  return (
+    <div className="card-flags">
+      {drift.overlaps.length > 0 && (
+        <span
+          className="chip warn"
+          data-testid="card-overlap"
+          title={drift.overlaps
+            .map((item) => `«${item.requirement}» — также ${item.others.map((other) => other.change).join(', ')}`)
+            .join('\n')}
+        >
+          <Icon name="alert" size={12} />
+          пересечение
+        </span>
+      )}
+      {drift.stale.length > 0 && (
+        <span
+          className="chip warn"
+          data-testid="card-stale"
+          title={drift.stale.map((item) => `«${item.requirement}» (${item.capability})`).join('\n')}
+        >
+          <Icon name="alert" size={12} />
+          {sure.length > 0 ? 'дельта устарела' : 'возможно устарела'}
+        </span>
+      )}
+      {drift.forgottenDays !== null && (
+        <span className="chip info" data-testid="card-forgotten" title="Всё сделано, но change не архивирован">
+          <Icon name="archive" size={12} />
+          ждёт архивации {drift.forgottenDays} дн.
+        </span>
+      )}
     </div>
   );
 }

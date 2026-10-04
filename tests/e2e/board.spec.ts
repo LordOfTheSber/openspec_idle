@@ -230,6 +230,18 @@ test.describe('доска и предпросмотр на дельтах со �
     await expect(page.getByTestId('card-add-limits')).toHaveCount(0);
   });
 
+  test('два change изменяют одно требование: отметка на обеих карточках и строка в панели деталей', async ({ page }) => {
+    await openBoard(page, ide.url);
+
+    await expect(page.getByTestId('card-add-limits').getByTestId('card-overlap')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('card-rework-export').getByTestId('card-overlap')).toBeVisible();
+
+    await openCard(page, 'add-limits');
+    const row = page.getByTestId('drift-overlap');
+    await expect(row).toContainText('«Выгрузка данных»');
+    await expect(row).toContainText('rework-export (MODIFIED)');
+  });
+
   test('архивация, которую CLI отклонит, недоступна и объяснена', async ({ page }) => {
     await openBoard(page, ide.url);
     await openCard(page, 'rework-export');

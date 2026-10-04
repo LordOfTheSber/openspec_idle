@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ContextMap, PanelSection, PanelSelection } from '@openspec-ide/core';
+import type { Board, ContextMap, DriftReport, PanelSection, PanelSelection } from '@openspec-ide/core';
 import {
   type ArchivePreview,
   type EmbeddedBackend,
   type SpecPreview,
+  type SpecValidationRun,
   type StructureReport,
   type ValidationRun,
   CLI_SETTING,
@@ -12,10 +13,12 @@ import {
 } from '@openspec-ide/server';
 import * as vscode from 'vscode';
 import { archiveSummary, specLine } from './archiveSummary.js';
+import { AuthoringFeatures } from './authoring.js';
 import { resolvePanelPath } from './bridge.js';
-import { changesTouched, diagnosticsByFile } from './diagnosticsModel.js';
+import { type FileDiagnostic, changesTouched, diagnosticsByFile, fileDiagnostics, specsTouched } from './diagnosticsModel.js';
 import { SectionPanel } from './panel.js';
 import { PREVIEW_SCHEME, PreviewDocuments } from './previewDocuments.js';
+import { staleAt, driftDiagnostics } from './driftModel.js';
 import { structureDiagnostics } from './structureModel.js';
 import { contextDiagnostics } from './contextModel.js';
 import { pickWorkspaceRoot } from './root.js';
@@ -29,6 +32,8 @@ export const COMMANDS = {
   validateChange: 'openspec.validateChange',
   archiveChange: 'openspec.archiveChange',
   previewArchive: 'openspec.previewArchive',
+  validateSpecs: 'openspec.validateSpecs',
+  archiveReady: 'openspec.archiveReady',
   checkStructure: 'openspec.checkStructure',
   openStructure: 'openspec.openStructure',
   openBoard: 'openspec.openBoard',
@@ -68,6 +73,13 @@ class OpenspecController implements vscode.Disposable {
   readonly #structure = vscode.languages.createDiagnosticCollection('openspec-structure');
   /** Замечания карты контекста: неизвестные домены и модули, циклы, пропавшие пути кода. */
   readonly #contextIssues = vscode.languages.createDiagnosticCollection('openspec-context');
+  /** Замечания основных спеков — снимаются и ставятся целиком за прогон. */
+  readonly #specIssues = vscode.languages.createDiagnosticCollection('openspec-specs');
+  /** Пересечения changes и устаревшие дельты. */
+  readonly #driftIssues = vscode.languages.createDiagnosticCollection('openspec-drift');
+  #drift: DriftReport | null = null;
+  /** Функции редактора для спеков, дельт и плана. */
+  readonly #authoring: AuthoringFeatures;
   #structureTimer: NodeJS.Timeout | null = null;
   /** Файлы, на которые легли диагностики каждого change, — чтобы снимать устаревшие. */
   readonly #diagnosed = new Map<string, vscode.Uri[]>();
@@ -88,6 +100,11 @@ class OpenspecController implements vscode.Disposable {
       previewArchive: (change, capability) => this.previewArchive(change, capability),
     });
     this.#status.command = COMMANDS.openBoard;
+    this.#authoring = new AuthoringFeatures({
+      root: () => this.root,
+      request: (method, path, body, quiet) => this.#request(method, path, body, { quiet: quiet === true }),
+      openFile: (path, line) => this.openFile(path, line),
+    });
   }
 
   get root(): string | null {
@@ -108,7 +125,18 @@ class OpenspecController implements vscode.Disposable {
       vscode.commands.registerCommand(COMMANDS.archiveChange, (node?: TreeNode) => this.archiveChange(node)),
       vscode.commands.registerCommand(COMMANDS.previewArchive, (node?: TreeNode) => this.previewArchiveCommand(node)),
       vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, this.#previews),
+      ...this.#authoring.register(),
       vscode.commands.registerCommand(COMMANDS.checkStructure, () => this.checkStructure(true)),
+      vscode.commands.registerCommand(COMMANDS.validateSpecs, () => this.validateSpecsCommand()),
+      vscode.commands.registerCommand(COMMANDS.archiveReady, () => this.archiveReady()),
+      vscode.commands.registerCommand(SHOW_STALE_DIFF, (change: string, path: string, line: number) =>
+        this.showStaleDiff(change, path, line),
+      ),
+      vscode.languages.registerCodeActionsProvider(
+        [{ scheme: 'file', language: 'markdown', pattern: '**/openspec/changes/**/*.md' }],
+        { provideCodeActions: (document, range) => this.#staleActions(document, range) },
+        { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
+      ),
       // Лишний файл может появиться где угодно в рабочей области, а не только
       // в openspec/, за которым следит бэкенд.
       ...this.#watchFiles(),
@@ -132,6 +160,9 @@ class OpenspecController implements vscode.Disposable {
     this.#previews.dispose();
     this.#structure.dispose();
     this.#contextIssues.dispose();
+    this.#specIssues.dispose();
+    this.#driftIssues.dispose();
+    this.#authoring.dispose();
     if (this.#structureTimer !== null) clearTimeout(this.#structureTimer);
     this.#tree.dispose();
     this.#diagnostics.dispose();
@@ -310,23 +341,177 @@ class OpenspecController implements vscode.Disposable {
       uris.push(uri);
       this.#diagnostics.set(
         uri,
-        list.map((item) => {
-          const diagnostic = new vscode.Diagnostic(
-            new vscode.Range(item.line, 0, item.line, Number.MAX_SAFE_INTEGER),
-            item.message,
-            item.level === 'error'
-              ? vscode.DiagnosticSeverity.Error
-              : item.level === 'warning'
-                ? vscode.DiagnosticSeverity.Warning
-                : vscode.DiagnosticSeverity.Information,
-          );
-          diagnostic.source = 'openspec';
-          return diagnostic;
-        }),
+        list.map((item) => toDiagnostic(item, 'openspec')),
       );
     }
     this.#diagnosed.set(change, uris);
     return run;
+  }
+
+  async validateSpecsCommand(): Promise<void> {
+    if (!this.#requireReady()) return;
+    const run = await this.validateSpecs();
+    if (run === null || run.superseded) return;
+    const errors = run.entries.filter((entry) => entry.level === 'ERROR').length;
+    const warnings = run.entries.filter((entry) => entry.level === 'WARNING').length;
+    if (run.error !== null) {
+      void vscode.window.showErrorMessage(`Проверка основных спеков не выполнилась: ${run.error}`);
+    } else if (errors === 0 && warnings === 0) {
+      void vscode.window.showInformationMessage(
+        `Основные спеки (${run.specCount}) проходят openspec validate --specs --strict.`,
+      );
+    } else {
+      void vscode.window.showWarningMessage(
+        `Основные спеки: ошибок ${errors}, предупреждений ${warnings}. Подробности — в панели «Проблемы».`,
+      );
+    }
+  }
+
+  /** Проверяет основные спеки и раскладывает замечания в панель «Проблемы». */
+  async validateSpecs(): Promise<SpecValidationRun | null> {
+    const run = (await this.#request('GET', '/api/validate/specs', undefined, { quiet: true })) as SpecValidationRun | null;
+    const root = this.root;
+    if (run === null || run.superseded || run.error !== null || root === null) return run;
+    this.#specIssues.clear();
+    for (const [path, list] of fileDiagnostics(run.entries)) {
+      this.#specIssues.set(vscode.Uri.file(join(root, path)), list.map((item) => toDiagnostic(item, 'openspec')));
+    }
+    return run;
+  }
+
+  /** Раскладывает пересечения и устаревшие дельты в панель «Проблемы». */
+  async checkDrift(): Promise<DriftReport | null> {
+    const report = (await this.#request('GET', '/api/drift', undefined, { quiet: true })) as DriftReport | null;
+    const root = this.root;
+    this.#drift = report;
+    this.#driftIssues.clear();
+    if (report === null || root === null) return report;
+    for (const [path, list] of driftDiagnostics(report)) {
+      this.#driftIssues.set(vscode.Uri.file(join(root, path)), list.map((item) => toDiagnostic(item, 'openspec-drift')));
+    }
+    return report;
+  }
+
+  #staleActions(document: vscode.TextDocument, range: vscode.Range | vscode.Selection): vscode.CodeAction[] {
+    const root = this.root;
+    if (root === null) return [];
+    const path = document.uri.fsPath.startsWith(root) ? document.uri.fsPath.slice(root.length + 1).replaceAll('\\', '/') : null;
+    const found = path === null ? null : staleAt(this.#drift, path, range.start.line + 1);
+    if (found === null || path === null) return [];
+    const action = new vscode.CodeAction('Что изменилось в основном спеке', vscode.CodeActionKind.QuickFix);
+    action.command = {
+      title: action.title,
+      command: SHOW_STALE_DIFF,
+      arguments: [found.change, path, range.start.line + 1],
+    };
+    return [action];
+  }
+
+  /** Сравнение требования основного спека: на момент начала change ↔ сейчас. */
+  async showStaleDiff(change: string, path: string, line: number): Promise<void> {
+    const found = staleAt(this.#drift, path, line);
+    if (found === null || found.stale.before === null) {
+      void vscode.window.showInformationMessage('Для этого требования нет сохранённой версии основного спека — сравнивать не с чем.');
+      return;
+    }
+    const { stale } = found;
+    const slug = `${stale.capability}/${stale.requirement.replace(/[^\p{L}\p{N}]+/gu, '-')}`;
+    const left = this.#previews.put(change, slug, 'before', stale.before ?? '');
+    const right = this.#previews.put(change, slug, 'after', stale.after ?? '');
+    await vscode.commands.executeCommand(
+      'vscode.diff',
+      left,
+      right,
+      `«${stale.requirement}»: при начале «${change}» (${stale.baseline ?? '?'}) ↔ сейчас`,
+      { preview: true },
+    );
+  }
+
+  /**
+   * Пакетная архивация changes «Готово к архивации»: по одному, в порядке
+   * создания, каждому — предпросмотр; отклонённые CLI пропускаются.
+   */
+  async archiveReady(): Promise<void> {
+    if (!this.#requireReady()) return;
+    const [board, drift] = await Promise.all([
+      this.#request('GET', '/api/board') as Promise<Board | null>,
+      this.#request('GET', '/api/drift', undefined, { quiet: true }) as Promise<DriftReport | null>,
+    ]);
+    if (board === null) return;
+    const ready = board.cards.filter((card) => card.column === 'to-archive').map((card) => card.change);
+    if (ready.length === 0) {
+      void vscode.window.showInformationMessage('Готовых к архивации changes нет — архивировать нечего.');
+      return;
+    }
+    const order = [...(drift?.archiveOrder ?? []).filter((name) => ready.includes(name)), ...ready.filter((name) => !(drift?.archiveOrder ?? []).includes(name))];
+    const picked = await vscode.window.showQuickPick(
+      order.map((name) => {
+        const info = drift?.changes[name];
+        const notes = [
+          info?.created === null || info?.created === undefined ? null : `создан ${info.created}`,
+          info?.forgottenDays === null || info?.forgottenDays === undefined ? null : `ждёт ${info.forgottenDays} дн.`,
+          (info?.overlaps.length ?? 0) > 0 ? 'пересекается с другими' : null,
+        ].filter((part): part is string => part !== null);
+        return { label: name, description: notes.join(' · '), picked: true };
+      }),
+      { title: 'Архивировать готовые changes', canPickMany: true },
+    );
+    if (picked === undefined || picked.length === 0) return;
+    const chosen = order.filter((name) => picked.some((item) => item.label === name));
+
+    const confirm = 'Архивировать';
+    const answer = await vscode.window.showWarningMessage(
+      `Архивировать ${chosen.length} changes по очереди?`,
+      {
+        modal: true,
+        detail: `Порядок — по дате создания:\n${chosen.map((name, index) => `${index + 1}. ${name}`).join('\n')}\n\nПеред каждой архивацией строится предпросмотр; change, который CLI отклонит, будет пропущен.`,
+      },
+      confirm,
+    );
+    if (answer !== confirm) return;
+
+    const archived: string[] = [];
+    const skipped: string[] = [];
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: 'Пакетная архивация' },
+      async (progress) => {
+        for (const change of chosen) {
+          progress.report({ message: change });
+          const preview = (await this.#request('GET', `/api/archive/preview?change=${encodeURIComponent(change)}`, undefined, {
+            quiet: true,
+          })) as ArchivePreview | null;
+          if (preview === null) {
+            skipped.push(`${change}: предпросмотр не построился`);
+            continue;
+          }
+          const summary = archiveSummary(preview, this.#unfinished(change));
+          if (!summary.archivable) {
+            skipped.push(`${change}: ${summary.message}`);
+            continue;
+          }
+          const done = await this.#request('POST', '/api/archive', { name: change }, { quiet: true });
+          if (done === null) {
+            skipped.push(`${change}: CLI не архивировал change`);
+            continue;
+          }
+          this.#forgetDiagnostics(change);
+          archived.push(change);
+        }
+      },
+    );
+
+    await this.refresh();
+    void this.validateSpecs();
+    void this.checkDrift();
+    const text = `Архивировано: ${archived.length} из ${chosen.length}.`;
+    const detail = [
+      archived.length > 0 ? `Архивированы: ${archived.join(', ')}` : null,
+      skipped.length > 0 ? `Пропущены:\n${skipped.join('\n')}` : null,
+    ]
+      .filter((part): part is string => part !== null)
+      .join('\n\n');
+    if (skipped.length === 0) void vscode.window.showInformationMessage(`${text} ${archived.join(', ')}`);
+    else void vscode.window.showWarningMessage(`${text} Пропущено: ${skipped.length}.`, { modal: true, detail });
   }
 
   async archiveChange(node?: TreeNode): Promise<void> {
@@ -364,6 +549,7 @@ class OpenspecController implements vscode.Disposable {
     const archived = await this.#request('POST', '/api/archive', { name: change });
     if (archived === null) return;
     this.#forgetDiagnostics(change);
+    void this.validateSpecs();
     void vscode.window.showInformationMessage(`Change «${change}» архивирован.`);
     await this.refresh();
   }
@@ -508,6 +694,7 @@ class OpenspecController implements vscode.Disposable {
       this.#structureTimer = null;
       void this.checkStructure(false);
       void this.checkContext();
+      void this.checkDrift();
     }, 500);
   }
 
@@ -573,12 +760,19 @@ class OpenspecController implements vscode.Disposable {
         this.#scheduleStructureCheck();
         const paths = (event.payload as { paths?: readonly string[] } | undefined)?.paths ?? [];
         for (const change of changesTouched(paths)) void this.validate(change);
+        if (specsTouched(paths)) void this.validateSpecs();
+        void this.#authoring.reload();
       }
     });
 
     await this.refresh();
     void this.checkStructure(false);
     void this.checkContext();
+    if (this.#workspace?.state === 'ready') {
+      void this.validateSpecs();
+      void this.checkDrift();
+      void this.#authoring.reload();
+    }
     // Замечания всех активных changes видны сразу, а не после первой правки.
     if (this.#workspace?.state === 'ready') {
       for (const change of this.#workspace.tree.changes) void this.validate(change.name);
@@ -586,6 +780,9 @@ class OpenspecController implements vscode.Disposable {
   }
 
   async #stopBackend(): Promise<void> {
+    this.#authoring.clear();
+    this.#drift = null;
+    this.#driftIssues.clear();
     this.#unsubscribe?.();
     this.#unsubscribe = null;
     const backend = this.#backend;
@@ -683,6 +880,26 @@ class OpenspecController implements vscode.Disposable {
 }
 
 const CLI_SETTING_BUTTON = 'Указать путь к CLI';
+
+/** Внутренняя команда сравнения устаревшего требования — в палитре её нет. */
+const SHOW_STALE_DIFF = 'openspec.showStaleDiff';
+
+const SEVERITY: Record<FileDiagnostic['level'], vscode.DiagnosticSeverity> = {
+  error: vscode.DiagnosticSeverity.Error,
+  warning: vscode.DiagnosticSeverity.Warning,
+  info: vscode.DiagnosticSeverity.Information,
+};
+
+/** Диагностика VS Code на всю строку. */
+function toDiagnostic(item: FileDiagnostic, source: string): vscode.Diagnostic {
+  const diagnostic = new vscode.Diagnostic(
+    new vscode.Range(item.line, 0, item.line, Number.MAX_SAFE_INTEGER),
+    item.message,
+    SEVERITY[item.level],
+  );
+  diagnostic.source = source;
+  return diagnostic;
+}
 
 let controller: OpenspecController | null = null;
 

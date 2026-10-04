@@ -12,12 +12,13 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b packages/core packages/server && npm run build -w @openspec-ide/web && npm run build -w openspec-ide",
-    "typecheck": "tsc -b packages/core packages/server && tsc -p packages/web --noEmit && tsc -p packages/vscode",
+    "build": "tsc -b packages/core packages/server && npm run build -w @openspec-ide/web && npm run build -w openspec-ide && npm run build -w openspec-ide-check",
+    "typecheck": "tsc -b packages/core packages/server && tsc -p packages/web --noEmit && tsc -p packages/vscode && tsc -p packages/check",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run typecheck && npm run lint && npm run test",
+    "check:openspec": "npm run build -w openspec-ide-check && node packages/check/dist/openspec-ide-check.mjs",
     "dev": "node scripts/dev.mjs",
     "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo packages/vscode/media/web",
     "test:e2e": "npm run build && playwright test",

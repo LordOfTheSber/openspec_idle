@@ -9,6 +9,7 @@ import type {
   ItemMetrics,
   MetricsExport,
   DeltaView,
+  DriftReport,
   RequirementComparison,
   SearchHit,
   SpecChange,
@@ -260,6 +261,11 @@ export function fetchSpec(capability: string): Promise<SpecResponse> {
 
 export function fetchBoard(): Promise<Board> {
   return get<Board>('/api/board');
+}
+
+/** Пересечения, устаревшие дельты и забытые changes. */
+export function fetchDrift(): Promise<DriftReport> {
+  return get<DriftReport>('/api/drift');
 }
 
 export function createChange(name: string, schema?: string): Promise<{ created: string }> {

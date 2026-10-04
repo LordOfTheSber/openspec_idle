@@ -44,6 +44,27 @@ export function diagnosticsByFile(
 }
 
 /**
+ * Раскладывает замечания с известным файлом по файлам; замечания без файла
+ * отбрасываются — у основного спека файл есть всегда.
+ */
+export function fileDiagnostics(entries: readonly ValidationEntry[]): Map<string, FileDiagnostic[]> {
+  const result = new Map<string, FileDiagnostic[]>();
+  for (const entry of entries) {
+    if (entry.file === null) continue;
+    const file = entry.file.replaceAll('\\', '/');
+    const list = result.get(file) ?? [];
+    list.push({ line: entry.line === null ? 0 : Math.max(0, entry.line - 1), level: LEVEL[entry.level], message: entry.message });
+    result.set(file, list);
+  }
+  return result;
+}
+
+/** Затронуты ли изменением основные спеки — тогда их нужно перепроверить. */
+export function specsTouched(paths: readonly string[]): boolean {
+  return paths.some((path) => path.replaceAll('\\', '/').startsWith('openspec/specs/'));
+}
+
+/**
  * Change, к которым относятся изменённые файлы.
  *
  * Пути — относительно корня рабочего пространства, как их сообщает

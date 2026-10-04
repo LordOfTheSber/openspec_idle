@@ -16,6 +16,8 @@ import { ArchivePreviewService, UnknownChangeError } from './archivePreview.js';
 import { StructureExistsError, StructureService, watchedStructureDirs } from './structure.js';
 import { ContextMapService, ContextModuleError } from './contextMap.js';
 import { TraceService } from './trace.js';
+import { AuthoringService } from './authoring.js';
+import { DriftService } from './drift.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
 import { MetricsService, UnknownItemError } from './metrics.js';
@@ -53,6 +55,11 @@ export interface ServerOptions {
    * каталогах npm.
    */
   readonly cliPath?: string | null;
+  /**
+   * Вести метрики пунктов плана в `.openspec-ide/`. Выключается там, где
+   * бэкенд не должен ничего писать в проект, — в команде проверки для CI.
+   */
+  readonly metrics?: boolean;
 }
 
 /** Запущенный сервер. */
@@ -112,7 +119,7 @@ export function createApp(options: ServerOptions): AppParts {
   // Карте контекста CLI тоже не нужен: модули, ADR и спеки читаются с диска.
   const contextMap = root === null ? null : new ContextMapService(root);
   const metrics =
-    root === null || board === null || reader === null
+    root === null || board === null || reader === null || options.metrics === false
       ? null
       : new MetricsService({
           root,
@@ -122,6 +129,14 @@ export function createApp(options: ServerOptions): AppParts {
         });
 
   const trace = deltas === null || board === null ? null : new TraceService(deltas, board, metrics);
+  const authoring = root === null || reader === null ? null : new AuthoringService(root, reader);
+  const drift =
+    root === null || reader === null || authoring === null
+      ? null
+      : new DriftService({ root, authoring, workspace: reader });
+  events.subscribe((event) => {
+    if (event.type === 'workspace-changed') drift?.invalidate();
+  });
 
   const validation =
     root !== null && location?.kind === 'found'
@@ -292,20 +307,31 @@ export function createApp(options: ServerOptions): AppParts {
 
   app.post('/api/trace/item', async (request) => {
     if (trace === null) throw new Error('CLI OpenSpec недоступен');
-    const body = (request.body ?? {}) as { change?: string; capability?: string; requirement?: string; scenario?: string };
+    const body = (request.body ?? {}) as { change?: string; capability?: string; requirement?: string; scenario?: string | null };
     if (
       typeof body.change !== 'string' ||
       typeof body.capability !== 'string' ||
       typeof body.requirement !== 'string' ||
-      typeof body.scenario !== 'string'
+      (body.scenario !== undefined && body.scenario !== null && typeof body.scenario !== 'string')
     ) {
-      throw new Error('Нужны имя change, capability, требование и сценарий');
+      throw new Error('Нужны имя change, capability и требование; сценарий — строкой или не указан');
     }
+    // Без сценария пункт ссылается на требование целиком и покрывает все его сценарии.
     return trace.addItem(body.change, {
       capability: body.capability,
       requirement: body.requirement,
-      scenario: body.scenario,
+      scenario: typeof body.scenario === 'string' && body.scenario !== '' ? body.scenario : null,
     });
+  });
+
+  app.get('/api/drift', async () => {
+    if (drift === null) throw new Error('CLI OpenSpec недоступен');
+    return drift.report();
+  });
+
+  app.get('/api/authoring', async () => {
+    if (authoring === null) throw new Error('CLI OpenSpec недоступен');
+    return authoring.sources();
   });
 
   app.get('/api/archive/preview', async (request) => {
@@ -523,6 +549,16 @@ export function createApp(options: ServerOptions): AppParts {
     const change = query['change'];
     if (change === undefined || change === '') throw new Error('Не указано имя change');
     return validation.run(change);
+  });
+
+  app.get('/api/validate/specs', async () => {
+    if (validation === null) throw new Error('CLI OpenSpec недоступен');
+    return validation.runSpecs();
+  });
+
+  app.get('/api/validate/archived', async () => {
+    if (validation === null) throw new Error('CLI OpenSpec недоступен');
+    return validation.runArchived();
   });
 
   app.get('/api/events', (request, reply) => {

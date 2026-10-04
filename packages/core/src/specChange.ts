@@ -89,7 +89,7 @@ function normalizeScenarioName(header: string): string {
 }
 
 /** Отмечает строки, лежащие внутри блоков кода, включая сами ограждения. */
-function fenceMask(lines: readonly string[]): boolean[] {
+export function fenceMask(lines: readonly string[]): boolean[] {
   const mask: boolean[] = [];
   let open: string | null = null;
   for (const line of lines) {

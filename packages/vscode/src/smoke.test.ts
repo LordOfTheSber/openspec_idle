@@ -7,7 +7,19 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { FIXTURES_ROOT } from '../../../tests/fixtures.js';
 // @ts-expect-error — модуль сборки на JavaScript без объявлений типов.
 import { bundleExtension } from '../bundle.mjs';
-import { DiagnosticSeverity, type FakeState, type FakeWebviewPanel, Uri, createFakeVscode } from './testing/fakeVscode.js';
+import {
+  type CodeAction,
+  type CodeLens,
+  type CompletionItem,
+  DiagnosticSeverity,
+  type FakeState,
+  FakeTextDocument,
+  type FakeWebviewPanel,
+  Position,
+  Range,
+  Uri,
+  createFakeVscode,
+} from './testing/fakeVscode.js';
 import type { TreeNode } from './treeModel.js';
 
 /**
@@ -287,6 +299,29 @@ describe('расширение VS Code: валидация и команды', (
     expect(state.messages.at(-1)?.level).toBe('warning');
   });
 
+  it('замечания основного спека ложатся на строку требования и исчезают после исправления', async () => {
+    const root = copyFixture('full-change');
+    const specPath = join(root, 'openspec', 'specs', 'broken', 'spec.md');
+    mkdirSync(join(root, 'openspec', 'specs', 'broken'), { recursive: true });
+    const header = ['# broken', '', '## Purpose', 'Спек для проверки диагностики основных спеков в панели.', '', '## Requirements', ''];
+    writeFileSync(specPath, [...header, '### Requirement: Без сценария', 'The system SHALL work.', ''].join('\n'));
+    const state = await activate([root]);
+
+    await command(state, 'openspec.validateSpecs');
+    const errors = (state.diagnostics.get(specPath) ?? []).filter((item) => item.severity === DiagnosticSeverity.Error);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]?.range.start.line).toBe(7);
+    expect(state.messages.at(-1)?.level).toBe('warning');
+
+    writeFileSync(
+      specPath,
+      [...header, '### Requirement: Без сценария', 'The system SHALL work.', '', '#### Scenario: Работает', '', '- **WHEN** запуск', '- **THEN** работает', ''].join('\n'),
+    );
+    await until(() => (state.diagnostics.get(specPath) ?? []).length === 0, 'замечания исправленного спека сняты');
+    await command(state, 'openspec.validateSpecs');
+    expect(state.messages.at(-1)?.text).toContain('проходят openspec validate --specs --strict');
+  });
+
   it('создаёт change командой с выбором схемы', async () => {
     const root = copyFixture('empty');
     const state = await activate([root]);
@@ -412,3 +447,120 @@ describe('расширение VS Code: структура папок', () => {
   });
 });
 
+
+describe('расширение VS Code: помощь в редакторе', () => {
+  const DELTA = 'openspec/changes/add-limits/specs/data-export/spec.md';
+
+  function providerOf<T>(state: FakeState, kind: string): T {
+    const found = state.providers.get(kind)?.[0];
+    if (found === undefined) throw new Error(`Провайдер ${kind} не зарегистрирован`);
+    return found as T;
+  }
+
+  it('регистрирует провайдеры и находит ссылку дельты на несуществующее требование', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+
+    for (const kind of ['completion', 'hover', 'definition', 'codeLens', 'documentSymbol', 'workspaceSymbol']) {
+      expect(state.providers.get(kind)?.length, kind).toBe(1);
+    }
+    // Исправления ссылок и сравнение устаревшего требования — два поставщика действий.
+    expect(state.providers.get('codeAction')?.length).toBe(2);
+    // В фикстуре REMOVED «Устаревшая выгрузка» — такого требования в основном спеке нет.
+    const removed = join(root, 'openspec/changes/rework-export/specs/data-export/spec.md');
+    await until(
+      () => (state.diagnostics.get(removed) ?? []).some((item) => item.source === 'openspec-authoring' && item.range.start.line === 15),
+      'ошибка REMOVED на строке заголовка',
+    );
+  });
+
+  it('опечатка в MODIFIED при наборе: ошибка на строке и исправление заменой имени', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+    const path = join(root, DELTA);
+    await until(() => state.commands.has('openspec.addPlanItem'), 'команды подсказок');
+    // Источники загружаются после активации: ждём, пока поиск символов их увидит.
+    const symbols = providerOf<{ provideWorkspaceSymbols(query: string): { name: string }[] }>(state, 'workspaceSymbol');
+    await until(() => symbols.provideWorkspaceSymbols('Ограничение').length > 0, 'источники функций редактора');
+
+    const text = readFileSync(path, 'utf8');
+    const document = new FakeTextDocument(Uri.file(path), text);
+    state.textDocuments.push(document);
+    state.changeDocument(document, text.replace('### Requirement: Выгрузка данных', '### Requirement: Выгрузка даных'));
+    await until(
+      () => (state.diagnostics.get(path) ?? []).some((item) => item.source === 'openspec-authoring' && item.range.start.line === 4),
+      'ошибка опечатки на строке заголовка',
+    );
+
+    const actions = providerOf<{ provideCodeActions(d: unknown, r: Range, c: { diagnostics: unknown[] }): CodeAction[] }>(
+      state,
+      'codeAction',
+    ).provideCodeActions(document, new Range(4, 0, 4, 0), { diagnostics: state.diagnostics.get(path) ?? [] });
+    expect(actions[0]?.title).toBe('Заменить на «Выгрузка данных»');
+    expect(actions[0]?.edit?.replacements[0]?.newText).toBe('Выгрузка данных');
+  });
+
+  it('дополнение имени для MODIFIED и подсказки над требованиями', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+    const path = join(root, DELTA);
+    const symbols = providerOf<{ provideWorkspaceSymbols(query: string): { name: string }[] }>(state, 'workspaceSymbol');
+    await until(() => symbols.provideWorkspaceSymbols('Ограничение').length > 0, 'источники функций редактора');
+
+    const text = readFileSync(path, 'utf8').replace('## ADDED Requirements', '### Requirement: \n\n## ADDED Requirements');
+    const document = new FakeTextDocument(Uri.file(path), text);
+    const line = text.split('\n').indexOf('### Requirement: ');
+    const items = providerOf<{ provideCompletionItems(d: unknown, p: Position): CompletionItem[] }>(state, 'completion').provideCompletionItems(
+      document,
+      new Position(line, '### Requirement: '.length),
+    );
+    expect(items.filter((item) => item.kind === 6).map((item) => item.label)).toEqual(['Кодировка файла']);
+
+    const lenses = providerOf<{ provideCodeLenses(d: unknown): CodeLens[] }>(state, 'codeLens').provideCodeLenses(
+      new FakeTextDocument(Uri.file(path), readFileSync(path, 'utf8')),
+    );
+    const titles = lenses.map((lens) => lens.command?.title);
+    expect(titles).toContain('Основной спек');
+    expect(titles).toContain('Не покрыт планом — добавить пункт');
+
+    const add = lenses.find((lens) => lens.command?.title === 'Не покрыт планом — добавить пункт');
+    await command(state, add?.command?.command ?? '', ...(add?.command?.arguments ?? []));
+    expect(readFileSync(join(root, 'openspec/changes/add-limits/tasks.md'), 'utf8')).toContain('↳ data-export / Выгрузка данных');
+  });
+});
+
+describe('расширение VS Code: пересечения и пакетная архивация', () => {
+  it('пересечение двух change — предупреждение на строке заголовка в обеих дельтах', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+    for (const change of ['add-limits', 'rework-export']) {
+      const path = join(root, `openspec/changes/${change}/specs/data-export/spec.md`);
+      await until(
+        () =>
+          (state.diagnostics.get(path) ?? []).some(
+            (item) => item.source === 'openspec-drift' && item.range.start.line === 4 && item.message.includes('Выгрузка данных'),
+          ),
+        `предупреждение о пересечении в ${change}`,
+      );
+    }
+  });
+
+  it('пакетная архивация архивирует готовые changes и сообщает итог', async () => {
+    const root = copyFixture('full-change');
+    const tasks = join(root, 'openspec/changes/full-feature/tasks.md');
+    writeFileSync(tasks, readFileSync(tasks, 'utf8').replaceAll('- [ ]', '- [x]'));
+    const state = await activate([root]);
+
+    state.answers.push(['full-feature'], 'Архивировать');
+    await command(state, 'openspec.archiveReady');
+
+    expect(existsSync(join(root, 'openspec/changes/full-feature'))).toBe(false);
+    expect(state.messages.at(-1)?.text).toBe('Архивировано: 1 из 1. full-feature');
+  });
+
+  it('без готовых changes архивировать нечего', async () => {
+    const state = await activate([copyFixture('full-change')]);
+    await command(state, 'openspec.archiveReady');
+    expect(state.messages.at(-1)?.text).toContain('архивировать нечего');
+  });
+});

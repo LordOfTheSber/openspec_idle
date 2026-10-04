@@ -29,7 +29,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'packages/vscode/*.mjs'],
+    files: ['scripts/**/*.mjs', 'packages/vscode/*.mjs', 'packages/check/*.mjs'],
     languageOptions: {
       globals: {
         console: 'readonly',
@@ -41,7 +41,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'packages/vscode/*.mjs'],
+    files: ['scripts/**/*.mjs', 'packages/vscode/*.mjs', 'packages/check/*.mjs'],
     rules: { 'no-console': 'off' },
   },
   {

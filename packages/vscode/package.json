@@ -2,7 +2,7 @@
   "name": "openspec-ide",
   "displayName": "OpenSpec IDE",
   "description": "Работа по методологии OpenSpec в VS Code: дерево changes и спеков, валидация, доска, дельты, метрики, конструктор процессов, структура папок и карта контекста модулей",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "publisher": "openspec-ide",
   "private": true,
   "license": "MIT",
@@ -89,6 +89,12 @@
         "icon": "$(check)"
       },
       {
+        "command": "openspec.validateSpecs",
+        "title": "Проверить основные спеки",
+        "category": "OpenSpec",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "openspec.previewArchive",
         "title": "Предпросмотр архивации",
         "category": "OpenSpec",
@@ -97,6 +103,12 @@
       {
         "command": "openspec.archiveChange",
         "title": "Архивировать change",
+        "category": "OpenSpec",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "openspec.archiveReady",
+        "title": "Архивировать готовые changes…",
         "category": "OpenSpec",
         "icon": "$(archive)"
       },
@@ -206,6 +218,16 @@
           "command": "openspec.checkStructure",
           "when": "view == openspec.workspace && openspec.state == 'ready'",
           "group": "sections@5"
+        },
+        {
+          "command": "openspec.archiveReady",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "operations@1"
+        },
+        {
+          "command": "openspec.validateSpecs",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "operations@2"
         }
       ],
       "view/item/context": [

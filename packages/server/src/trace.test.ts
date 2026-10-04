@@ -6,6 +6,7 @@ import { canonicalize } from './fs/workspace.js';
 import { SESSION_HEADER } from './http/session.js';
 import { type RunningServer, startServer } from './server.js';
 import type { TraceView } from './trace.js';
+import type { AuthoringSources } from '@openspec-ide/core';
 
 let root: string;
 let server: RunningServer | null = null;
@@ -94,6 +95,20 @@ describe('трассировка через API', () => {
     );
   });
 
+  it('без сценария пункт ссылается на требование целиком и покрывает все его сценарии', async () => {
+    const { status, body } = await request<TraceView>('POST', '/api/trace/item', {
+      change: 'fix-cli',
+      capability: 'vscode-extension',
+      requirement: 'Путь к CLI OpenSpec в настройках',
+    });
+
+    expect(status).toBe(200);
+    expect(body.trace.covered).toHaveLength(2);
+    expect(readFileSync(join(root, 'openspec/changes/fix-cli/tasks.md'), 'utf8')).toBe(
+      `${TASKS}- [ ] 1.2 Путь к CLI OpenSpec в настройках\n  ↳ vscode-extension / Путь к CLI OpenSpec в настройках\n`,
+    );
+  });
+
   it('неизвестный сценарий не пишет в план', async () => {
     const { status } = await request('POST', '/api/trace/item', {
       change: 'fix-cli',
@@ -104,6 +119,22 @@ describe('трассировка через API', () => {
 
     expect(status).toBe(400);
     expect(readFileSync(join(root, 'openspec/changes/fix-cli/tasks.md'), 'utf8')).toBe(TASKS);
+  });
+});
+
+describe('источники для функций редактора', () => {
+  it('отдаёт основные спеки, дельты и план активного change с путями от корня', async () => {
+    write('openspec/specs/vscode-extension/spec.md', '# vscode-extension\n\n## Purpose\n\nРасширение.\n\n## Requirements\n');
+    const { status, body } = await request<AuthoringSources>('GET', '/api/authoring');
+
+    expect(status).toBe(200);
+    expect(body.mainSpecs.map((spec) => spec.path)).toEqual(['openspec/specs/vscode-extension/spec.md']);
+    expect(body.changes).toHaveLength(1);
+    expect(body.changes[0]?.name).toBe('fix-cli');
+    expect(body.changes[0]?.deltas).toEqual([
+      { capability: 'vscode-extension', path: 'openspec/changes/fix-cli/specs/vscode-extension/spec.md', text: SPEC },
+    ]);
+    expect(body.changes[0]?.plan).toEqual({ path: 'openspec/changes/fix-cli/tasks.md', text: TASKS });
   });
 });
 

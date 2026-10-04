@@ -56,27 +56,40 @@ export class TraceService {
     return { change, planPath: plan?.path ?? null, trace, metrics };
   }
 
-  /** Дописывает в план пункт со ссылкой на сценарий. */
-  async addItem(change: string, target: { capability: string; requirement: string; scenario: string }): Promise<TraceView> {
+  /**
+   * Дописывает в план пункт со ссылкой на сценарий, а без сценария — на
+   * требование целиком.
+   */
+  async addItem(
+    change: string,
+    target: { capability: string; requirement: string; scenario: string | null },
+  ): Promise<TraceView> {
     const plan = await this.#board.readTrackedText(change);
     if (plan === null) {
       throw new ChangeOperationError(`Схема изменения «${change}» не объявила отслеживаемый артефакт — пункт некуда добавить`, '');
     }
     const { trace } = await this.view(change);
-    const scenario = trace.scenarios.find(
-      (item) =>
-        item.capability === target.capability && item.requirement === target.requirement && item.name === target.scenario,
+    const scenarios = trace.scenarios.filter(
+      (item) => item.capability === target.capability && item.requirement === target.requirement,
     );
-    if (scenario === undefined) {
+    const reference =
+      target.scenario === null
+        ? scenarios.length > 0
+          ? target.requirement
+          : undefined
+        : scenarios.find((item) => item.name === target.scenario)?.name;
+    if (reference === undefined) {
       throw new ChangeOperationError(
-        `В дельтах изменения «${change}» нет сценария «${target.scenario}» в ${target.capability}`,
+        target.scenario === null
+          ? `В дельтах изменения «${change}» нет требования «${target.requirement}» со сценариями в ${target.capability}`
+          : `В дельтах изменения «${change}» нет сценария «${target.scenario}» в ${target.capability}`,
         '',
       );
     }
     const next = appendPlanItem(plan.text ?? '', {
-      capability: scenario.capability,
-      target: scenario.name,
-      title: scenario.name,
+      capability: target.capability,
+      target: reference,
+      title: reference,
     });
     await this.#board.writeTrackedText(change, next.text);
     return this.view(change);

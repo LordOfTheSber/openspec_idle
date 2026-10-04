@@ -85,9 +85,17 @@ export {
 } from './files.js';
 export {
   ValidationRunner,
+  requirementLine,
+  requirementNameFromMessage,
+  specIssueLine,
+  type SpecValidationRun,
   type ValidationEntry,
   type ValidationRun,
 } from './validation.js';
+
+export { AuthoringService } from './authoring.js';
+export { DriftService } from './drift.js';
+export { GitHistory } from './git.js';
 
 export {
   DeltaReader,
@@ -126,3 +134,15 @@ export {
   type StructuralIssue,
   type YamlProblem,
 } from './schemaRegistry.js';
+export {
+  CHECKS,
+  CheckUsageError,
+  parseCheckList,
+  runCheck,
+  type CheckFinding,
+  type CheckId,
+  type CheckLevel,
+  type CheckOptions,
+  type CheckReport,
+  type CheckSummary,
+} from './check.js';

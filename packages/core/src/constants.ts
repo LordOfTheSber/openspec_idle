@@ -10,7 +10,7 @@ export const OPENSPEC_DIR = 'openspec';
  * они расходятся, и сверка ревизии позволяет сказать об этом прямо, а не
  * показывать «Not Found» в отдельных разделах.
  */
-export const API_REVISION = 5;
+export const API_REVISION = 8;
 
 /** Бэкенд старше интерфейса: не сообщает ревизию API или сообщает меньшую. */
 export function isStaleBackend(health: unknown): boolean {
