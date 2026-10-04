@@ -109,7 +109,7 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
       <h3 id="ctx-volume">Объём</h3>
       <p className="muted" data-testid="ctx-control-total">
         {tokens(map.totalTokens)} токенов в {plural(files.length, ['файле', 'файлах', 'файлах'])} контекста. Оценка: 4 символа
-        латиницы или 2,5 кириллицы на токен, точность ±25 %.
+        латиницы или 2,5 кириллицы на токен; у конкретной модели — до ±35 %.
       </p>
       {files.length === 0 ? (
         <p className="empty">Файлов контекста нет.</p>

@@ -24,3 +24,4 @@
 
 - [x] 4.1 README: раздел «Контроль контекста», поле `max_tokens`, таблица замечаний; проверка — `npm run verify` проходит, `openspec validate add-context-control --strict` проходит
 - [x] 4.2 Контекст репозитория в `openspec/context/`: общий контекст, пять модулей с `max_tokens`, шесть ADR (один — `superseded`), правило `context?` в `openspec/structure.yaml`; проверка — `openspec-ide-check --only structure,context` без ошибок, все пути в тексте найдены, наборы модулей в пределах бюджетов
+- [x] 4.3 Навык `context-fill` в `.claude/skills/` и `.agents/skills/` — правила и пять промптов (общий контекст, модуль, ADR, обновление, сжатие); замер оценки токенов тремя токенизаторами — в design, решение 1; проверка — файлы навыка совпадают, README ссылается на навык, в коде и документации нет утверждения «±25 %»
