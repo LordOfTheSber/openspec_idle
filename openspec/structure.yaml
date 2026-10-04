@@ -20,6 +20,14 @@ structure:
     changes: "*"
     specs: "*"
     schemas?: "*"
+    context?:
+      "*.md": file
+      modules:
+        "*":
+          index.md: file
+          context.md: file
+      adr?:
+        "*.md": file
   docs:
     mockups:
       "*.html": file

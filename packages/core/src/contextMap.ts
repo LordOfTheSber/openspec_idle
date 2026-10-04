@@ -888,7 +888,10 @@ function controlIssues(
   const references: ContextReference[] = [];
   const existing = input.existingPaths;
   if (existing !== undefined) {
+    // Недействующий ADR — история: пути в нём и должны были исчезнуть.
+    const inactive = new Set(adrs.filter((adr) => !adr.active).map((adr) => adr.path));
     for (const { path, text } of prose) {
+      if (inactive.has(path)) continue;
       const codePaths = moduleOf.get(path)?.codePaths.map((code) => code.path) ?? [];
       for (const reference of extractReferences(text)) {
         const resolved = referenceCandidates(reference, path, codePaths).some((candidate) => existing.has(candidate));

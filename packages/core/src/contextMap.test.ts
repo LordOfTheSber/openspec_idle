@@ -315,7 +315,7 @@ describe('контроль контекста', () => {
     ['openspec/context/modules/master/context.md', `# Мастер\n\n${paragraph}\n\nКод в \`main/App.java\` и \`gone/Old.java\`.\n`],
     ['openspec/context/modules/impl/context.md', '# Контекст impl\n'],
     ['openspec/specs/replication/spec.md', 'х'.repeat(25_000)],
-    ['openspec/context/adr/ADR-001.md', '---\nstatus: superseded\nmodules: [sds-master]\n---\n# ADR-001\n'],
+    ['openspec/context/adr/ADR-001.md', '---\nstatus: superseded\nmodules: [sds-master]\n---\n# ADR-001\n\nНастройки — в `old/config.json`.\n'],
     ['openspec/context/adr/ADR-002.md', '---\nstatus: accepted\nmodules: [sds-master]\n---\n# ADR-002\n'],
   ]);
   const freshness = { contextDate: '2026-09-01T10:00:00+03:00', codeDate: '2026-10-01T10:00:00+03:00', commitsAfter: 3, uncommitted: false };
@@ -373,7 +373,7 @@ describe('контроль контекста', () => {
     expect(issue('unused-file').map((item) => item.path)).toEqual(['openspec/context/modules/master/notes.md']);
   });
 
-  it('связь с реальностью: путь от кода модуля найден, пропавший — предупреждение; отставание — сведение', () => {
+  it('связь с реальностью: путь от кода модуля найден, пропавший — предупреждение, в недействующем ADR — не проверяется; отставание — сведение', () => {
     expect(map.references.map((ref) => [ref.target, ref.resolved])).toEqual([
       ['main/App.java', true],
       ['gone/Old.java', false],

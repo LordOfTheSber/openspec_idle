@@ -118,8 +118,10 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
           <thead>
             <tr>
               <th scope="col">Файл</th>
-              <th scope="col">Чей</th>
-              <th scope="col" className="num">
+              <th scope="col" className="wide">
+                Чей
+              </th>
+              <th scope="col" className="num wide">
                 Строк
               </th>
               <th scope="col">Токенов · доля</th>
@@ -132,8 +134,8 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
                   <FileLink path={file.path} />
                   {file.tokens > LARGE_FILE_TOKENS && <span className="chip warn">тяжёлый</span>}
                 </td>
-                <td className="muted">{fileKind(file)}</td>
-                <td className="num">{file.lines}</td>
+                <td className="muted wide">{fileKind(file)}</td>
+                <td className="num wide">{file.lines}</td>
                 <td>
                   <Meter
                     value={file.tokens}
@@ -164,7 +166,7 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
             <thead>
               <tr>
                 <th scope="col">Модуль</th>
-                <th scope="col" className="num">
+                <th scope="col" className="num wide">
                   Файлов
                 </th>
                 <th scope="col">Токенов</th>
@@ -181,7 +183,7 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
                         {module.id}
                       </button>
                     </td>
-                    <td className="num">{count}</td>
+                    <td className="num wide">{count}</td>
                     <td>
                       <Meter value={module.bundleTokens} max={largest} label={tokens(module.bundleTokens)} over={over} />
                     </td>
@@ -332,7 +334,9 @@ function RealityCard({ map, onShow }: { readonly map: ContextMapModel; readonly 
             <thead>
               <tr>
                 <th scope="col">Модуль</th>
-                <th scope="col">Пути кода</th>
+                <th scope="col" className="wide">
+                  Пути кода
+                </th>
                 <th scope="col">context.md относительно кода</th>
               </tr>
             </thead>
@@ -344,7 +348,7 @@ function RealityCard({ map, onShow }: { readonly map: ContextMapModel; readonly 
                       {module.id}
                     </button>
                   </td>
-                  <td>
+                  <td className="wide">
                     {module.codePaths.length === 0 ? (
                       <span className="chip warn">не привязан к коду</span>
                     ) : (

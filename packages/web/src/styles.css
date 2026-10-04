@@ -2903,6 +2903,21 @@ code {
   font-style: italic;
 }
 
+/* Узкая панель: остаются файл, объём и бюджет. */
+@media (max-width: 640px) {
+  .ctx-control-table .wide {
+    display: none;
+  }
+
+  .ctx-control-table .bar {
+    min-width: 0;
+  }
+
+  .ctx-control-table .bar .track {
+    min-width: 40px;
+  }
+}
+
 .ctx-control-where {
   display: flex;
   flex-wrap: wrap;
