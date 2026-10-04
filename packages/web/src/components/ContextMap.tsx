@@ -17,14 +17,15 @@ import {
   nodeKey,
 } from '../lib/contextLayout.js';
 import { bundleKeys, parseNodeKey, selectionOf, togglePicked } from '../lib/contextSelection.js';
-import { plural } from '../lib/format.js';
+import { formatTokens, plural } from '../lib/format.js';
 import { inVsCode, openInEditor } from '../lib/host.js';
 import { readListPref, readPref, writeListPref, writePref } from '../lib/prefs.js';
 import { PageActions, useNotify } from '../lib/ui.js';
+import { ContextControl, FileLink, FreshnessNote, tokens } from './ContextControl.js';
 import { Icon } from './Icon.js';
 
-type View = 'graph' | 'matrix';
-const VIEWS: readonly View[] = ['graph', 'matrix'];
+type View = 'graph' | 'matrix' | 'control';
+const VIEWS: readonly View[] = ['graph', 'matrix', 'control'];
 const SWITCH: readonly ('on' | 'off')[] = ['on', 'off'];
 
 /** Щелчок с Ctrl, ⌘ или Shift добавляет узел в набор и без режима набора. */
@@ -59,6 +60,7 @@ export function ContextMap({ revision }: { readonly revision: number }) {
   const [picking, setPicking] = useState(() => picked.length > 0);
   const [withDeps, setWithDeps] = useState(() => readPref('context-deps', SWITCH, 'on') === 'on');
   const [withModuleDomains, setWithModuleDomains] = useState(() => readPref('context-module-domains', SWITCH, 'on') === 'on');
+  const [withInactiveAdrs, setWithInactiveAdrs] = useState(() => readPref('context-inactive-adrs', SWITCH, 'off') === 'on');
 
   const load = useCallback(async () => {
     try {
@@ -96,8 +98,12 @@ export function ContextMap({ revision }: { readonly revision: number }) {
     () =>
       map === null || !picking
         ? null
-        : contextBundle(map, selectionOf(picked), { dependencies: withDeps, moduleDomains: withModuleDomains }),
-    [map, picking, picked, withDeps, withModuleDomains],
+        : contextBundle(map, selectionOf(picked), {
+            dependencies: withDeps,
+            moduleDomains: withModuleDomains,
+            inactiveAdrs: withInactiveAdrs,
+          }),
+    [map, picking, picked, withDeps, withModuleDomains, withInactiveAdrs],
   );
   const included = bundle !== null && picked.length > 0 ? bundleKeys(bundle) : null;
   const pickedSet = useMemo(() => new Set(picking ? picked : []), [picking, picked]);
@@ -151,7 +157,8 @@ export function ContextMap({ revision }: { readonly revision: number }) {
   }
 
   const errors = map.issues.filter((issue) => issue.severity === 'error').length;
-  const warnings = map.issues.length - errors;
+  const warnings = map.issues.filter((issue) => issue.severity === 'warning').length;
+  const infos = map.issues.length - errors - warnings;
 
   return (
     <div className="context-map" data-testid="context-map">
@@ -161,6 +168,12 @@ export function ContextMap({ revision }: { readonly revision: number }) {
           {plural(map.domains.length, ['домен', 'домена', 'доменов'])} ·{' '}
           {plural(map.links.length, ['связь', 'связи', 'связей'])}
           {map.adrs.length > 0 && <> · {map.adrs.length} ADR</>}
+          {map.files.length > 0 && (
+            <span title="Оценка токенов всех файлов контекста: общего, модулей, спек доменов и ADR">
+              {' '}
+              · {tokens(map.totalTokens)} токенов
+            </span>
+          )}
         </span>
         <button
           type="button"
@@ -182,6 +195,16 @@ export function ContextMap({ revision }: { readonly revision: number }) {
             <Icon name="board" size={14} />
             Матрица
           </button>
+          <button
+            type="button"
+            aria-pressed={view === 'control'}
+            onClick={() => chooseView('control')}
+            title="Объём контекста, лишнее и связь с кодом"
+            data-testid="context-view-control"
+          >
+            <Icon name="chart" size={14} />
+            Контроль
+          </button>
         </div>
         <button type="button" className="icon-btn" aria-label="Перечитать карту" title="Перечитать карту" onClick={() => void load()} data-testid="context-reload">
           <Icon name="refresh" />
@@ -197,12 +220,21 @@ export function ContextMap({ revision }: { readonly revision: number }) {
             {warnings > 0 && (
               <span className="chip warn">{plural(warnings, ['предупреждение', 'предупреждения', 'предупреждений'])}</span>
             )}
+            {infos > 0 && <span className="chip info">{plural(infos, ['сведение', 'сведения', 'сведений'])}</span>}
           </summary>
           <IssueList issues={map.issues} onSelect={showOnMap} />
         </details>
       )}
 
-      {map.configured || map.domains.length > 0 ? (
+      {view === 'control' && (map.configured || map.domains.length > 0) ? (
+        <ContextControl
+          map={map}
+          onShow={(key) => {
+            chooseView('graph');
+            showOnMap(key);
+          }}
+        />
+      ) : map.configured || map.domains.length > 0 ? (
         <div className="context-body">
           {view === 'graph' ? (
             <Graph
@@ -231,8 +263,10 @@ export function ContextMap({ revision }: { readonly revision: number }) {
               bundle={bundle}
               withDeps={withDeps}
               withModuleDomains={withModuleDomains}
+              withInactiveAdrs={withInactiveAdrs}
               onDeps={(value) => switchOption('context-deps', value, setWithDeps)}
               onModuleDomains={(value) => switchOption('context-module-domains', value, setWithModuleDomains)}
+              onInactiveAdrs={(value) => switchOption('context-inactive-adrs', value, setWithInactiveAdrs)}
               onRemove={(key) => updatePicked(togglePicked(picked, key))}
               onClear={() => updatePicked([])}
               onClose={() => setPicking(false)}
@@ -336,15 +370,19 @@ depends_on: [core]
   );
 }
 
+const ISSUE_CHIP: Record<ContextIssue['severity'], { className: string; label: string }> = {
+  error: { className: 'chip bad', label: 'ошибка' },
+  warning: { className: 'chip warn', label: 'внимание' },
+  info: { className: 'chip info', label: 'сведение' },
+};
+
 function IssueList({ issues, onSelect }: { readonly issues: readonly ContextIssue[]; readonly onSelect: (key: string) => void }) {
   const vscode = inVsCode();
   return (
     <ul className="structure-issues">
       {issues.map((issue, index) => (
         <li key={`${issue.kind}-${issue.path}-${index}`} data-testid={`context-issue-${issue.kind}`}>
-          <span className={issue.severity === 'error' ? 'chip bad' : 'chip warn'}>
-            {issue.severity === 'error' ? 'ошибка' : 'внимание'}
-          </span>
+          <span className={ISSUE_CHIP[issue.severity].className}>{ISSUE_CHIP[issue.severity].label}</span>
           <span className="body">
             <span>{issue.message}</span>
             <span className="where">
@@ -683,11 +721,30 @@ function Chips({
   );
 }
 
-/** Упорядоченный список файлов контекста с копированием путей строками `@путь`. */
-function BundleFiles({ title, note, files }: { readonly title: string; readonly note: string; readonly files: readonly string[] }) {
+/**
+ * Упорядоченный список файлов контекста с оценкой токенов и копированием путей
+ * строками `@путь`. Недействующие ADR, не вошедшие в набор, названы отдельно.
+ */
+function BundleFiles({
+  title,
+  note,
+  map,
+  bundle,
+  budget = null,
+}: {
+  readonly title: string;
+  readonly note: string;
+  readonly map: ContextMapModel;
+  readonly bundle: ContextBundle;
+  /** Бюджет набора модуля из `max_tokens`. */
+  readonly budget?: number | null;
+}) {
   const [copied, setCopied] = useState(false);
+  const files = bundle.files;
   const joined = files.join('\n');
   useEffect(() => setCopied(false), [joined]);
+  const sizes = new Map(map.files.map((file) => [file.path, file.tokens]));
+  const over = budget !== null && bundle.tokens > budget;
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(files.map((file) => `@${file}`).join('\n'));
@@ -701,21 +758,45 @@ function BundleFiles({ title, note, files }: { readonly title: string; readonly 
       <p className="pane-title">
         {title} <span className="count">{files.length}</span>
       </p>
+      <p className="ctx-bundle-total" data-testid="context-bundle-tokens">
+        <b>{tokens(bundle.tokens)} токенов</b>
+        {budget !== null && (
+          <span className={over ? 'chip bad' : 'chip ok'}>
+            {over ? 'сверх бюджета' : 'в бюджете'} {formatTokens(budget)}
+          </span>
+        )}
+      </p>
       <p className="muted">{note}</p>
       {files.length > 0 && (
         <ol>
           {files.map((file) => (
             <li key={file} className="mono">
-              {inVsCode() ? (
-                <button type="button" className="linkish" onClick={() => openInEditor(file)}>
-                  {file}
-                </button>
-              ) : (
-                file
-              )}
+              <span className="ctx-bundle-row">
+                <span className="ctx-bundle-file">
+                  {inVsCode() ? (
+                    <button type="button" className="linkish" onClick={() => openInEditor(file)}>
+                      {file}
+                    </button>
+                  ) : (
+                    file
+                  )}
+                </span>
+                {sizes.has(file) && <span className="ctx-bundle-size">{tokens(sizes.get(file) ?? 0)}</span>}
+              </span>
             </li>
           ))}
         </ol>
+      )}
+      {bundle.skippedAdrs.length > 0 && (
+        <p className="muted" data-testid="context-bundle-skipped">
+          Не вошли недействующие ADR:{' '}
+          {bundle.skippedAdrs.map((path, index) => (
+            <span key={path}>
+              {index > 0 && ', '}
+              <FileLink path={path} /> ({map.adrs.find((adr) => adr.path === path)?.status ?? '—'})
+            </span>
+          ))}
+        </p>
       )}
       <button type="button" className="btn" onClick={() => void copy()} disabled={files.length === 0} data-testid="context-copy">
         {copied ? 'Скопировано' : 'Копировать пути (@файл)'}
@@ -733,8 +814,10 @@ function SelectionPanel({
   bundle,
   withDeps,
   withModuleDomains,
+  withInactiveAdrs,
   onDeps,
   onModuleDomains,
+  onInactiveAdrs,
   onRemove,
   onClear,
   onClose,
@@ -744,8 +827,10 @@ function SelectionPanel({
   readonly bundle: ContextBundle;
   readonly withDeps: boolean;
   readonly withModuleDomains: boolean;
+  readonly withInactiveAdrs: boolean;
   readonly onDeps: (value: boolean) => void;
   readonly onModuleDomains: (value: boolean) => void;
+  readonly onInactiveAdrs: (value: boolean) => void;
   readonly onRemove: (key: string) => void;
   readonly onClear: () => void;
   readonly onClose: () => void;
@@ -806,11 +891,21 @@ function SelectionPanel({
               />{' '}
               спеки доменов модулей
             </label>
+            <label title="ADR со статусом superseded, deprecated, rejected и т. п.">
+              <input
+                type="checkbox"
+                checked={withInactiveAdrs}
+                onChange={(event) => onInactiveAdrs(event.target.checked)}
+                data-testid="context-opt-inactive-adrs"
+              />{' '}
+              недействующие ADR
+            </label>
           </div>
           <BundleFiles
             title="Контекст для работы"
             note={`Общий контекст${parts.length > 0 ? `, ${parts.join(', ')}` : ''}.`}
-            files={bundle.files}
+            map={map}
+            bundle={bundle}
           />
           <button type="button" className="btn small ctx-clear" onClick={onClear} data-testid="context-clear">
             Очистить набор
@@ -903,6 +998,16 @@ function Details({
           <dd>
             <Chips kind="adr" ids={module.adrs} map={map} onSelect={onSelect} />
           </dd>
+          <dt>Объём</dt>
+          <dd data-testid="context-module-volume">
+            context.md {tokens(map.files.find((file) => file.path === module.contextPath)?.tokens ?? 0)} · набор{' '}
+            {tokens(module.bundleTokens)}
+            {module.maxTokens !== null && <> из {formatTokens(module.maxTokens)}</>}
+          </dd>
+          <dt>Свежесть</dt>
+          <dd>
+            {module.codePaths.length === 0 ? <span className="chip warn">не привязан к коду</span> : <FreshnessNote freshness={module.freshness} />}
+          </dd>
           <dt>Код</dt>
           <dd>
             {module.codePaths.length === 0 ? (
@@ -921,8 +1026,10 @@ function Details({
         </dl>
         <BundleFiles
           title="Контекст для работы над модулем"
-          note={`Общий контекст, модуль и его зависимости по depends_on (${bundle.modules.join(' → ')}), спеки их доменов и ADR.`}
-          files={bundle.files}
+          note={`Общий контекст, модуль и его зависимости по depends_on (${bundle.modules.join(' → ')}), спеки их доменов и действующие ADR.`}
+          map={map}
+          bundle={bundle}
+          budget={module.maxTokens}
         />
       </aside>
     );
@@ -971,8 +1078,13 @@ function Details({
       </header>
       <div className="ctx-files">
         <FileButton path={adr.path} label={`${adr.id}.md`} />
-        {adr.status !== null && <span className="chip">{adr.status}</span>}
+        {adr.status !== null && <span className={adr.active ? 'chip' : 'chip warn'}>{adr.status}</span>}
       </div>
+      {!adr.active && (
+        <p className="notice warn" data-testid="context-adr-inactive">
+          Решение не действует — в наборы контекста модулей и доменов не входит, только при явном выборе.
+        </p>
+      )}
       <dl className="ctx-kv">
         <dt>Модули</dt>
         <dd>

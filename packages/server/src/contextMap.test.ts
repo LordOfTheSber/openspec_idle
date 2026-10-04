@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -75,7 +76,14 @@ describe('карта контекста с диска', () => {
       ['unknown-module', 'openspec/context/modules/sds-impl/index.md', 6],
       ['missing-code-path', 'openspec/context/modules/sds-impl/index.md', 5],
       ['uncovered-domain', 'openspec/specs/cm-cluster-api/spec.md', null],
+      ['empty-context', 'openspec/context/modules/sds-impl/context.md', null],
     ]);
+    // Объём известен для общего контекста, модулей, спек и ADR.
+    expect(map.files.map((file) => file.path)).toContain('openspec/specs/replication/spec.md');
+    expect(map.files.map((file) => file.path)).toContain('openspec/context/adr/ADR-001-sync-replication.md');
+    expect(map.totalTokens).toBeGreaterThan(0);
+    expect(map.modules[0]?.bundleTokens).toBeGreaterThan(0);
+    expect(map.unusedFiles).toEqual([]);
   });
 
   it('без папки контекста карта не заведена, домены — из спеков, включая вложенные', async () => {
@@ -95,6 +103,70 @@ describe('карта контекста с диска', () => {
     expect(map.issues.map((issue) => `${issue.kind}:${issue.module ?? ''}`)).toEqual([
       'missing-index:empty',
       'missing-context:meta-only',
+      'no-code-paths:meta-only',
     ]);
+  });
+});
+
+describe('контроль контекста с диска', () => {
+  const index = (codePaths: string): string => `---\nmodule: svc\ndomains: []\ncode_paths: [${codePaths}]\n---\n# svc\n`;
+
+  it('пути в тексте: от кода модуля, от файла и от корня; пропавший — предупреждение; файлы вне наборов', async () => {
+    write('svc/src/main/App.java');
+    write('README.md', '# readme');
+    write('openspec/context/adr/ADR-001.md', '# ADR-001\n\nСм. [readme](../../../README.md).\n');
+    write('openspec/context/adr/README.md', '# Решения');
+    write('openspec/context/adr/diagram.png');
+    write('openspec/context/notes/todo.txt');
+    write('openspec/context/modules/svc/index.md', index('svc/src'));
+    write('openspec/context/modules/svc/notes.md', '# черновик');
+    write('openspec/context/modules/svc/context.md', '# svc\n\nВход — `main/App.java`, разбор — `main/Parser.java`.\n');
+
+    const map = await new ContextMapService(root).build();
+    expect(map.references.map((ref) => [ref.path, ref.target, ref.resolved])).toEqual([
+      ['openspec/context/modules/svc/context.md', 'main/App.java', true],
+      ['openspec/context/modules/svc/context.md', 'main/Parser.java', false],
+      ['openspec/context/adr/ADR-001.md', '../../../README.md', true],
+    ]);
+    expect(map.issues.filter((issue) => issue.kind === 'broken-reference')).toEqual([
+      expect.objectContaining({ path: 'openspec/context/modules/svc/context.md', line: 3, module: 'svc' }),
+    ]);
+    expect(map.unusedFiles).toEqual([
+      'openspec/context/adr/diagram.png',
+      'openspec/context/modules/svc/notes.md',
+      'openspec/context/notes/todo.txt',
+    ]);
+    // Каталог не в git — свежесть не известна, замечаний о ней нет.
+    expect(map.modules[0]?.freshness).toBeNull();
+    expect(map.issues.some((issue) => issue.kind === 'stale-context')).toBe(false);
+  });
+
+  it('git: коммиты в коде после context.md — сведение; незакоммиченная правка контекста — свежий', async () => {
+    const git = (...args: string[]): void => {
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: root, stdio: 'ignore' });
+    };
+    git('init', '-q');
+    write('svc/src/App.java', 'class App {}');
+    write('openspec/context/modules/svc/index.md', index('svc/src/**'));
+    write('openspec/context/modules/svc/context.md', '# svc\n\nСервис.\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'init');
+    for (const version of [1, 2]) {
+      write('svc/src/App.java', `class App { int v = ${version}; }`);
+      git('commit', '-q', '-am', `code ${version}`);
+    }
+    write('svc/README.md', 'не код модуля');
+    git('add', '.');
+    git('commit', '-q', '-m', 'docs');
+
+    const stale = await new ContextMapService(root).build();
+    expect(stale.modules[0]?.freshness).toMatchObject({ commitsAfter: 2, uncommitted: false });
+    expect(stale.modules[0]?.freshness?.contextDate).not.toBeNull();
+    expect(stale.issues.find((issue) => issue.kind === 'stale-context')).toMatchObject({ severity: 'info', module: 'svc' });
+
+    write('openspec/context/modules/svc/context.md', '# svc\n\nСервис, версия 2.\n');
+    const edited = await new ContextMapService(root).build();
+    expect(edited.modules[0]?.freshness).toMatchObject({ commitsAfter: 0, uncommitted: true });
+    expect(edited.issues.some((issue) => issue.kind === 'stale-context')).toBe(false);
   });
 });

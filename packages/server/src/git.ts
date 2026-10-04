@@ -44,10 +44,23 @@ export class GitHistory {
     return this.#run(['show', `${commit}:./${path}`]);
   }
 
-  /** Дата последнего коммита, затронувшего путь. */
-  async lastCommitDate(path: string): Promise<string | null> {
-    const out = (await this.#run(['log', '-1', '--format=%cI', '--', path]))?.trim();
+  /** Дата последнего коммита, затронувшего путь (или любой из путей). */
+  async lastCommitDate(path: string | readonly string[]): Promise<string | null> {
+    const out = (await this.#run(['log', '-1', '--format=%cI', '--', ...(typeof path === 'string' ? [path] : path)]))?.trim();
     return out === undefined || out === '' ? null : out;
+  }
+
+  /** Последний коммит, затронувший путь, и его дата. */
+  async lastCommit(path: string): Promise<{ commit: string; date: string } | null> {
+    const [commit, date] = ((await this.#run(['log', '-1', '--format=%H%x09%cI', '--', path])) ?? '').trim().split('\t');
+    return commit === undefined || commit === '' || date === undefined ? null : { commit, date };
+  }
+
+  /** Сколько коммитов после `commit` (не включая его) затронули пути. */
+  async commitsAfter(commit: string, paths: readonly string[]): Promise<number | null> {
+    const out = (await this.#run(['rev-list', '--count', `${commit}..HEAD`, '--', ...paths]))?.trim();
+    const count = out === undefined ? Number.NaN : Number(out);
+    return Number.isInteger(count) ? count : null;
   }
 
   /** Дата первого коммита, затронувшего путь. */

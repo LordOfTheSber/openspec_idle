@@ -358,14 +358,16 @@ describe('диагностики карты контекста', () => {
         { kind: 'unknown-domain', severity: 'error', path: 'openspec/context/modules/m/index.md', line: 4, message: 'нет домена' },
         { kind: 'missing-context', severity: 'warning', path: 'openspec/context/modules/m/index.md', line: null, message: 'нет context.md' },
         { kind: 'missing-index', severity: 'error', path: 'openspec/context/modules/x', line: null, message: 'нет index.md' },
+        { kind: 'stale-context', severity: 'info', path: 'openspec/context/modules/m/context.md', line: null, message: 'отстаёт от кода' },
       ],
     } as const;
     const result = contextDiagnostics(map);
-    expect([...result.keys()]).toEqual(['openspec/context/modules/m/index.md']);
+    expect([...result.keys()]).toEqual(['openspec/context/modules/m/index.md', 'openspec/context/modules/m/context.md']);
     expect(result.get('openspec/context/modules/m/index.md')).toEqual([
       { line: 3, message: 'нет домена', severity: 'error' },
       { line: 0, message: 'нет context.md', severity: 'warning' },
     ]);
+    expect(result.get('openspec/context/modules/m/context.md')).toEqual([{ line: 0, message: 'отстаёт от кода', severity: 'info' }]);
   });
 });
 

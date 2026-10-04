@@ -711,7 +711,7 @@ class OpenspecController implements vscode.Disposable {
           const diagnostic = new vscode.Diagnostic(
             new vscode.Range(item.line, 0, item.line, Number.MAX_SAFE_INTEGER),
             item.message,
-            item.severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning,
+            SEVERITY[item.severity],
           );
           diagnostic.source = 'openspec-context';
           return diagnostic;

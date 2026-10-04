@@ -1,5 +1,5 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { join, normalize } from 'node:path';
+import { join } from 'node:path';
 import {
   ADR_DIR,
   CONTEXT_DIR,
@@ -10,12 +10,18 @@ import {
   type AdrSource,
   type ContextMap,
   type KeyLine,
+  type ModuleFreshness,
   type ModuleSource,
   buildContextMap,
+  codePathPrefix,
+  extractReferences,
   firstHeading,
+  referenceCandidates,
+  specPathOf,
   splitFrontmatter,
 } from '@openspec-ide/core';
 import { LineCounter, isMap, isScalar, parseDocument } from 'yaml';
+import { GitHistory } from './git.js';
 
 /** Разобранный frontmatter markdown-файла. */
 export interface ParsedFrontmatter {
@@ -95,14 +101,13 @@ async function exists(path: string): Promise<boolean> {
 export async function codePathExists(root: string, path: string): Promise<boolean> {
   const posix = path.replace(/\\/g, '/');
   if (posix.startsWith('/') || /^[A-Za-z]:/.test(posix)) return false;
-  const segments = posix.split('/');
-  const cut = segments.findIndex((segment) => segment.includes('*') || segment === '...' || segment === '…');
-  const prefix = (cut === -1 ? segments : segments.slice(0, cut)).filter((segment) => segment !== '').join('/');
+  const first = posix.split('/').find((segment) => segment !== '');
+  if (first === undefined) return false;
   // Шаблон с самого начала (`**/*.java`) проверить нечем — он не считается ошибкой.
-  if (prefix === '') return cut === 0;
-  const relative = normalize(prefix);
-  if (relative.startsWith('..')) return false;
-  return exists(join(root, relative));
+  if (first.includes('*') || first === '...' || first === '…') return true;
+  // Путь выше корня неизменяемой части не имеет — его нет.
+  const prefix = codePathPrefix(posix);
+  return prefix === null ? false : exists(join(root, prefix));
 }
 
 /** Строки поля frontmatter: список или одно значение. */
@@ -143,21 +148,56 @@ export function moduleIndexTemplate(id: string): string {
   ].join('\n');
 }
 
+/** Модуль, прочитанный с диска, вместе с тем, что нужно контролю контекста. */
+interface ReadModule {
+  readonly source: ModuleSource;
+  /** Текст `context.md`; `null` — файла нет. */
+  readonly context: string | null;
+  /** Пути `code_paths` как записаны. */
+  readonly codePaths: readonly string[];
+}
+
 export class ContextMapService {
   readonly #root: string;
+  readonly #git: GitHistory;
 
   constructor(root: string) {
     this.#root = root;
+    this.#git = new GitHistory(root);
   }
 
   async build(): Promise<ContextMap> {
-    const [general, modules, adrs, domains] = await Promise.all([
+    const [general, read, adrs, domains, unusedFiles] = await Promise.all([
       this.#general(),
       this.#modules(),
       this.#adrs(),
       this.#domains(),
+      this.#unusedFiles(),
     ]);
-    return buildContextMap({ general, modules, adrs, domains });
+
+    const texts = new Map<string, string>();
+    const generalTexts = await Promise.all(general.map(async (path) => [path, await readText(this.#abs(path))] as const));
+    for (const [path, text] of generalTexts) if (text !== null) texts.set(path, text);
+    for (const module of read) {
+      if (module.context !== null) texts.set(`${MODULES_DIR}/${module.source.folder}/${MODULE_CONTEXT_FILE}`, module.context);
+    }
+    for (const adr of adrs) texts.set(adr.source.path, adr.text);
+    const specTexts = await Promise.all(domains.map(async (domain) => [specPathOf(domain), await readText(this.#abs(specPathOf(domain)))] as const));
+    for (const [path, text] of specTexts) if (text !== null) texts.set(path, text);
+
+    const modules = await Promise.all(
+      read.map(async (module) => ({ ...module.source, freshness: await this.#freshness(module) })),
+    );
+    const existingPaths = await this.#existingReferences(texts, general, read, adrs.map((adr) => adr.source.path));
+    return buildContextMap({
+      general,
+      modules,
+      adrs: adrs.map((adr) => adr.source),
+      domains,
+      texts,
+      existingPaths,
+      unusedFiles,
+    });
   }
 
   /**
@@ -195,12 +235,12 @@ export class ContextMapService {
       .map((entry) => `${CONTEXT_DIR}/${entry.name}`);
   }
 
-  async #modules(): Promise<ModuleSource[]> {
+  async #modules(): Promise<ReadModule[]> {
     const folders = (await listDir(this.#abs(MODULES_DIR))).filter((entry) => entry.isDir);
     return Promise.all(
       folders.map(async ({ name }) => {
         const index = await readText(this.#abs(`${MODULES_DIR}/${name}/${MODULE_INDEX_FILE}`));
-        const hasContext = await exists(this.#abs(`${MODULES_DIR}/${name}/${MODULE_CONTEXT_FILE}`));
+        const context = await readText(this.#abs(`${MODULES_DIR}/${name}/${MODULE_CONTEXT_FILE}`));
         const parsed = index === null ? null : parseFrontmatter(index);
         const codePaths = listField(parsed?.value, 'code_paths');
         const existing = new Set<string>();
@@ -208,20 +248,24 @@ export class ContextMapService {
           if (await codePathExists(this.#root, path)) existing.add(path);
         }
         return {
-          folder: name,
-          hasIndex: index !== null,
-          hasContext,
-          frontmatter: parsed?.value ?? null,
-          frontmatterError: parsed?.error ?? null,
-          lineOf: parsed?.lineOf ?? (() => null),
-          existingCodePaths: existing,
+          source: {
+            folder: name,
+            hasIndex: index !== null,
+            hasContext: context !== null,
+            frontmatter: parsed?.value ?? null,
+            frontmatterError: parsed?.error ?? null,
+            lineOf: parsed?.lineOf ?? (() => null),
+            existingCodePaths: existing,
+          },
+          context,
+          codePaths,
         };
       }),
     );
   }
 
-  async #adrs(): Promise<AdrSource[]> {
-    const found: AdrSource[] = [];
+  async #adrs(): Promise<{ source: AdrSource; text: string }[]> {
+    const found: { source: AdrSource; text: string }[] = [];
     const walk = async (relative: string): Promise<void> => {
       for (const entry of await listDir(this.#abs(relative))) {
         const child = `${relative}/${entry.name}`;
@@ -233,11 +277,14 @@ export class ContextMapService {
         const text = (await readText(this.#abs(child))) ?? '';
         const parsed = parseFrontmatter(text);
         found.push({
-          path: child,
-          frontmatter: parsed.value,
-          frontmatterError: parsed.error,
-          lineOf: parsed.lineOf,
-          heading: firstHeading(parsed.body),
+          source: {
+            path: child,
+            frontmatter: parsed.value,
+            frontmatterError: parsed.error,
+            lineOf: parsed.lineOf,
+            heading: firstHeading(parsed.body),
+          },
+          text,
         });
       }
     };
@@ -256,5 +303,81 @@ export class ContextMapService {
     };
     await walk('');
     return found.sort();
+  }
+
+  /**
+   * Файлы в `openspec/context/`, которые не входят ни в один набор: всё, кроме
+   * общих `*.md`, `index.md` и `context.md` модулей и `.md` в папке ADR.
+   * Скрытые файлы (`.gitkeep` и т. п.) не считаются.
+   */
+  async #unusedFiles(): Promise<string[]> {
+    const found: string[] = [];
+    const used = (parts: readonly string[]): boolean => {
+      const name = (parts.at(-1) ?? '').toLowerCase();
+      if (parts.length === 1) return name.endsWith('.md');
+      if (parts[0] === 'modules') return parts.length === 3 && (name === MODULE_INDEX_FILE || name === MODULE_CONTEXT_FILE);
+      if (parts[0] === 'adr') return name.endsWith('.md');
+      return false;
+    };
+    const walk = async (parts: readonly string[]): Promise<void> => {
+      for (const entry of await listDir(this.#abs([CONTEXT_DIR, ...parts].join('/')))) {
+        const child = [...parts, entry.name];
+        if (entry.isDir) await walk(child);
+        else if (!used(child)) found.push([CONTEXT_DIR, ...child].join('/'));
+      }
+    };
+    await walk([]);
+    return found.sort();
+  }
+
+  /**
+   * Какие пути-кандидаты ссылок из текстов контекста существуют: от файла, от
+   * корня и от путей кода модуля. Каждый путь проверяется один раз.
+   */
+  async #existingReferences(
+    texts: ReadonlyMap<string, string>,
+    general: readonly string[],
+    modules: readonly ReadModule[],
+    adrs: readonly string[],
+  ): Promise<Set<string>> {
+    const sources: { path: string; codePaths: readonly string[] }[] = [
+      ...general.map((path) => ({ path, codePaths: [] })),
+      ...modules.map((module) => ({ path: `${MODULES_DIR}/${module.source.folder}/${MODULE_CONTEXT_FILE}`, codePaths: module.codePaths })),
+      ...adrs.map((path) => ({ path, codePaths: [] })),
+    ];
+    const candidates = new Set<string>();
+    for (const { path, codePaths } of sources) {
+      const text = texts.get(path);
+      if (text === undefined) continue;
+      for (const reference of extractReferences(text)) {
+        for (const candidate of referenceCandidates(reference, path, codePaths)) candidates.add(candidate);
+      }
+    }
+    const checked = await Promise.all([...candidates].map(async (path) => [path, await exists(this.#abs(path))] as const));
+    return new Set(checked.filter(([, found]) => found).map(([path]) => path));
+  }
+
+  /**
+   * Свежесть `context.md` по git: сколько коммитов в путях кода модуля сделано
+   * после последнего коммита контекста. Без git, без `context.md` или без
+   * существующих путей кода — `null`.
+   */
+  async #freshness(module: ReadModule): Promise<ModuleFreshness | null> {
+    if (module.context === null) return null;
+    const prefixes = module.codePaths
+      .filter((path) => module.source.existingCodePaths.has(path))
+      .map(codePathPrefix)
+      .filter((prefix): prefix is string => prefix !== null);
+    if (prefixes.length === 0 || !(await this.#git.available())) return null;
+    const contextPath = `${MODULES_DIR}/${module.source.folder}/${MODULE_CONTEXT_FILE}`;
+    const [uncommitted, last, codeDate] = await Promise.all([
+      this.#git.hasChanges(contextPath),
+      this.#git.lastCommit(contextPath),
+      this.#git.lastCommitDate(prefixes),
+    ]);
+    if (uncommitted) return { contextDate: last?.date ?? null, codeDate, commitsAfter: 0, uncommitted: true };
+    if (last === null) return null;
+    const commitsAfter = await this.#git.commitsAfter(last.commit, prefixes);
+    return commitsAfter === null ? null : { contextDate: last.date, codeDate, commitsAfter, uncommitted: false };
   }
 }
