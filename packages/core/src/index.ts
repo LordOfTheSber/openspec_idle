@@ -260,6 +260,23 @@ export {
 } from './contextControl.js';
 
 export {
+  ANTIPATTERN_LABELS,
+  DECORATIVE_MIN_TOKENS,
+  FILLER_MIN_PHRASES,
+  HTML_MIN_TAGS,
+  LARGE_CODE_BLOCK_TOKENS,
+  NON_ENGLISH_MIN_TOKENS,
+  NON_ENGLISH_SHARE,
+  OPAQUE_BLOB_CHARS,
+  SHOUTING_MIN_WORDS,
+  antipatternMessage,
+  antipatternSavings,
+  findTokenAntipatterns,
+  type TokenAntipattern,
+  type TokenAntipatternKind,
+} from './contextAntipatterns.js';
+
+export {
   MIN_INFERRED_NAME,
   appendPlanItem,
   buildTrace,

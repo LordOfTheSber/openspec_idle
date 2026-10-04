@@ -89,12 +89,16 @@ test.describe('карта контекста', () => {
     await expect(page.getByTestId('context-selection')).toContainText('session-data');
   });
 
-  test('вид «Контроль» показывает объём, лишнее и ненайденные пути', async ({ page }) => {
+  test('вид «Контроль» показывает объём, лишнее, антипаттерны и ненайденные пути', async ({ page }) => {
     const paragraph = 'Мастер хранит данные сессии в памяти и реплицирует их синхронно на резервный узел до ответа клиенту.';
     writeFileSync(join(ide.root, 'openspec/context/1.md'), `# Общий контекст 1\n\n${paragraph}\n`);
     writeFileSync(
       join(ide.root, 'openspec/context/modules/master/context.md'),
       `# Контекст sds-master\n\n<!-- Опишите назначение модуля и пути к коду. -->\n\n${paragraph}\n\nТочка входа — \`Main.java\`, сессии — \`session/Store.java\`.\n`,
+    );
+    writeFileSync(
+      join(ide.root, 'openspec/context/2.md'),
+      '# Общий контекст 2\n\nВНИМАНИЕ!! НИКОГДА не правьте конфигурацию руками, ОБЯЗАТЕЛЬНО через CLI.\n',
     );
     writeFileSync(join(ide.root, 'openspec/context/modules/master/notes.md'), '# черновик\n');
     writeFileSync(
@@ -121,6 +125,11 @@ test.describe('карта контекста', () => {
     await expect(useful).toContainText('битые пути');
     await expect(page.getByTestId('ctx-control-useful-openspec/context/1.md')).toHaveCount(0);
     await expect(page.getByTestId('ctx-control-bundle-useful-sds-master')).toContainText('%');
+    // Антипаттерны: капс в общем контексте — с экономией и сведением в списке замечаний.
+    await expect(page.getByTestId('ctx-control-savable-total')).toContainText('Можно сэкономить');
+    await expect(page.getByTestId('ctx-control-antipattern-openspec/context/2.md')).toContainText('капс');
+    await expect(page.getByTestId('ctx-control-antipattern-openspec/context/1.md')).toHaveCount(0);
+    await expect(page.getByTestId('context-issue-shouting')).toContainText('ВНИМАНИЕ');
     // Лишнее: повтор, пустой контекст, файл вне наборов, недействующий ADR.
     await expect(page.getByTestId('ctx-control-duplicates')).toContainText('openspec/context/1.md:3');
     await expect(page.getByTestId('ctx-control-empty')).toContainText('modules/sds-impl/context.md');

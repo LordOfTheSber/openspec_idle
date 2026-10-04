@@ -436,6 +436,36 @@ describe('контроль контекста', () => {
     expect(found[0]?.message).toContain('множитель 0,77');
   });
 
+  it('антипаттерны по токенам — сведения у файла и сумма по карте; недействующий ADR не проверяется', () => {
+    const spec = map.files.find((file) => file.path === 'openspec/specs/replication/spec.md');
+    expect(spec?.antipatterns.map((found) => found.kind)).toEqual(['non-english-text']);
+    expect(issue('non-english-text')).toEqual([
+      expect.objectContaining({ path: 'openspec/specs/replication/spec.md', line: null, severity: 'info', domain: 'replication' }),
+    ]);
+    expect(spec?.savableTokens).toBe(spec?.antipatterns[0]?.savings);
+
+    const loud = '# Мастер\n\nВНИМАНИЕ!! НИКОГДА не меняйте `svc/src/App.java` 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n';
+    const marked = buildContextMap({
+      domains: [],
+      general: [],
+      adrs: [adr('openspec/context/adr/ADR-001.md', { status: 'superseded', modules: ['sds-master'] })],
+      modules: [module('master', { module: 'sds-master', code_paths: ['svc/src'] }, { existingCodePaths: new Set(['svc/src']) })],
+      texts: new Map([
+        ['openspec/context/modules/master/context.md', loud],
+        ['openspec/context/adr/ADR-001.md', `---\nstatus: superseded\n---\n${loud}`],
+      ]),
+    });
+    const found = marked.issues.filter((item) => item.kind === 'shouting' || item.kind === 'decorative-symbols');
+    expect(found).toEqual([
+      expect.objectContaining({ kind: 'decorative-symbols', path: 'openspec/context/modules/master/context.md', line: 3, severity: 'info', module: 'sds-master' }),
+      expect.objectContaining({ kind: 'shouting', path: 'openspec/context/modules/master/context.md', line: 3, severity: 'info', module: 'sds-master' }),
+    ]);
+    expect(found[1]?.message).toContain('ВНИМАНИЕ');
+    expect(marked.files.find((file) => file.path === 'openspec/context/adr/ADR-001.md')?.antipatterns).toEqual([]);
+    expect(marked.savableTokens).toBe(marked.files.reduce((sum, file) => sum + file.savableTokens, 0));
+    expect(marked.savableTokens).toBeGreaterThan(0);
+  });
+
   it('без текстов и путей контроль молчит', () => {
     const plain = buildContextMap({ domains: [], general: [], adrs: [], modules: [module('m', { code_paths: ['x'] }, { existingCodePaths: new Set(['x']) })] });
     expect(plain.files).toEqual([]);
