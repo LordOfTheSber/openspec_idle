@@ -16,6 +16,7 @@ import {
 } from '@openspec-ide/core';
 import * as vscode from 'vscode';
 import { LENS_COMMANDS, authoringDiagnostics, lensCommand, qualityDiagnostics, relativeToRoot } from './authoringModel.js';
+import { qualityKey } from './treeModel.js';
 import type { FileDiagnostic } from './diagnosticsModel.js';
 
 /** Что функциям редактора нужно от контроллера расширения. */
@@ -24,6 +25,8 @@ export interface AuthoringHost {
   /** Запрос к бэкенду; `null` при отказе (о нём уже сообщено или он неважен). */
   readonly request: (method: 'GET' | 'POST', path: string, body?: unknown, quiet?: boolean) => Promise<unknown>;
   readonly openFile: (path: string, line: number | null) => Promise<void>;
+  /** Ошибки и предупреждения качества по узлам дерева (`change:<имя>`, `spec:<capability>`). */
+  readonly onQuality?: (counts: ReadonlyMap<string, number>) => void;
 }
 
 /** Задержка пересчёта замечаний при наборе, мс. */
@@ -160,12 +163,14 @@ export class AuthoringFeatures implements vscode.Disposable {
       root === null ? new Map() : authoringDiagnostics(authoringIssues(sources)),
       'openspec-authoring',
     );
-    this.#qualityDiagnosed = this.#publishCollection(
-      this.#quality,
-      this.#qualityDiagnosed,
-      root === null ? new Map() : qualityDiagnostics([...specQuality(sources).issues, ...this.#projectIssues]),
-      'openspec-quality',
-    );
+    const quality = root === null ? [] : [...specQuality(sources).issues, ...this.#projectIssues];
+    this.#qualityDiagnosed = this.#publishCollection(this.#quality, this.#qualityDiagnosed, qualityDiagnostics(quality), 'openspec-quality');
+    const counts = new Map<string, number>();
+    for (const issue of quality) {
+      const key = issue.level === 'info' ? null : qualityKey(issue.path);
+      if (key !== null) counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    this.#host.onQuality?.(counts);
     this.#lensesChanged.fire();
   }
 

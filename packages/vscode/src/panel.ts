@@ -10,6 +10,7 @@ export const SECTION_TITLE: Record<PanelSection, string> = {
   board: 'Доска',
   deltas: 'Дельты',
   metrics: 'Метрики',
+  quality: 'Качество',
   processes: 'Процессы',
   search: 'Поиск',
   structure: 'Структура',

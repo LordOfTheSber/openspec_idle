@@ -12,6 +12,7 @@ import {
   QUALITY_RULES,
   type QualityConfig,
   type QualityConfigError,
+  type QualityExclusion,
   type QualityLevel,
   type QualityMetric,
   type QualityRule,
@@ -22,7 +23,8 @@ import {
 /** Путь файла настроек от корня проекта. */
 export const QUALITY_FILE = 'openspec/quality.yaml';
 
-const KEYS = ['version', 'scope', 'rules', 'errorCodes', 'actors', 'glossary', 'parameters', 'vagueWords', 'internalTerms', 'thresholds', 'artifacts'];
+const KEYS = ['version', 'scope', 'rules', 'errorCodes', 'actors', 'glossary', 'parameters', 'vagueWords', 'internalTerms', 'thresholds', 'artifacts', 'exclude'];
+const EXCLUDE_KEYS = ['rule', 'path', 'requirement', 'reason'];
 const ARTIFACT_KEYS = ['id', 'artifact', 'each', 'heading', 'require', 'forbid', 'message', 'level'];
 const LEVELS: readonly string[] = ['error', 'warning', 'info', 'off'];
 
@@ -236,6 +238,46 @@ export function parseQualityConfig(raw: unknown, lineOf: (path: readonly string[
     }
   }
 
+  const exclusions: QualityExclusion[] = [];
+  const rawExclude = raw['exclude'];
+  if (rawExclude !== undefined && rawExclude !== null) {
+    if (!Array.isArray(rawExclude)) {
+      error(['exclude'], '«exclude» — список исключений с ключами rule, path, requirement, reason');
+    } else {
+      rawExclude.forEach((item: unknown, index) => {
+        const path = ['exclude', String(index)];
+        if (!isRecord(item)) {
+          error(path, `исключение №${index + 1} — словарь`);
+          return;
+        }
+        for (const key of Object.keys(item)) {
+          if (!EXCLUDE_KEYS.includes(key)) error([...path, key], `неизвестный ключ исключения «${key}». Доступны: ${EXCLUDE_KEYS.join(', ')}`);
+        }
+        const text = (key: string): string | null => {
+          const value = item[key];
+          if (value === undefined || value === null) return null;
+          if (typeof value !== 'string' || value.trim() === '') {
+            error([...path, key], `«${key}» исключения — непустая строка`);
+            return null;
+          }
+          return value.trim();
+        };
+        const rule = text('rule');
+        if (rule !== null && !(rule in QUALITY_RULES)) {
+          error([...path, 'rule'], `неизвестное правило исключения «${rule}». Доступны: ${Object.keys(QUALITY_RULES).join(', ')}`);
+          return;
+        }
+        const target = text('path');
+        const requirement = text('requirement');
+        if (rule === null && target === null && requirement === null) {
+          error(path, `исключение №${index + 1} не задаёт ни rule, ни path, ни requirement — оно исключило бы всё`);
+          return;
+        }
+        exclusions.push({ rule: rule as QualityRule | null, path: target, requirement, reason: text('reason'), line: lineOf(path) });
+      });
+    }
+  }
+
   return {
     config: {
       path: QUALITY_FILE,
@@ -250,6 +292,7 @@ export function parseQualityConfig(raw: unknown, lineOf: (path: readonly string[
       registry: null,
       thresholds,
       artifactRules,
+      exclusions,
       errors,
     },
     registryPaths,

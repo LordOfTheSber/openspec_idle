@@ -79,6 +79,141 @@ export const QUALITY_RULES: Readonly<Record<QualityRule, QualityLevel>> = {
   'metric-regression': 'error',
 };
 
+/** Группа правила — для каталога в интерфейсе. */
+export type QualityRuleGroup = 'requirement' | 'consistency' | 'artifacts' | 'metrics';
+
+export interface QualityRuleInfo {
+  readonly group: QualityRuleGroup;
+  /** Короткое название. */
+  readonly title: string;
+  /** Что ищет правило и как исправить. */
+  readonly description: string;
+}
+
+/** Каталог правил: название и описание для интерфейса и отчётов. */
+export const QUALITY_RULE_INFO: Readonly<Record<QualityRule, QualityRuleInfo>> = {
+  'error-code-trace': {
+    group: 'requirement',
+    title: 'Коды ошибок текста и THEN',
+    description: 'Код ошибки из THEN должен быть назван в тексте требования, а код из текста — проверяться хотя бы одним THEN.',
+  },
+  'branch-coverage': {
+    group: 'requirement',
+    title: 'Условия без сценариев',
+    description: 'Условие «если / когда / при …» из текста требования должно быть покрыто WHEN или именем сценария.',
+  },
+  'enumeration-coverage': {
+    group: 'requirement',
+    title: 'Перечисления без сценариев',
+    description: 'Каждое значение перечисления в `коде` («`A`, `B` и `C`», «как `X`, так и `Y`») должно встречаться хотя бы в одном сценарии.',
+  },
+  'boundary-values': {
+    group: 'requirement',
+    title: 'Граничные значения',
+    description: 'На интервал [a, b] нужны сценарии на a, b, ниже a и выше b; на порог «не более N» — на N и выше N.',
+  },
+  'clamp-arithmetic': {
+    group: 'requirement',
+    title: 'Арифметика приведения к интервалу',
+    description: 'Для правила «приводить к интервалу» ожидание THEN должно равняться clamp(x, min, max).',
+  },
+  'implementation-leak': {
+    group: 'requirement',
+    title: 'Детали реализации в WHEN/THEN',
+    description: 'Сценарий говорит о наблюдаемом поведении, а не о вызовах методов и внутренних именах.',
+  },
+  'parameter-registry': {
+    group: 'requirement',
+    title: 'Параметры вне реестра',
+    description: 'camelCase-параметр должен быть объявлен в разделе Glossary/Configuration спека или в glossary/parameters настроек.',
+  },
+  'actor-dictionary': {
+    group: 'requirement',
+    title: 'Подлежащее не из словаря',
+    description: 'Подлежащее при ДОЛЖЕН/SHALL берётся из словаря actors настроек.',
+  },
+  'vague-wording': {
+    group: 'requirement',
+    title: 'Расплывчатые слова',
+    description: 'Слова, по которым нельзя написать проверку: «валидный», «корректный», «и т. д.», «например», «при необходимости» и их английские аналоги. Замените условием, которое видно в ответе, или перечислением.',
+  },
+  'observable-then': {
+    group: 'requirement',
+    title: 'THEN о внутреннем состоянии',
+    description: 'THEN проверяет ответ, код ошибки или состояние, видимое через API, а не кэш, память или базу данных.',
+  },
+  'negative-scenarios': {
+    group: 'requirement',
+    title: 'Негативные и позитивные сценарии',
+    description: 'У требования с отказом нужны и сценарий с ошибкой, и сценарий, где запрос проходит.',
+  },
+  atomicity: {
+    group: 'requirement',
+    title: 'Несколько предметов в требовании',
+    description: 'Нормативные предложения требования без общих слов — признак нескольких требований в одном.',
+  },
+  'purpose-coverage': {
+    group: 'requirement',
+    title: 'Purpose без требований',
+    description: 'Сущность, перечисленная в Purpose, должна упоминаться хотя бы в одном требовании.',
+  },
+  'error-code-registry': {
+    group: 'requirement',
+    title: 'Реестр кодов ошибок',
+    description: 'Коды спек есть в реестре кодов проекта, а код реестра упоминается хотя бы в одной спеке.',
+  },
+  'metric-threshold': {
+    group: 'metrics',
+    title: 'Порог метрики',
+    description: 'Метрика качества не хуже порога из thresholds настроек.',
+  },
+  'error-order': {
+    group: 'consistency',
+    title: 'Порядок ошибок не задан',
+    description: 'Требование с двумя и более кодами ошибок говорит, какой вернуть, если нарушено несколько условий сразу.',
+  },
+  'scenario-conflict': {
+    group: 'consistency',
+    title: 'Противоречие в требовании',
+    description: 'В одном требовании одинаковый WHEN не ведёт к разным THEN.',
+  },
+  'scenario-overlap': {
+    group: 'consistency',
+    title: 'Один WHEN — разные THEN',
+    description: 'Одинаковый WHEN в разных требованиях или спеках с разными THEN: сверьте, что исходы не противоречат друг другу.',
+  },
+  'scenario-duplicate': {
+    group: 'consistency',
+    title: 'Дубли сценариев',
+    description: 'Сценарий не повторяет дословно другой: при правке одного второй разойдётся с ним.',
+  },
+  'artifact-rule': {
+    group: 'artifacts',
+    title: 'Правила артефактов',
+    description: 'Исполняемые правила из artifacts настроек: файл, раздел или пункт плана содержит (или не содержит) шаблон.',
+  },
+  'plan-test-ref': {
+    group: 'artifacts',
+    title: 'Ссылки плана на тесты',
+    description: 'Файл теста из пункта плана есть, и тест с указанным именем в нём есть.',
+  },
+  'code-message': {
+    group: 'consistency',
+    title: 'Цитата THEN не найдена в коде',
+    description: 'Цитата «…» из THEN находится в коде модулей домена по карте контекста.',
+  },
+  'code-constant': {
+    group: 'consistency',
+    title: 'Граница не найдена в коде',
+    description: 'Числовая граница текста требования есть в коде модулей домена литералом.',
+  },
+  'metric-regression': {
+    group: 'metrics',
+    title: 'Регресс относительно ревизии',
+    description: 'С openspec-ide-check --baseline: метрики и число замечаний не хуже, чем в ревизии git.',
+  },
+};
+
 /** Сводная метрика качества. */
 export type QualityMetric = 'errorCodeTraceability' | 'branchCoverage' | 'boundaryCoverage' | 'ambiguityDensity';
 
@@ -130,6 +265,22 @@ export interface ArtifactRule {
   readonly line: number | null;
 }
 
+/**
+ * Исключение: правило (или все правила) не проверяется в файлах по шаблону
+ * пути и (или) в требовании с таким именем. Причина — для ревью.
+ */
+export interface QualityExclusion {
+  /** `null` — все правила. */
+  readonly rule: QualityRule | null;
+  /** Путь или шаблон (`*`, `**`, `?`); каталог исключает всё внутри; `null` — любой файл. */
+  readonly path: string | null;
+  /** Имя требования; `null` — всё требования файла. */
+  readonly requirement: string | null;
+  readonly reason: string | null;
+  /** Строка исключения в файле настроек. */
+  readonly line: number | null;
+}
+
 /** Ошибка в файле настроек. */
 export interface QualityConfigError {
   readonly line: number | null;
@@ -162,6 +313,8 @@ export interface QualityConfig {
   readonly thresholds: readonly QualityThreshold[];
   /** Исполняемые правила артефактов changes. */
   readonly artifactRules: readonly ArtifactRule[];
+  /** Исключения правил по файлам и требованиям, в порядке файла настроек. */
+  readonly exclusions: readonly QualityExclusion[];
   /** Ошибки разбора файла настроек. */
   readonly errors: readonly QualityConfigError[];
 }
@@ -179,6 +332,7 @@ export const DEFAULT_QUALITY_CONFIG: QualityConfig = {
   registry: null,
   thresholds: [],
   artifactRules: [],
+  exclusions: [],
   errors: [],
 };
 
@@ -192,6 +346,13 @@ export interface QualityIssue {
   readonly level: QualityLevel;
   readonly rule: QualityRule | 'config';
   readonly message: string;
+  /** Требование, к которому относится замечание, если оно известно. */
+  readonly requirement?: string;
+}
+
+/** Исключённое замечание и номер исключения в настройках. */
+export interface ExcludedIssue extends QualityIssue {
+  readonly exclusion: number;
 }
 
 /** Счётчики, из которых складываются метрики. */
@@ -219,10 +380,14 @@ export interface QualityFileReport {
   readonly requirements: number;
   readonly counts: QualityCounts;
   readonly metrics: QualityMetrics;
+  /** Файл исключён целиком (все правила): в сводные метрики не входит. */
+  readonly excluded: boolean;
 }
 
 export interface QualityReport {
   readonly issues: readonly QualityIssue[];
+  /** Замечания, которые сняты исключениями настроек. */
+  readonly excluded: readonly ExcludedIssue[];
   readonly files: readonly QualityFileReport[];
   readonly counts: QualityCounts;
   readonly metrics: QualityMetrics;
@@ -794,12 +959,19 @@ export function specQuality(sources: AuthoringSources, path?: string): QualityRe
     const counts = emptyCounts();
 
     for (const requirement of checked) {
+      const start = documentIssues.length;
       addCounts(counts, checkRequirement(context, requirement));
+      for (let index = start; index < documentIssues.length; index += 1) {
+        const issue = documentIssues[index];
+        if (issue !== undefined) documentIssues[index] = { ...issue, requirement: requirement.name };
+      }
     }
     checkRegistry(context, checked);
     if (source.change === null) checkPurpose(context, document, checked);
 
     issues.push(...documentIssues);
+    // Файл, исключённый целиком, не влияет на сводные метрики и пороги.
+    const whole = config.exclusions.some((exclusion) => exclusion.rule === null && exclusion.requirement === null && pathMatches(exclusion.path, source.path));
     files.push({
       path: source.path,
       capability: source.capability,
@@ -807,8 +979,9 @@ export function specQuality(sources: AuthoringSources, path?: string): QualityRe
       requirements: checked.length,
       counts,
       metrics: qualityMetrics(counts),
+      excluded: whole,
     });
-    addCounts(total, counts);
+    if (!whole) addCounts(total, counts);
   }
 
   issues.push(
@@ -830,7 +1003,68 @@ export function specQuality(sources: AuthoringSources, path?: string): QualityRe
       issues.push({ path: config.path, line: error.line ?? 1, level: 'error', rule: 'config', message: error.message });
     }
   }
-  return { issues, files, counts: total, metrics: qualityMetrics(total) };
+  const { kept, excluded } = applyExclusions(issues, config);
+  return { issues: kept, excluded, files, counts: total, metrics: qualityMetrics(total) };
+}
+
+// ---------------------------------------------------------------------------
+// Исключения
+
+/** Шаблон пути в регулярное выражение: `**` — любые каталоги, `*` и `?` — в пределах сегмента. */
+function globRegExp(pattern: string): RegExp {
+  let source = '';
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index] ?? '';
+    if (char === '*' && pattern[index + 1] === '*') {
+      // `**/` — ноль и больше каталогов.
+      if (pattern[index + 2] === '/') {
+        source += '(?:.*/)?';
+        index += 2;
+      } else {
+        source += '.*';
+        index += 1;
+      }
+    } else if (char === '*') source += '[^/]*';
+    else if (char === '?') source += '[^/]';
+    else source += char.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${source}$`);
+}
+
+/** Путь подходит под шаблон исключения: точное совпадение, файл внутри каталога или glob. */
+export function pathMatches(pattern: string | null, path: string): boolean {
+  if (pattern === null) return true;
+  const target = normalizePath(path);
+  const clean = normalizePath(pattern).replace(/\/+$/, '');
+  if (/[*?]/.test(clean)) return globRegExp(clean).test(target);
+  return target === clean || target.startsWith(`${clean}/`);
+}
+
+/** Исключение, под которое попадает замечание; ошибки настроек не исключаются. */
+export function exclusionOf(issue: QualityIssue, config: QualityConfig): number | null {
+  if (issue.rule === 'config') return null;
+  const index = config.exclusions.findIndex(
+    (exclusion) =>
+      (exclusion.rule === null || exclusion.rule === issue.rule) &&
+      pathMatches(exclusion.path, issue.path) &&
+      (exclusion.requirement === null || exclusion.requirement === issue.requirement),
+  );
+  return index === -1 ? null : index;
+}
+
+/** Делит замечания на оставшиеся и снятые исключениями настроек. */
+export function applyExclusions(
+  issues: readonly QualityIssue[],
+  config: QualityConfig,
+): { kept: QualityIssue[]; excluded: ExcludedIssue[] } {
+  const kept: QualityIssue[] = [];
+  const excluded: ExcludedIssue[] = [];
+  for (const issue of issues) {
+    const exclusion = exclusionOf(issue, config);
+    if (exclusion === null) kept.push(issue);
+    else excluded.push({ ...issue, exclusion });
+  }
+  return { kept, excluded };
 }
 
 export function normalizePath(path: string): string {

@@ -29,9 +29,18 @@ import {
   sentences,
 } from './specQuality.js';
 
-function push(issues: QualityIssue[], config: QualityConfig, rule: QualityRule, path: string, line: number, message: string): void {
+function push(
+  issues: QualityIssue[],
+  config: QualityConfig,
+  rule: QualityRule,
+  path: string,
+  line: number,
+  message: string,
+  requirement?: string,
+): void {
   const level = ruleLevel(config, rule);
-  if (level !== 'off') issues.push({ path, line, level, rule, message });
+  if (level === 'off') return;
+  issues.push(requirement === undefined ? { path, line, level, rule, message } : { path, line, level, rule, message, requirement });
 }
 
 function quote(text: string, max = 60): string {
@@ -117,11 +126,11 @@ export function scenarioConsistency(
       if (inside !== undefined) {
         if (inside.then === entry.then) {
           push(issues, config, 'scenario-duplicate', entry.path, entry.scenario.line,
-            `Сценарий «${entry.scenario.name}» повторяет сценарий «${inside.scenario.name}» того же требования — и WHEN, и THEN`);
+            `Сценарий «${entry.scenario.name}» повторяет сценарий «${inside.scenario.name}» того же требования — и WHEN, и THEN`, entry.requirement);
         } else {
           push(issues, config, 'scenario-conflict', entry.path, entry.scenario.line,
             `Сценарий «${entry.scenario.name}» и сценарий «${inside.scenario.name}» требования «${entry.requirement}» ` +
-              'начинаются с одного WHEN, но ожидают разное — противоречие или один сценарий, разделённый на два');
+              'начинаются с одного WHEN, но ожидают разное — противоречие или один сценарий, разделённый на два', entry.requirement);
         }
         continue;
       }
@@ -129,11 +138,11 @@ export function scenarioConsistency(
       if (outside === undefined) continue;
       if (outside.then === entry.then) {
         push(issues, config, 'scenario-duplicate', entry.path, entry.scenario.line,
-          `Сценарий «${entry.scenario.name}» дословно повторяет сценарий ${entryLabel(outside)}: при правке одного второй разойдётся с ним`);
+          `Сценарий «${entry.scenario.name}» дословно повторяет сценарий ${entryLabel(outside)}: при правке одного второй разойдётся с ним`, entry.requirement);
       } else {
         push(issues, config, 'scenario-overlap', entry.path, entry.scenario.line,
           `Сценарий «${entry.scenario.name}» начинается с того же WHEN, что и ${entryLabel(outside)}, но ожидает другое — ` +
-            'сверьте, что исходы не противоречат друг другу');
+            'сверьте, что исходы не противоречат друг другу', entry.requirement);
       }
     }
   }
@@ -324,11 +333,19 @@ export function planTestRefIssues(
 // ---------------------------------------------------------------------------
 // Спека ↔ код модулей домена
 
+/** Файл кода модуля карты контекста. */
+export interface ModuleFile {
+  readonly path: string;
+  readonly text: string;
+  /** Модуль, в `code_paths` которого лежит файл. */
+  readonly module: string;
+}
+
 /** Код модулей, у которых capability в поле `domains` карты контекста. */
 export interface DomainCode {
   readonly capability: string;
   readonly modules: readonly string[];
-  readonly files: readonly { readonly path: string; readonly text: string }[];
+  readonly files: readonly ModuleFile[];
 }
 
 /**
@@ -360,7 +377,12 @@ function numberVariants(value: number): string[] {
  * литералом (`code-constant`). Спеки без модулей в карте контекста не
  * проверяются.
  */
-export function specCodeIssues(sources: AuthoringSources, code: readonly DomainCode[]): QualityIssue[] {
+export function specCodeIssues(
+  sources: AuthoringSources,
+  code: readonly DomainCode[],
+  /** Код всех модулей карты — чтобы сказать, где цитата всё-таки нашлась. */
+  everywhere: readonly ModuleFile[] = [],
+): QualityIssue[] {
   const config = sources.quality ?? DEFAULT_QUALITY_CONFIG;
   const byCapability = new Map(code.map((item) => [item.capability, item]));
   const issues: QualityIssue[] = [];
@@ -387,9 +409,13 @@ export function specCodeIssues(sources: AuthoringSources, code: readonly DomainC
           for (const match of step.text.matchAll(/«([^«»]+)»/g)) {
             const fragment = stableFragment(match[1] ?? '');
             if (fragment === null || corpus.includes(fragment)) continue;
+            const elsewhere = everywhere.find((file) => !domain.modules.includes(file.module) && file.text.includes(fragment));
             push(issues, config, 'code-message', source.path, step.line,
-              `Цитата «${quote(match[1] ?? '', 70)}» из THEN сценария «${scenario.name}» не найдена в коде ${where}: ` +
-                'сообщение изменилось в коде или в спеке, либо модуль, который его показывает, не связан с доменом');
+              `Цитата «${quote(match[1] ?? '', 70)}» из THEN сценария «${scenario.name}» не найдена в коде ${where}` +
+                (elsewhere === undefined
+                  ? ': сообщение изменилось в коде или в спеке, либо модуль, который его показывает, не связан с доменом'
+                  : `, но есть в \`${elsewhere.path}\` модуля ${elsewhere.module}: добавьте домен «${source.capability}» в domains модуля ${elsewhere.module} или поправьте спеку`),
+              requirement.name);
           }
         }
       }
@@ -406,7 +432,7 @@ export function specCodeIssues(sources: AuthoringSources, code: readonly DomainC
             if (!found) {
               push(issues, config, 'code-constant', source.path, sentence.line,
                 `Граница ${value} из текста требования «${requirement.name}» не найдена литералом в коде ${where}: ` +
-                  'значение могло измениться в коде, или оно вычисляется');
+                  'значение могло измениться в коде, или оно вычисляется', requirement.name);
             }
           }
         }

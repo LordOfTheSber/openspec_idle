@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BoardCard, BoardColumn, Board as BoardModel, ChangeDrift, DriftReport, TreeSchema } from '@openspec-ide/core';
-import { createArtifactFile, createChange, fetchBoard, fetchDrift } from '../lib/api.js';
+import type { BoardCard, BoardColumn, Board as BoardModel, ChangeDrift, DriftReport, QualityOverview, TreeSchema } from '@openspec-ide/core';
+import { createArtifactFile, createChange, fetchBoard, fetchDrift, fetchQuality } from '../lib/api.js';
 import { formatAge, plural } from '../lib/format.js';
 import { COLUMN_TITLE, columnTitle } from '../lib/phase.js';
 import { readPref, writePref } from '../lib/prefs.js';
@@ -25,7 +25,7 @@ export const LIST_BELOW_PX = 640;
 export const DETAIL_SIDE_FROM_PX = 1100;
 
 /** Разделы, в которые можно перейти с доски. */
-export type BoardTarget = 'deltas' | 'metrics' | 'trace';
+export type BoardTarget = 'deltas' | 'metrics' | 'trace' | 'quality';
 
 /** Запрос к доске извне — из палитры команд. */
 export type BoardRequest =
@@ -49,6 +49,7 @@ export interface BoardProps {
 export function Board({ schemas, revision, request = null, onChanged, onNavigate, onOpenArtifact, onOpenFile }: BoardProps) {
   const [board, setBoard] = useState<BoardModel | null>(null);
   const [drift, setDrift] = useState<DriftReport | null>(null);
+  const [quality, setQuality] = useState<QualityOverview | null>(null);
   const [error, setError] = useState<{ message: string; output: string } | null>(null);
   const [selected, setSelected] = useState<{ change: string; intent: DetailIntent } | null>(null);
   const [creating, setCreating] = useState(false);
@@ -69,6 +70,10 @@ export function Board({ schemas, revision, request = null, onChanged, onNavigate
       void fetchDrift()
         .then(setDrift)
         .catch(() => setDrift(null));
+      // Качество спеков читает код модулей — тоже после доски.
+      void fetchQuality()
+        .then(setQuality)
+        .catch(() => setQuality(null));
     } catch (problem) {
       setError({ message: problem instanceof Error ? problem.message : String(problem), output: '' });
     }
@@ -167,6 +172,7 @@ export function Board({ schemas, revision, request = null, onChanged, onNavigate
 
   const cardProps = {
     drift,
+    quality,
     selected: selected?.change ?? null,
     onSelect: select,
     onOpenArtifact,
@@ -314,6 +320,7 @@ export function Board({ schemas, revision, request = null, onChanged, onNavigate
                 card={card}
                 columnTitle={columnTitle(card.column)}
                 drift={drift?.changes[card.change] ?? null}
+                quality={quality}
                 intent={selected.intent}
                 revision={revision}
                 overlay={!detailBeside}
@@ -387,6 +394,8 @@ interface CardListProps {
   readonly cards: readonly BoardCard[];
   /** Пересечения, устаревание и ожидание архивации; `null` — отчёт ещё не получен. */
   readonly drift: DriftReport | null;
+  /** Качество спеков; `null` — сводка ещё не получена. */
+  readonly quality: QualityOverview | null;
   readonly selected: string | null;
   readonly onSelect: (change: string, intent?: DetailIntent) => void;
   readonly onOpenArtifact: BoardProps['onOpenArtifact'];
@@ -470,6 +479,7 @@ function ListView({
 function Card({
   card,
   drift: report,
+  quality,
   selected,
   onSelect,
   onOpenArtifact,
@@ -512,6 +522,7 @@ function Card({
         )}
       </div>
       {drift !== null && <DriftChips drift={drift} />}
+      <QualityChip quality={quality} change={card.change} />
       <div className="card-meta">
         <span>{card.schema}</span>
         {age !== null && (
@@ -626,6 +637,25 @@ function BoardSkeleton() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Чип качества спеков на карточке — только при ошибках или предупреждениях. */
+function QualityChip({ quality, change }: { readonly quality: QualityOverview | null; readonly change: string }) {
+  const counts = quality?.changes.find((item) => item.name === change);
+  if (counts === undefined || counts.error + counts.warning === 0) return null;
+  const parts = [
+    counts.error > 0 ? plural(counts.error, ['ошибка', 'ошибки', 'ошибок']) : null,
+    counts.warning > 0 ? plural(counts.warning, ['предупреждение', 'предупреждения', 'предупреждений']) : null,
+    counts.info > 0 ? plural(counts.info, ['сведение', 'сведения', 'сведений']) : null,
+  ].filter((part): part is string => part !== null);
+  return (
+    <div className="card-flags">
+      <span className={counts.error > 0 ? 'chip bad' : 'chip warn'} data-testid={`card-quality-${change}`} title={`Качество дельт и артефактов: ${parts.join(', ')}`}>
+        <Icon name="shield" size={12} />
+        качество {counts.error + counts.warning}
+      </span>
     </div>
   );
 }

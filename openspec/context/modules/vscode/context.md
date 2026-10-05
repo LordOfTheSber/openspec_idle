@@ -15,7 +15,8 @@
   (модели `src/diagnosticsModel.ts`, `src/structureModel.ts`,
   `src/contextModel.ts`, `src/driftModel.ts`), помощь в редакторе
   (`src/authoring.ts`: дополнение, переходы, быстрые исправления, подсказки,
-  коллекция `openspec-quality` с замечаниями качества спеков).
+  коллекция `openspec-quality` с замечаниями качества спеков; счётчик «⚠ N»
+  у узлов дерева — `withQualityCounts` в `src/treeModel.ts`).
 - Панель: `src/panel.ts` и `src/panelHtml.ts` (строгая CSP, nonce, без сети),
   `src/bridge.ts` пересылает запросы панели во встроенный бэкенд.
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BoardCard, ChangeDrift, DeltaView } from '@openspec-ide/core';
+import type { BoardCard, ChangeDrift, DeltaView, QualityOverview } from '@openspec-ide/core';
 import {
   type TrackedItemsResponse,
   type TraceResponse,
@@ -29,6 +29,8 @@ interface ChangeDetailProps {
   readonly columnTitle: string;
   /** Пересечения и устаревание change; `null` — отчёт не получен. */
   readonly drift: ChangeDrift | null;
+  /** Качество спеков проекта; `null` — сводка ещё не получена. */
+  readonly quality: QualityOverview | null;
   readonly intent: DetailIntent;
   readonly revision: number;
   /** Панель раскрыта поверх доски, а не рядом с ней. */
@@ -47,6 +49,7 @@ export function ChangeDetail({
   card,
   columnTitle,
   drift,
+  quality,
   intent,
   revision,
   overlay,
@@ -410,6 +413,8 @@ export function ChangeDetail({
               <DriftBlock drift={drift} onOpenFile={onOpenFile} />
             )}
 
+            {quality !== null && <QualityBlock quality={quality} change={card.change} onNavigate={onNavigate} />}
+
             {deltas !== null && deltas.length > 0 && (
               <div className="detail-block">
                 <p className="section-label">
@@ -597,6 +602,56 @@ function groupItems(items: TrackedItemsResponse | null): {
     }
   }
   return result;
+}
+
+/** Качество дельт и артефактов change: счётчики и разбивка по файлам. */
+function QualityBlock({
+  quality,
+  change,
+  onNavigate,
+}: {
+  readonly quality: QualityOverview;
+  readonly change: string;
+  readonly onNavigate: BoardProps['onNavigate'];
+}) {
+  const counts = quality.changes.find((item) => item.name === change);
+  if (counts === undefined || counts.error + counts.warning + counts.info === 0) return null;
+  const files = quality.files.filter((file) => file.change === change && file.counts.error + file.counts.warning + file.counts.info > 0);
+  return (
+    <div className="detail-block" data-testid="detail-quality">
+      <p className="section-label">
+        Качество{' '}
+        {counts.error > 0 && <span className="badge bad">{counts.error}</span>}
+        {counts.warning > 0 && <span className="badge warn">{counts.warning}</span>}
+        {counts.info > 0 && <span className="badge">{counts.info}</span>}
+      </p>
+      <ul className="detail-rows">
+        {files.map((file) => {
+          const rules = new Map<string, number>();
+          for (const issue of quality.issues) if (issue.path === file.path) rules.set(issue.rule, (rules.get(issue.rule) ?? 0) + 1);
+          return (
+            <li key={file.path}>
+              <button type="button" className="detail-row row-hover" onClick={() => onNavigate('quality', change)}>
+                <Icon name={file.counts.error > 0 ? 'error' : file.counts.warning > 0 ? 'alert' : 'info'} size={16} className={file.counts.error > 0 ? 'bad-icon' : file.counts.warning > 0 ? 'warn-icon' : 'info-icon'} />
+                <span className="drift-text">
+                  <span>
+                    {file.capability ?? file.path.split('/').pop()} — {file.counts.error + file.counts.warning + file.counts.info}
+                  </span>
+                  <span className="muted small mono">{[...rules].map(([rule, count]) => `${rule} ${count}`).join(' · ')}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="muted small">
+        Качество не блокирует архивацию: это сведения для ревью, а ворота — <span className="mono">openspec-ide-check</span>.{' '}
+        <button type="button" className="linkish" onClick={() => onNavigate('quality', change)} data-testid="detail-quality-open">
+          Открыть в «Качестве»
+        </button>
+      </p>
+    </div>
+  );
 }
 
 /** Пересечения с другими changes и требования, устаревшие после начала change. */

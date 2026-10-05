@@ -360,7 +360,15 @@ export {
   ruleLevel,
   specQuality,
   wordsMatch,
+  QUALITY_RULE_INFO,
+  applyExclusions,
+  exclusionOf,
+  pathMatches,
   type ArtifactRule,
+  type ExcludedIssue,
+  type QualityExclusion,
+  type QualityRuleGroup,
+  type QualityRuleInfo,
   type QualityConfig,
   type QualityConfigError,
   type QualityCounts,
@@ -387,5 +395,16 @@ export {
   scenarioConsistency,
   specCodeIssues,
   type DomainCode,
+  type ModuleFile,
   type PlanTestRef,
 } from './specConsistency.js';
+
+export {
+  qualityOverview,
+  type LevelCounts,
+  type QualityFileKind,
+  type QualityFileSummary,
+  type QualityOverview,
+  type QualityRuleSummary,
+  type QualityThresholdFailure,
+} from './qualityOverview.js';

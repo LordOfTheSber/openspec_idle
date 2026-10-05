@@ -22,7 +22,7 @@ import { staleAt, driftDiagnostics } from './driftModel.js';
 import { structureDiagnostics } from './structureModel.js';
 import { contextDiagnostics } from './contextModel.js';
 import { pickWorkspaceRoot } from './root.js';
-import { type TreeNode, type WorkspaceState, buildTreeNodes, statusText } from './treeModel.js';
+import { type TreeNode, type WorkspaceState, buildTreeNodes, statusText, withQualityCounts } from './treeModel.js';
 import { OPEN_NODE_COMMAND, WorkspaceTreeProvider } from './treeProvider.js';
 
 /** Команды расширения — те же, что объявлены в манифесте. */
@@ -42,6 +42,7 @@ export const COMMANDS = {
   openProcesses: 'openspec.openProcesses',
   openSearch: 'openspec.openSearch',
   openContext: 'openspec.openContext',
+  openQuality: 'openspec.openQuality',
   openNode: OPEN_NODE_COMMAND,
 } as const;
 
@@ -53,6 +54,7 @@ const SECTION_COMMANDS: readonly (readonly [string, PanelSection])[] = [
   [COMMANDS.openSearch, 'search'],
   [COMMANDS.openStructure, 'structure'],
   [COMMANDS.openContext, 'context'],
+  [COMMANDS.openQuality, 'quality'],
 ];
 
 /** Разделы, которые показывают данные одного change. */
@@ -65,6 +67,9 @@ const CHANGE_SECTIONS: ReadonlySet<PanelSection> = new Set(['metrics']);
 class OpenspecController implements vscode.Disposable {
   readonly #context: vscode.ExtensionContext;
   readonly #tree = new WorkspaceTreeProvider();
+  /** Узлы дерева без отметок качества — отметки накладываются поверх при каждом пересчёте. */
+  #treeBase: readonly TreeNode[] = [];
+  #qualityCounts: ReadonlyMap<string, number> = new Map();
   readonly #diagnostics = vscode.languages.createDiagnosticCollection('openspec');
   readonly #status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   readonly #panel: SectionPanel;
@@ -104,6 +109,10 @@ class OpenspecController implements vscode.Disposable {
       root: () => this.root,
       request: (method, path, body, quiet) => this.#request(method, path, body, { quiet: quiet === true }),
       openFile: (path, line) => this.openFile(path, line),
+      onQuality: (counts) => {
+        this.#qualityCounts = counts;
+        this.#renderTree();
+      },
     });
   }
 
@@ -802,10 +811,15 @@ class OpenspecController implements vscode.Disposable {
       }
     }
     await vscode.commands.executeCommand('setContext', 'openspec.state', workspace.state);
-    this.#tree.set(buildTreeNodes(workspace));
+    this.#treeBase = buildTreeNodes(workspace);
+    this.#renderTree();
     const status = statusText(workspace);
     this.#status.text = status.text;
     this.#status.tooltip = status.tooltip;
+  }
+
+  #renderTree(): void {
+    this.#tree.set(withQualityCounts(this.#treeBase, this.#qualityCounts));
   }
 
   #requireReady(): boolean {

@@ -24,7 +24,7 @@
 | `src/structure.ts` | проверка раскладки по `openspec/structure.yaml` |
 | `src/contextMap.ts`, `src/contextControl.ts`, `src/contextAntipatterns.ts` | карта модулей, доменов и ADR, набор контекста, объём, полезность, антипаттерны по токенам, лишнее, ссылки |
 | `src/trace.ts`, `src/authoring.ts`, `src/drift.ts` | трассировка `↳`, помощь в редакторе, пересечения и устаревшие дельты |
-| `src/specQuality.ts`, `src/specQualityConfig.ts`, `src/specConsistency.ts` | качество спеков: правила по тексту требований и сценариям, метрики, разбор `openspec/quality.yaml`; согласованность сценариев, правила артефактов, ссылки на тесты, сверка с кодом, регресс |
+| `src/specQuality.ts`, `src/specQualityConfig.ts`, `src/specConsistency.ts` | качество спеков: правила по тексту требований и сценариям, метрики, разбор `openspec/quality.yaml`; согласованность сценариев, правила артефактов, ссылки на тесты, сверка с кодом, регресс, исключения; `src/qualityOverview.ts` — сводка раздела «Качество» |
 | `src/workspaceTree.ts`, `src/search.ts` | дерево рабочего пространства и поиск |
 | `src/hostProtocol.ts`, `src/constants.ts` | сообщения панель ↔ хост, `API_REVISION` |
 

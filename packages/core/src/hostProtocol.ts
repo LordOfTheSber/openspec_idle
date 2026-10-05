@@ -12,6 +12,7 @@ export const PANEL_SECTIONS = [
   'board',
   'deltas',
   'metrics',
+  'quality',
   'processes',
   'search',
   'structure',

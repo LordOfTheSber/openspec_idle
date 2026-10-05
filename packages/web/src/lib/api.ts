@@ -7,6 +7,9 @@ import type {
   ChangeSummary,
   ContextMap,
   ItemMetrics,
+  QualityLevel,
+  QualityOverview,
+  QualityRule,
   MetricsExport,
   DeltaView,
   DriftReport,
@@ -293,6 +296,37 @@ export function fetchStructure(): Promise<StructureReport> {
 /** Карта контекста: модули, домены, ADR и связи между ними. */
 export function fetchContextMap(): Promise<ContextMap> {
   return get<ContextMap>('/api/context-map');
+}
+
+/** Сводка раздела «Качество»: правила, файлы, замечания, исключения, пороги. */
+export function fetchQuality(): Promise<QualityOverview> {
+  return get<QualityOverview>('/api/quality');
+}
+
+/** Создаёт `openspec/quality.yaml` из заготовки. */
+export function initQuality(): Promise<QualityOverview> {
+  return send<QualityOverview>('/api/quality/init', 'POST', {});
+}
+
+/** Задаёт уровень правила в quality.yaml; `null` — вернуть уровень по умолчанию. */
+export function setQualityRule(rule: QualityRule, level: QualityLevel | 'off' | null): Promise<QualityOverview> {
+  return send<QualityOverview>('/api/quality/rule', 'POST', { rule, level });
+}
+
+/** Новое исключение: правило (или все) в файле или шаблоне пути и, если задано, в требовании. */
+export interface QualityExclusionInput {
+  readonly rule: QualityRule | null;
+  readonly path: string | null;
+  readonly requirement: string | null;
+  readonly reason: string | null;
+}
+
+export function addQualityExclusion(exclusion: QualityExclusionInput): Promise<QualityOverview> {
+  return send<QualityOverview>('/api/quality/exclusions', 'POST', exclusion);
+}
+
+export function removeQualityExclusion(index: number): Promise<QualityOverview> {
+  return send<QualityOverview>(`/api/quality/exclusions?index=${index}`, 'DELETE', undefined);
 }
 
 /** Создаёт `openspec/structure.yaml` по текущей раскладке `openspec/`. */

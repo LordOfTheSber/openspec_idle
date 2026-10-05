@@ -1,6 +1,6 @@
 import type { TreeChange, WorkspaceTree } from '@openspec-ide/core';
 import { describe, expect, it } from 'vitest';
-import { type TreeNode, buildTreeNodes, statusText } from './treeModel.js';
+import { type TreeNode, buildTreeNodes, qualityKey, statusText, withQualityCounts } from './treeModel.js';
 
 function change(overrides: Partial<TreeChange> = {}): TreeChange {
   return {
@@ -171,5 +171,41 @@ describe('модель дерева VS Code', () => {
     expect(statusText({ state: 'ready', root: '/p', tree: workspace, errors: [] }).text).toBe(
       '$(git-pull-request) 2 · $(book) 2',
     );
+  });
+});
+
+describe('отметки качества в дереве', () => {
+  it('ключ узла по пути замечания: change, основной спек, остальное — нет', () => {
+    expect(qualityKey('openspec/changes/add-x/specs/a/spec.md')).toBe('change:add-x');
+    expect(qualityKey('openspec/changes/add-x/design.md')).toBe('change:add-x');
+    expect(qualityKey('openspec/changes/archive/2026-01-01-x/design.md')).toBeNull();
+    expect(qualityKey('openspec/specs/billing/invoices/spec.md')).toBe('spec:billing/invoices');
+    expect(qualityKey('openspec/quality.yaml')).toBeNull();
+  });
+
+  it('счётчик дописывается в описание change и спека, остальные узлы не меняются', () => {
+    const nodes: TreeNode[] = [
+      {
+        id: 'group:changes',
+        label: 'Changes',
+        contextValue: 'group',
+        icon: { id: 'folder' },
+        expanded: true,
+        children: [
+          { id: 'change:add-x', label: 'add-x', description: '3/5', contextValue: 'change', icon: { id: 'git-pull-request' }, expanded: true, children: [] },
+          { id: 'change:add-y', label: 'add-y', description: '1/1', contextValue: 'change', icon: { id: 'git-pull-request' }, expanded: true, children: [] },
+        ],
+      },
+      { id: 'capability:billing', label: 'billing', contextValue: 'capability', icon: { id: 'book' }, expanded: false, children: [] },
+    ];
+    const marked = withQualityCounts(nodes, new Map([
+      ['change:add-x', 3],
+      ['spec:billing', 1],
+    ]));
+    expect(marked[0]?.children[0]?.description).toBe('3/5 · ⚠ 3');
+    expect(marked[0]?.children[0]?.tooltip).toContain('Качество спеков: 3');
+    expect(marked[0]?.children[1]).toBe(nodes[0]?.children[1]);
+    expect(marked[1]?.description).toBe('⚠ 1');
+    expect(withQualityCounts(nodes, new Map())).toBe(nodes);
   });
 });
