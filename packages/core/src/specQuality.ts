@@ -17,6 +17,7 @@
 import type { AuthoringSources } from './authoring.js';
 import type { DeltaOperation } from './specMarkdown.js';
 import { fenceMask } from './specChange.js';
+import { artifactRuleIssues, scenarioConsistency } from './specConsistency.js';
 
 // ---------------------------------------------------------------------------
 // Правила и настройки
@@ -37,7 +38,16 @@ export type QualityRule =
   | 'atomicity'
   | 'purpose-coverage'
   | 'error-code-registry'
-  | 'metric-threshold';
+  | 'metric-threshold'
+  | 'error-order'
+  | 'scenario-conflict'
+  | 'scenario-overlap'
+  | 'scenario-duplicate'
+  | 'artifact-rule'
+  | 'plan-test-ref'
+  | 'code-message'
+  | 'code-constant'
+  | 'metric-regression';
 
 export type QualityLevel = 'error' | 'warning' | 'info';
 
@@ -58,6 +68,15 @@ export const QUALITY_RULES: Readonly<Record<QualityRule, QualityLevel>> = {
   'purpose-coverage': 'info',
   'error-code-registry': 'warning',
   'metric-threshold': 'error',
+  'error-order': 'warning',
+  'scenario-conflict': 'warning',
+  'scenario-overlap': 'info',
+  'scenario-duplicate': 'info',
+  'artifact-rule': 'warning',
+  'plan-test-ref': 'warning',
+  'code-message': 'warning',
+  'code-constant': 'info',
+  'metric-regression': 'error',
 };
 
 /** Сводная метрика качества. */
@@ -90,6 +109,27 @@ export interface RegistryFile {
   readonly codes: readonly RegistryCode[];
 }
 
+/**
+ * Исполняемое правило артефактов change: каждый файл, раздел или пункт плана
+ * артефакта должен содержать (`require`) или не содержать (`forbid`) шаблон.
+ */
+export interface ArtifactRule {
+  readonly id: string;
+  /** Идентификатор артефакта схемы: `proposal`, `design`, `tasks`, `specs`… */
+  readonly artifact: string;
+  /** Что проверяется: файл целиком, раздел под заголовком или пункт плана с продолжением. */
+  readonly each: 'file' | 'section' | 'item';
+  /** Заголовки, которые начинают раздел; по умолчанию `^#{2,3}\s`. */
+  readonly heading: string | null;
+  readonly require: string | null;
+  readonly forbid: string | null;
+  readonly message: string;
+  /** Уровень правила; без него — уровень `artifact-rule`. */
+  readonly level: QualityLevel | null;
+  /** Строка правила в файле настроек. */
+  readonly line: number | null;
+}
+
 /** Ошибка в файле настроек. */
 export interface QualityConfigError {
   readonly line: number | null;
@@ -120,6 +160,8 @@ export interface QualityConfig {
   /** Реестр кодов ошибок; `null` — не задан. */
   readonly registry: readonly RegistryFile[] | null;
   readonly thresholds: readonly QualityThreshold[];
+  /** Исполняемые правила артефактов changes. */
+  readonly artifactRules: readonly ArtifactRule[];
   /** Ошибки разбора файла настроек. */
   readonly errors: readonly QualityConfigError[];
 }
@@ -136,6 +178,7 @@ export const DEFAULT_QUALITY_CONFIG: QualityConfig = {
   internalTerms: { add: [], ignore: [] },
   registry: null,
   thresholds: [],
+  artifactRules: [],
   errors: [],
 };
 
@@ -188,24 +231,27 @@ export interface QualityReport {
 // ---------------------------------------------------------------------------
 // Разбор документа
 
-type StepKeyword = 'GIVEN' | 'WHEN' | 'THEN';
+// Типы и функции разбора ниже экспортируются для `specConsistency.ts`; из
+// `index.ts` пакета они не выходят.
 
-interface Line {
+export type StepKeyword = 'GIVEN' | 'WHEN' | 'THEN';
+
+export interface Line {
   readonly text: string;
   readonly line: number;
 }
 
-interface Step extends Line {
+export interface Step extends Line {
   readonly keyword: StepKeyword;
 }
 
-interface Scenario {
+export interface Scenario {
   readonly name: string;
   readonly line: number;
   readonly steps: Step[];
 }
 
-interface Requirement {
+export interface Requirement {
   readonly name: string;
   readonly line: number;
   readonly operation: DeltaOperation | null;
@@ -213,7 +259,7 @@ interface Requirement {
   readonly scenarios: Scenario[];
 }
 
-interface QualityDocument {
+export interface QualityDocument {
   readonly path: string;
   readonly capability: string;
   readonly change: string | null;
@@ -233,7 +279,7 @@ const RE_DELTA = /^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\s*$/;
 /** Заголовки разделов, где спек объявляет свои термины и параметры. */
 const RE_REGISTRY_SECTION = /^(glossary|configuration|config|parameters|terms|terminology|глоссарий|конфигурация|параметры|настройки|термины|словарь)\b/i;
 
-function parseDocument(path: string, capability: string, change: string | null, text: string): QualityDocument {
+export function parseDocument(path: string, capability: string, change: string | null, text: string): QualityDocument {
   const lines = text.split('\n').map((line) => line.replace(/\r$/, ''));
   const mask = fenceMask(lines);
   const purpose: Line[] = [];
@@ -324,13 +370,13 @@ function parseDocument(path: string, capability: string, change: string | null, 
 // ---------------------------------------------------------------------------
 // Текст: предложения, слова, токены
 
-interface Sentence {
+export interface Sentence {
   readonly text: string;
   readonly line: number;
 }
 
 /** Делит строки на предложения; пункт списка и пустая строка начинают новое. */
-function sentences(lines: readonly Line[]): Sentence[] {
+export function sentences(lines: readonly Line[]): Sentence[] {
   const result: Sentence[] = [];
   let text = '';
   let start = 0;
@@ -438,13 +484,13 @@ function maskCode(text: string): { masked: string; spans: string[] } {
 }
 
 /** Текст без `кода`, «кавычек» и "кавычек": там сообщения и значения, а не формулировки. */
-function prose(text: string): string {
+export function prose(text: string): string {
   return text.replace(CODE_SPAN, ' ').replace(/«[^»]*»/g, ' ').replace(/"[^"]*"/g, ' ');
 }
 
 const DEFAULT_CODE = '[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+';
 
-function codeRegex(config: QualityConfig): RegExp {
+export function codeRegex(config: QualityConfig): RegExp {
   let source = DEFAULT_CODE;
   if (config.errorCodePattern !== null) {
     try {
@@ -457,7 +503,7 @@ function codeRegex(config: QualityConfig): RegExp {
   return new RegExp(`(?<![\\p{L}\\p{N}_])(?:${source})(?![\\p{L}\\p{N}_])`, 'gu');
 }
 
-function codes(text: string, re: RegExp): string[] {
+export function codes(text: string, re: RegExp): string[] {
   return [...text.matchAll(re)].map((match) => match[0]);
 }
 
@@ -589,6 +635,10 @@ const OBSERVABLE =
 const ERROR_WORDS =
   /(?<![\p{L}])(?:ошиб\p{L}*|отказ\p{L}*|отклон\p{L}*|запрещ\p{L}*|недопуст\p{L}*|errors?|reject\p{L}*|den(?:y|ied|ies)|fail\p{L}*|forbidden|refus\p{L}*)|(?<![\p{N}])[45]\d\d(?![\p{N}])/iu;
 
+/** Слова, которыми текст задаёт порядок проверок. */
+const ORDER_WORDS =
+  /(?<![\p{L}])(?:сначала|затем|прежде|приоритет\p{L}*|порядк\p{L}*|порядок|первым|первой|первую|раньше|в\s+первую\s+очередь|first|then|before|after|priority|precedence|order(?:ed)?)(?![\p{L}])/iu;
+
 /** Предложение о кодах: «вернуть код», «с кодом», `code`. */
 const ERROR_CONTEXT = /(?<![\p{L}])(?:код\p{L}*|codes?)(?![\p{L}])/iu;
 
@@ -662,12 +712,13 @@ interface Context {
   readonly path: string;
 }
 
-function level(config: QualityConfig, rule: QualityRule): QualityLevel | 'off' {
+/** Уровень правила с учётом настроек. */
+export function ruleLevel(config: QualityConfig, rule: QualityRule): QualityLevel | 'off' {
   return config.levels[rule] ?? QUALITY_RULES[rule];
 }
 
 function report(context: Context, rule: QualityRule, line: number, message: string): void {
-  const severity = level(context.config, rule);
+  const severity = ruleLevel(context.config, rule);
   if (severity === 'off') return;
   context.issues.push({ path: context.path, line, level: severity, rule, message });
 }
@@ -711,10 +762,15 @@ export function specQuality(sources: AuthoringSources, path?: string): QualityRe
     for (const delta of change.deltas) documents.push({ path: delta.path, capability: delta.capability, change: change.name, text: delta.text });
   }
 
-  for (const source of documents) {
-    if (only !== null && normalizePath(source.path) !== only) continue;
+  // Сценарии сравниваются по всем документам, даже когда проверяется один.
+  const parsed = documents.map((source) => {
     const document = parseDocument(source.path, source.capability, source.change, source.text);
     const checked = document.requirements.filter((item) => item.operation !== 'REMOVED' && item.operation !== 'RENAMED');
+    return { source, document, checked };
+  });
+
+  for (const { source, document, checked } of parsed) {
+    if (only !== null && normalizePath(source.path) !== only) continue;
     // Термины дельты — из её разделов и из основного спека capability.
     const main = source.change === null ? null : mainTexts.get(source.capability);
     const registryLines = [
@@ -754,6 +810,15 @@ export function specQuality(sources: AuthoringSources, path?: string): QualityRe
     addCounts(total, counts);
   }
 
+  issues.push(
+    ...scenarioConsistency(
+      parsed.map(({ source, checked }) => ({ path: source.path, capability: source.capability, change: source.change, requirements: checked })),
+      config,
+      only,
+    ),
+    ...artifactRuleIssues(sources, only),
+  );
+
   if (only === null) {
     const global: Context = { config, codeRe, vague, internal, terms: new Set(), issues, path: config.path ?? '' };
     checkErrorRegistry(global, used, documents.length > 0);
@@ -767,7 +832,7 @@ export function specQuality(sources: AuthoringSources, path?: string): QualityRe
   return { issues, files, counts: total, metrics: qualityMetrics(total) };
 }
 
-function normalizePath(path: string): string {
+export function normalizePath(path: string): string {
   return path.replaceAll('\\', '/').replace(/^\.\//, '');
 }
 
@@ -819,6 +884,18 @@ function checkRequirement(context: Context, requirement: Requirement): QualityCo
         `Код ${code} назван в тексте требования ${name}, но ни один сценарий не проверяет его в THEN`,
       );
     }
+  }
+
+  // Порядок ошибок: два и больше кодов отказа — текст должен сказать, какой вернуть, если нарушено несколько условий.
+  const errorCodes = [...all];
+  if (errorCodes.length >= 2 && !description.some((sentence) => ORDER_WORDS.test(prose(sentence.text)))) {
+    report(
+      context,
+      'error-order',
+      requirement.line,
+      `Требование ${name} называет ${errorCodes.length} кода ошибок (${errorCodes.join(', ')}), но не говорит, ` +
+        'какой вернуть, если нарушено несколько условий сразу: задайте порядок проверок',
+    );
   }
 
   // Шаги и имена сценариев: по ним ищется покрытие.
@@ -1140,7 +1217,8 @@ function enumerationItems(source: string): string[] {
   // Интервал [`min`, `max`] — граница, его проверяет правило граничных значений.
   const text = source.replace(/\[\s*`[^`]+`\s*[,;]\s*`[^`]+`\s*\]/g, (match) => ' '.repeat(match.length));
   const spans = [...text.matchAll(CODE_SPAN)].map((match) => ({
-    value: match[1] ?? match[2] ?? '',
+    // ``\`код\` `` — значение без внутренних обратных кавычек.
+    value: (match[1] ?? match[2] ?? '').replace(/^`+|`+$/g, ''),
     start: match.index ?? 0,
     end: (match.index ?? 0) + match[0].length,
   }));
@@ -1161,20 +1239,20 @@ function enumerationItems(source: string): string[] {
 
 // --- R4, R5: границы
 
-interface Operand {
+export interface Operand {
   readonly label: string;
   readonly value: number | null;
   readonly name: string | null;
 }
 
-type PointKind = 'eq' | 'below' | 'above';
+export type PointKind = 'eq' | 'below' | 'above';
 
-interface BoundPoint {
+export interface BoundPoint {
   readonly kind: PointKind;
   readonly operand: Operand;
 }
 
-interface Bound {
+export interface Bound {
   readonly text: string;
   readonly points: readonly BoundPoint[];
   readonly interval: { readonly min: Operand; readonly max: Operand } | null;
@@ -1210,7 +1288,7 @@ function operand(raw: string, spans: readonly string[]): Operand | null {
   return { label: clean, value, name: value === null ? clean : null };
 }
 
-function bounds(text: string): Bound[] {
+export function bounds(text: string): Bound[] {
   const { masked, spans } = maskCode(text);
   const unmask = (value: string): string => value.replace(/\uE000(\d+)\uE001/g, (_, index: string) => spans[Number(index)] ?? '');
   const result: Bound[] = [];
@@ -1442,7 +1520,7 @@ function checkRegistry(context: Context, requirements: readonly Requirement[]): 
 function checkErrorRegistry(context: Context, used: ReadonlyMap<string, { path: string; line: number }>, hasDocuments: boolean): void {
   const registry = context.config.registry;
   if (registry === null || !hasDocuments) return;
-  if (level(context.config, 'error-code-registry') === 'off') return;
+  if (ruleLevel(context.config, 'error-code-registry') === 'off') return;
   for (const file of registry) {
     for (const item of file.codes) {
       if (used.has(item.code)) continue;

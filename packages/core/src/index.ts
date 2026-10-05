@@ -357,8 +357,10 @@ export {
   QUALITY_RULES,
   formatQualityMetric,
   qualityMetrics,
+  ruleLevel,
   specQuality,
   wordsMatch,
+  type ArtifactRule,
   type QualityConfig,
   type QualityConfigError,
   type QualityCounts,
@@ -375,3 +377,15 @@ export {
 } from './specQuality.js';
 
 export { QUALITY_FILE, parseQualityConfig, registryCodes, type ParsedQualityConfig } from './specQualityConfig.js';
+
+export {
+  TEST_FILE,
+  artifactRuleIssues,
+  metricRegressions,
+  planTestRefIssues,
+  planTestReferences,
+  scenarioConsistency,
+  specCodeIssues,
+  type DomainCode,
+  type PlanTestRef,
+} from './specConsistency.js';

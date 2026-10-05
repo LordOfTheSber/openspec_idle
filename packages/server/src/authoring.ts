@@ -54,7 +54,13 @@ export class AuthoringService {
       const base = `${OPENSPEC_DIR}/changes/${change.name}`;
       const deltas: AuthoringDelta[] = [];
       let plan: AuthoringChange['plan'] = null;
+      const files: { id: string; path: string; text: string }[] = [];
       for (const artifact of change.artifacts) {
+        for (const file of artifact.files) {
+          const path = `${base}/${file.replaceAll('\\', '/')}`;
+          const text = await this.#read(path);
+          if (text !== null) files.push({ id: artifact.id, path, text });
+        }
         if (artifact.outputPath.includes('*')) {
           for (const file of artifact.files) {
             const path = `${base}/${file.replaceAll('\\', '/')}`;
@@ -68,7 +74,7 @@ export class AuthoringService {
           if (text !== null) plan = { path, text };
         }
       }
-      changes.push({ name: change.name, deltas, plan });
+      changes.push({ name: change.name, deltas, plan, artifacts: files });
     }
 
     return { mainSpecs, changes, quality: await readQualityConfig(this.#root) };

@@ -497,6 +497,27 @@ describe('расширение VS Code: помощь в редакторе', () 
     );
   });
 
+  it('правило артефактов из quality.yaml и ссылка плана на пропавший тест — в «Проблемах»', async () => {
+    const root = copyFixture('delta-ops');
+    writeFileSync(
+      join(root, 'openspec/quality.yaml'),
+      'version: 1\nartifacts:\n  - id: proposal-risks\n    artifact: proposal\n    require: "## Risks"\n    message: Нет раздела Risks\n',
+    );
+    const plan = join(root, 'openspec/changes/add-limits/tasks.md');
+    writeFileSync(plan, `${readFileSync(plan, 'utf8')}\n- [ ] 9.1 Лимит; проверка — тест \`src/limits.test.ts\` «лимит объёма»\n`);
+    const state = await activate([root]);
+
+    const proposal = join(root, 'openspec/changes/add-limits/proposal.md');
+    await until(
+      () => (state.diagnostics.get(proposal) ?? []).some((item) => item.source === 'openspec-quality' && item.code === 'artifact-rule'),
+      'замечание правила артефактов на proposal.md',
+    );
+    await until(
+      () => (state.diagnostics.get(plan) ?? []).some((item) => item.source === 'openspec-quality' && item.code === 'plan-test-ref'),
+      'замечание о ссылке на пропавший тест в плане',
+    );
+  });
+
   it('опечатка в MODIFIED при наборе: ошибка на строке и исправление заменой имени', async () => {
     const root = copyFixture('delta-ops');
     const state = await activate([root]);

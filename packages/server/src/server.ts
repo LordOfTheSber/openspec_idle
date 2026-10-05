@@ -17,6 +17,7 @@ import { StructureExistsError, StructureService, watchedStructureDirs } from './
 import { ContextMapService, ContextModuleError } from './contextMap.js';
 import { TraceService } from './trace.js';
 import { AuthoringService } from './authoring.js';
+import { projectQualityIssues } from './quality.js';
 import { DriftService } from './drift.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
@@ -332,6 +333,12 @@ export function createApp(options: ServerOptions): AppParts {
   app.get('/api/authoring', async () => {
     if (authoring === null) throw new Error('CLI OpenSpec недоступен');
     return authoring.sources();
+  });
+
+  // Проверки качества, которым нужен диск: ссылки плана на тесты и сверка спек с кодом модулей домена.
+  app.get('/api/quality/project', async () => {
+    if (authoring === null || root === null) throw new Error('CLI OpenSpec недоступен');
+    return { issues: await projectQualityIssues(root, await authoring.sources()) };
   });
 
   app.get('/api/archive/preview', async (request) => {

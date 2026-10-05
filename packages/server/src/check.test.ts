@@ -1,4 +1,5 @@
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -142,6 +143,89 @@ describe('проверка проекта для CI', () => {
     expect(report.findings).toContainEqual(
       expect.objectContaining({ level: 'error', file: 'openspec/quality.yaml', line: 3, message: expect.stringContaining('неизвестное правило «nope»') }),
     );
+  });
+
+  it('quality: правило артефактов, ссылка плана на тест и цитата, которой нет в коде модуля', async () => {
+    const dir = copy('full-change');
+    const change = 'openspec/changes/full-feature';
+    writeFileSync(
+      join(dir, 'openspec/quality.yaml'),
+      [
+        'version: 1',
+        'artifacts:',
+        '  - id: proposal-impact',
+        '    artifact: proposal',
+        '    require: "## Risks"',
+        '    message: В proposal нет раздела Risks',
+      ].join('\n'),
+    );
+    writeFileSync(join(dir, `${change}/tasks.md`), '# Tasks\n\n## 1. Выгрузка\n\n- [x] 1.1 CSV; проверка — тест `src/export.test.ts` «выгрузка в CSV»\n');
+    writeFileSync(
+      join(dir, `${change}/specs/data-export/spec.md`),
+      [
+        '# Spec Delta: data-export',
+        '',
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Выгрузка данных',
+        '',
+        'Система ДОЛЖНА (SHALL) выгружать данные пользователя в формате CSV.',
+        '',
+        '#### Scenario: Успешная выгрузка',
+        '',
+        '- **WHEN** пользователь запрашивает выгрузку',
+        '- **THEN** показано сообщение «Выгрузка готова к скачиванию»',
+        '',
+      ].join('\n'),
+    );
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src/export.ts'), "export const DONE = 'Файл выгрузки собран';\n");
+    mkdirSync(join(dir, 'openspec/context/modules/export'), { recursive: true });
+    writeFileSync(
+      join(dir, 'openspec/context/modules/export/index.md'),
+      '---\nmodule: export\ndomains: [data-export]\ncode_paths: [src]\ndepends_on: []\n---\n',
+    );
+    writeFileSync(join(dir, 'openspec/context/modules/export/context.md'), '# export\n');
+
+    const report = await runCheck({ cwd: dir, only: ['quality'] });
+
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ level: 'warning', file: `${change}/proposal.md`, line: 1, message: expect.stringMatching(/^В proposal нет раздела Risks.*\(artifact-rule\)$/) }),
+    );
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ level: 'warning', file: `${change}/tasks.md`, line: 5, message: expect.stringMatching(/`src\/export\.test\.ts`, а такого файла нет.*\(plan-test-ref\)$/) }),
+    );
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({
+        level: 'warning',
+        file: `${change}/specs/data-export/spec.md`,
+        line: 12,
+        message: expect.stringMatching(/«Выгрузка готова к скачиванию».*модулей export.*\(code-message\)$/),
+      }),
+    );
+  });
+
+  it('quality --baseline: метрика хуже, чем в ревизии git, — ошибка; неизвестная ревизия — ошибка запуска', async () => {
+    const dir = copy('full-change');
+    const git = (...args: string[]): void => {
+      execFileSync('git', args, { cwd: dir, stdio: 'ignore', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+    };
+    git('init', '-q');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'base');
+    const delta = join(dir, 'openspec/changes/full-feature/specs/data-export/spec.md');
+    writeFileSync(delta, readFileSync(delta, 'utf8').replace('в формате CSV', 'в корректном формате CSV и т. д.'));
+
+    const report = await runCheck({ cwd: dir, only: ['quality'], baseline: 'HEAD' });
+    const regressions = report.findings.filter((finding) => finding.message.endsWith('(metric-regression)'));
+    expect(regressions.map((finding) => [finding.level, finding.file])).toEqual([
+      ['error', null],
+      ['error', null],
+    ]);
+    expect(regressions[0]?.message).toContain('«расплывчатых слов на 100» ухудшилась относительно HEAD: 0,00 →');
+    expect(regressions[1]?.message).toContain('стало больше, чем в HEAD: 0 → 1 (vague-wording +1)');
+
+    await expect(runCheck({ cwd: dir, only: ['quality'], baseline: 'нет-такой' })).rejects.toThrow(CheckUsageError);
   });
 
   it('validate: замечания changes и основных спеков со строками', async () => {

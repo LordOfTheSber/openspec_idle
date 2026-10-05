@@ -6,6 +6,7 @@
  * читает сам — по путям, которые вернул разбор.
  */
 import {
+  type ArtifactRule,
   DEFAULT_QUALITY_CONFIG,
   QUALITY_METRICS,
   QUALITY_RULES,
@@ -21,7 +22,8 @@ import {
 /** Путь файла настроек от корня проекта. */
 export const QUALITY_FILE = 'openspec/quality.yaml';
 
-const KEYS = ['version', 'scope', 'rules', 'errorCodes', 'actors', 'glossary', 'parameters', 'vagueWords', 'internalTerms', 'thresholds'];
+const KEYS = ['version', 'scope', 'rules', 'errorCodes', 'actors', 'glossary', 'parameters', 'vagueWords', 'internalTerms', 'thresholds', 'artifacts'];
+const ARTIFACT_KEYS = ['id', 'artifact', 'each', 'heading', 'require', 'forbid', 'message', 'level'];
 const LEVELS: readonly string[] = ['error', 'warning', 'info', 'off'];
 
 export interface ParsedQualityConfig {
@@ -170,6 +172,70 @@ export function parseQualityConfig(raw: unknown, lineOf: (path: readonly string[
     }
   }
 
+  const artifactRules: ArtifactRule[] = [];
+  const rawArtifacts = raw['artifacts'];
+  if (rawArtifacts !== undefined && rawArtifacts !== null) {
+    if (!Array.isArray(rawArtifacts)) {
+      error(['artifacts'], '«artifacts» — список правил с ключами id, artifact, each, require или forbid, message');
+    } else {
+      rawArtifacts.forEach((item: unknown, index) => {
+        const path = ['artifacts', String(index)];
+        if (!isRecord(item)) {
+          error(path, `правило артефактов №${index + 1} — словарь`);
+          return;
+        }
+        for (const key of Object.keys(item)) {
+          if (!ARTIFACT_KEYS.includes(key)) error([...path, key], `неизвестный ключ правила артефактов «${key}». Доступны: ${ARTIFACT_KEYS.join(', ')}`);
+        }
+        const text = (key: string): string | null => {
+          const value = item[key];
+          if (value === undefined || value === null) return null;
+          if (typeof value !== 'string' || value.trim() === '') {
+            error([...path, key], `«${key}» правила артефактов — непустая строка`);
+            return null;
+          }
+          return value;
+        };
+        const pattern = (key: string): string | null => {
+          const value = text(key);
+          if (value === null) return null;
+          try {
+            new RegExp(value, 'iu');
+            return value;
+          } catch (failure) {
+            error([...path, key], `«${key}» правила артефактов не разбирается: ${(failure as Error).message}`);
+            return null;
+          }
+        };
+        const id = text('id') ?? `artifacts[${index}]`;
+        const artifact = text('artifact');
+        const each = item['each'] ?? 'file';
+        const require = pattern('require');
+        const forbid = pattern('forbid');
+        const heading = pattern('heading');
+        const level = item['level'];
+        if (artifact === null) error(path, `у правила «${id}» нет «artifact» — идентификатора артефакта схемы (proposal, design, tasks, specs…)`);
+        if (each !== 'file' && each !== 'section' && each !== 'item') error([...path, 'each'], `«each» правила «${id}» — file, section или item`);
+        if (require === null && forbid === null) error(path, `у правила «${id}» нет ни «require», ни «forbid»`);
+        if (level !== undefined && level !== null && level !== 'error' && level !== 'warning' && level !== 'info') {
+          error([...path, 'level'], `уровень правила «${id}» — error, warning или info`);
+        }
+        if (artifact === null || (each !== 'file' && each !== 'section' && each !== 'item') || (require === null && forbid === null)) return;
+        artifactRules.push({
+          id,
+          artifact,
+          each,
+          heading,
+          require,
+          forbid,
+          message: text('message') ?? (require !== null ? `нет «${require}»` : `есть «${forbid ?? ''}»`),
+          level: level === 'error' || level === 'warning' || level === 'info' ? level : null,
+          line: lineOf(path),
+        });
+      });
+    }
+  }
+
   return {
     config: {
       path: QUALITY_FILE,
@@ -183,6 +249,7 @@ export function parseQualityConfig(raw: unknown, lineOf: (path: readonly string[
       internalTerms: wordList('internalTerms'),
       registry: null,
       thresholds,
+      artifactRules,
       errors,
     },
     registryPaths,

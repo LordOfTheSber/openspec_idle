@@ -37,6 +37,8 @@ export interface AuthoringChange {
   readonly deltas: readonly AuthoringDelta[];
   /** План; `null`, если схема не объявила отслеживаемый артефакт или файла нет. */
   readonly plan: { readonly path: string; readonly text: string } | null;
+  /** Файлы всех артефактов change с идентификатором артефакта схемы — для исполняемых правил. */
+  readonly artifacts?: readonly { readonly id: string; readonly path: string; readonly text: string }[];
 }
 
 /** Всё, что нужно языковым функциям. */
