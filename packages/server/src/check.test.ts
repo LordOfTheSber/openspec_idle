@@ -89,6 +89,61 @@ describe('проверка проекта для CI', () => {
     expect(report.checks.find((check) => check.check === 'coverage')?.status).toBe('passed');
   });
 
+  it('quality: замечания качества с правилом, реестр кодов, порог метрики и метрики в итоге', async () => {
+    const dir = copy('full-change');
+    writeFileSync(
+      join(dir, 'openspec/changes/full-feature/specs/data-export/spec.md'),
+      [
+        '# Spec Delta: data-export',
+        '',
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Выгрузка данных',
+        '',
+        'Система ДОЛЖНА (SHALL) выгружать данные в валидном формате CSV и отклонять выгрузку чужих данных с кодом `EXPORT_FORBIDDEN`.',
+        '',
+        '#### Scenario: Успешная выгрузка',
+        '',
+        '- **WHEN** пользователь запрашивает выгрузку',
+        '- **THEN** отдаётся файл CSV со всеми его данными',
+        '',
+      ].join('\n'),
+    );
+    writeFileSync(join(dir, 'ErrorCode.txt'), 'EXPORT_FORBIDDEN\nEXPORT_TOO_LARGE\n');
+    writeFileSync(
+      join(dir, 'openspec/quality.yaml'),
+      'version: 1\nerrorCodes:\n  registry: [ErrorCode.txt]\nthresholds:\n  errorCodeTraceability: 1\n',
+    );
+
+    const report = await runCheck({ cwd: dir, only: ['quality'] });
+    const delta = 'openspec/changes/full-feature/specs/data-export/spec.md';
+
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ check: 'quality', level: 'warning', file: delta, line: 7, message: expect.stringMatching(/«валидном».*\(vague-wording\)$/) }),
+    );
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ check: 'quality', level: 'warning', file: delta, line: 7, message: expect.stringMatching(/EXPORT_FORBIDDEN.*\(error-code-trace\)$/) }),
+    );
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ check: 'quality', level: 'info', file: 'ErrorCode.txt', line: 2, message: expect.stringContaining('EXPORT_TOO_LARGE') }),
+    );
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ check: 'quality', level: 'error', file: 'openspec/quality.yaml', line: 5, message: expect.stringContaining('ниже порога 100 %') }),
+    );
+    expect(report.checks).toEqual([
+      expect.objectContaining({ check: 'quality', status: 'failed', metrics: expect.objectContaining({ errorCodeTraceability: 0 }) }),
+    ]);
+  });
+
+  it('quality: ошибка в настройках — на строке ключа', async () => {
+    const dir = copy('full-change');
+    writeFileSync(join(dir, 'openspec/quality.yaml'), 'version: 1\nrules:\n  nope: warning\n');
+    const report = await runCheck({ cwd: dir, only: ['quality'] });
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ level: 'error', file: 'openspec/quality.yaml', line: 3, message: expect.stringContaining('неизвестное правило «nope»') }),
+    );
+  });
+
   it('validate: замечания changes и основных спеков со строками', async () => {
     const report = await runCheck({ cwd: copy('delta-ops'), only: ['validate'] });
     expect(report.findings).toContainEqual(

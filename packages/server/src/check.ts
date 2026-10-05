@@ -4,10 +4,13 @@ import {
   type AuthoringSources,
   type ContextMap,
   type DriftReport,
+  type QualityMetric,
+  type QualityMetrics,
   type Trace,
   type WorkspaceTree,
   authoringIssues,
   driftFindings,
+  specQuality,
 } from '@openspec-ide/core';
 import { type EmbeddedBackend, createEmbeddedBackend } from './embedded.js';
 import { resolveOpenspecRoot } from './fs/workspace.js';
@@ -16,12 +19,12 @@ import type { RegistryEntry, SchemaCheck } from './schemaRegistry.js';
 import type { StructureReport } from './structure.js';
 
 /** Проверки команды `openspec-ide-check` в порядке выполнения. */
-export const CHECKS = ['validate', 'archived', 'structure', 'context', 'schemas', 'authoring', 'coverage', 'drift'] as const;
+export const CHECKS = ['validate', 'archived', 'structure', 'context', 'schemas', 'authoring', 'quality', 'coverage', 'drift'] as const;
 
 export type CheckId = (typeof CHECKS)[number];
 
 /** Проверки, которым нужен CLI OpenSpec. */
-const NEEDS_CLI: ReadonlySet<CheckId> = new Set(['validate', 'archived', 'schemas', 'authoring', 'coverage', 'drift']);
+const NEEDS_CLI: ReadonlySet<CheckId> = new Set(['validate', 'archived', 'schemas', 'authoring', 'quality', 'coverage', 'drift']);
 
 export type CheckLevel = 'error' | 'warning' | 'info';
 
@@ -44,6 +47,8 @@ export interface CheckSummary {
   readonly errors: number;
   readonly warnings: number;
   readonly infos: number;
+  /** Сводные метрики проверки, если она их считает (`quality`); `null` — метрику считать не по чему. */
+  readonly metrics?: Readonly<Partial<Record<QualityMetric, number | null>>>;
 }
 
 /** Отчёт команды. */
@@ -84,7 +89,7 @@ export function parseCheckList(value: string): CheckId[] {
   return ids as CheckId[];
 }
 
-type Outcome = { readonly findings: CheckFinding[] } | { readonly skipped: string };
+type Outcome = { readonly findings: CheckFinding[]; readonly metrics?: QualityMetrics } | { readonly skipped: string };
 
 /**
  * Выполняет проверки проекта теми же маршрутами встроенного бэкенда, что
@@ -136,6 +141,7 @@ export async function runCheck(options: CheckOptions): Promise<CheckReport> {
         errors: count('error'),
         warnings: count('warning'),
         infos: count('info'),
+        ...(outcome.metrics === undefined ? {} : { metrics: outcome.metrics }),
       });
     }
     return { root, findings, checks };
@@ -282,6 +288,25 @@ const RUNNERS: Record<CheckId, (context: RunContext) => Promise<Outcome>> = {
         line: issue.line,
         message: issue.message,
       })),
+    };
+  },
+
+  async quality(context) {
+    const all = await sources(context);
+    const report = specQuality(all);
+    if (report.files.length === 0 && report.issues.length === 0) {
+      return { skipped: all.quality?.scope === 'changes' ? 'нет дельт в активных changes (scope: changes)' : 'нет спеков' };
+    }
+    return {
+      findings: report.issues.map((issue) => ({
+        check: 'quality' as const,
+        level: issue.level,
+        file: issue.path,
+        line: issue.line,
+        // Имя правила — чтобы его можно было настроить в rules файла настроек.
+        message: `${issue.message} (${issue.rule})`,
+      })),
+      metrics: report.metrics,
     };
   },
 

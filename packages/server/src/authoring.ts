@@ -9,11 +9,13 @@ import {
   type TreeCapability,
 } from '@openspec-ide/core';
 import { capabilityFromPath } from './deltas.js';
+import { readQualityConfig } from './quality.js';
 import type { WorkspaceReader } from './workspace.js';
 
 /**
- * Собирает тексты, по которым работают функции редактора и проверки ссылок:
- * основные спеки, дельты и планы активных changes.
+ * Собирает тексты, по которым работают функции редактора, проверки ссылок и
+ * качества спеков: основные спеки, дельты и планы активных changes, настройки
+ * проверки качества.
  *
  * Какие файлы у change дельты и какой из них план, определяет его схема —
  * через дерево рабочего пространства: дельты — артефакт с шаблоном пути,
@@ -69,7 +71,7 @@ export class AuthoringService {
       changes.push({ name: change.name, deltas, plan });
     }
 
-    return { mainSpecs, changes };
+    return { mainSpecs, changes, quality: await readQualityConfig(this.#root) };
   }
 
   async #read(relative: string): Promise<string | null> {

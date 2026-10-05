@@ -9,6 +9,8 @@ export interface FileDiagnostic {
   readonly line: number;
   readonly level: DiagnosticLevel;
   readonly message: string;
+  /** Код замечания — например, имя правила проверки качества. */
+  readonly code?: string;
 }
 
 const LEVEL: Record<ValidationEntry['level'], DiagnosticLevel> = {

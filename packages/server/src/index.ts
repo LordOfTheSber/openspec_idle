@@ -94,6 +94,7 @@ export {
 } from './validation.js';
 
 export { AuthoringService } from './authoring.js';
+export { readQualityConfig } from './quality.js';
 export { DriftService } from './drift.js';
 export { GitHistory } from './git.js';
 

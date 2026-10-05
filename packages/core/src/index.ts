@@ -349,3 +349,29 @@ export {
   type RequirementTouch,
   type StaleRequirement,
 } from './drift.js';
+
+export {
+  DEFAULT_QUALITY_CONFIG,
+  QUALITY_METRICS,
+  QUALITY_METRIC_LABELS,
+  QUALITY_RULES,
+  formatQualityMetric,
+  qualityMetrics,
+  specQuality,
+  wordsMatch,
+  type QualityConfig,
+  type QualityConfigError,
+  type QualityCounts,
+  type QualityFileReport,
+  type QualityIssue,
+  type QualityLevel,
+  type QualityMetric,
+  type QualityMetrics,
+  type QualityReport,
+  type QualityRule,
+  type QualityThreshold,
+  type RegistryCode,
+  type RegistryFile,
+} from './specQuality.js';
+
+export { QUALITY_FILE, parseQualityConfig, registryCodes, type ParsedQualityConfig } from './specQualityConfig.js';

@@ -34,7 +34,9 @@
 каталоге `.openspec-ide`), `src/structure.ts`, `src/contextMap.ts`,
 `src/drift.ts`, `src/trace.ts`, `src/archivePreview.ts` (настоящий
 `openspec archive` на временной копии), `src/schemaRegistry.ts`,
-`src/validation.ts`, `src/check.ts` (прогон проверок для CI).
+`src/validation.ts`, `src/check.ts` (прогон проверок для CI),
+`src/authoring.ts` (тексты спеков, дельт и планов для редактора) и
+`src/quality.ts` (`openspec/quality.yaml` и файлы реестра кодов ошибок).
 
 ## Как менять
 

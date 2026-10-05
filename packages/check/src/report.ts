@@ -1,3 +1,4 @@
+import { QUALITY_METRICS, QUALITY_METRIC_LABELS, formatQualityMetric } from '@openspec-ide/core';
 import {
   CHECKS,
   type CheckFinding,
@@ -145,6 +146,7 @@ function summary(report: CheckReport, failOn: CheckLevel): string {
       check.infos > 0 ? `сведений ${check.infos}` : null,
     ].filter((part): part is string => part !== null);
     lines.push(`  ${name}  ${counts.length === 0 ? 'пройдена' : counts.join(', ')}`);
+    if (check.metrics !== undefined) lines.push(`  ${' '.repeat(width)}  ${metricsLine(check.metrics)}`);
   }
   const total = (level: CheckLevel): number => report.findings.filter((finding) => finding.level === level).length;
   const code = exitCode(report, failOn);
@@ -153,6 +155,13 @@ function summary(report: CheckReport, failOn: CheckLevel): string {
       `Порог --fail-on ${failOn}: ${code === 0 ? 'проверка пройдена' : 'проверка не пройдена'}.`,
   );
   return lines.join('\n');
+}
+
+/** Метрики проверки одной строкой: «трассируемость кодов ошибок 100 %, покрытие ветвлений 50 %, …». */
+function metricsLine(metrics: NonNullable<CheckReport['checks'][number]['metrics']>): string {
+  return QUALITY_METRICS.filter((metric) => metric in metrics)
+    .map((metric) => `${QUALITY_METRIC_LABELS[metric]} ${formatQualityMetric(metric, metrics[metric] ?? null)}`)
+    .join(', ');
 }
 
 /** Отчёт одним JSON-объектом. */

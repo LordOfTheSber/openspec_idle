@@ -9,11 +9,12 @@ import {
   documentKind,
   hover,
   planSymbols,
+  specQuality,
   withDocumentText,
   workspaceSymbols,
 } from '@openspec-ide/core';
 import * as vscode from 'vscode';
-import { LENS_COMMANDS, authoringDiagnostics, lensCommand, relativeToRoot } from './authoringModel.js';
+import { LENS_COMMANDS, authoringDiagnostics, lensCommand, qualityDiagnostics, relativeToRoot } from './authoringModel.js';
 import type { FileDiagnostic } from './diagnosticsModel.js';
 
 /** Что функциям редактора нужно от контроллера расширения. */
@@ -42,10 +43,13 @@ const SELECTOR: vscode.DocumentSelector = [
 export class AuthoringFeatures implements vscode.Disposable {
   readonly #host: AuthoringHost;
   readonly #issues = vscode.languages.createDiagnosticCollection('openspec-authoring');
+  /** Замечания качества спеков — отдельно, чтобы их было видно и фильтровать по источнику. */
+  readonly #quality = vscode.languages.createDiagnosticCollection('openspec-quality');
   readonly #lensesChanged = new vscode.EventEmitter<void>();
   readonly #timers = new Map<string, NodeJS.Timeout>();
   /** Файлы, на которые легли замечания, — чтобы снимать устаревшие. */
   #diagnosed = new Set<string>();
+  #qualityDiagnosed = new Set<string>();
   #sources: AuthoringSources = { mainSpecs: [], changes: [] };
   #loading: Promise<void> | null = null;
   #again = false;
@@ -57,6 +61,7 @@ export class AuthoringFeatures implements vscode.Disposable {
   register(): vscode.Disposable[] {
     return [
       this.#issues,
+      this.#quality,
       this.#lensesChanged,
       vscode.languages.registerCompletionItemProvider(SELECTOR, { provideCompletionItems: (d, p) => this.#completions(d, p) }, ' ', '#', ':', '`', '/'),
       vscode.languages.registerCodeActionsProvider(
@@ -86,6 +91,7 @@ export class AuthoringFeatures implements vscode.Disposable {
   dispose(): void {
     this.#clearTimers();
     this.#issues.dispose();
+    this.#quality.dispose();
     this.#lensesChanged.dispose();
   }
 
@@ -118,6 +124,8 @@ export class AuthoringFeatures implements vscode.Disposable {
     this.#sources = { mainSpecs: [], changes: [] };
     this.#issues.clear();
     this.#diagnosed.clear();
+    this.#quality.clear();
+    this.#qualityDiagnosed.clear();
     this.#lensesChanged.fire();
   }
 
@@ -139,19 +147,39 @@ export class AuthoringFeatures implements vscode.Disposable {
 
   #publishAll(): void {
     const root = this.#host.root();
-    const byFile: Map<string, FileDiagnostic[]> =
-      root === null ? new Map() : authoringDiagnostics(authoringIssues(this.#liveSources()));
+    const sources = this.#liveSources();
+    this.#diagnosed = this.#publishCollection(
+      this.#issues,
+      this.#diagnosed,
+      root === null ? new Map() : authoringDiagnostics(authoringIssues(sources)),
+      'openspec-authoring',
+    );
+    this.#qualityDiagnosed = this.#publishCollection(
+      this.#quality,
+      this.#qualityDiagnosed,
+      root === null ? new Map() : qualityDiagnostics(specQuality(sources).issues),
+      'openspec-quality',
+    );
+    this.#lensesChanged.fire();
+  }
+
+  /** Публикует замечания по файлам и снимает их с файлов, где их больше нет. */
+  #publishCollection(
+    collection: vscode.DiagnosticCollection,
+    previous: ReadonlySet<string>,
+    byFile: ReadonlyMap<string, FileDiagnostic[]>,
+    source: string,
+  ): Set<string> {
     const next = new Set<string>();
     for (const [path, list] of byFile) {
-      const uri = vscode.Uri.file(join(root ?? '', path));
-      this.#issues.set(uri, list.map((item) => toDiagnostic(item)));
+      const uri = vscode.Uri.file(join(this.#host.root() ?? '', path));
+      collection.set(uri, list.map((item) => toDiagnostic(item, source)));
       next.add(uri.fsPath);
     }
-    for (const path of this.#diagnosed) {
-      if (!next.has(path)) this.#issues.delete(vscode.Uri.file(path));
+    for (const path of previous) {
+      if (!next.has(path)) collection.delete(vscode.Uri.file(path));
     }
-    this.#diagnosed = next;
-    this.#lensesChanged.fire();
+    return next;
   }
 
   #scheduleDocument(document: vscode.TextDocument): void {
@@ -171,14 +199,17 @@ export class AuthoringFeatures implements vscode.Disposable {
 
   #publishDocument(document: vscode.TextDocument, path: string): void {
     const sources = withDocumentText(this.#sources, path, document.getText());
-    const list = authoringDiagnostics(authoringIssues(sources, path)).get(path) ?? [];
-    if (list.length === 0) {
-      this.#issues.delete(document.uri);
-      this.#diagnosed.delete(document.uri.fsPath);
-    } else {
-      this.#issues.set(document.uri, list.map((item) => toDiagnostic(item)));
-      this.#diagnosed.add(document.uri.fsPath);
-    }
+    const publish = (collection: vscode.DiagnosticCollection, diagnosed: Set<string>, list: readonly FileDiagnostic[], source: string): void => {
+      if (list.length === 0) {
+        collection.delete(document.uri);
+        diagnosed.delete(document.uri.fsPath);
+      } else {
+        collection.set(document.uri, list.map((item) => toDiagnostic(item, source)));
+        diagnosed.add(document.uri.fsPath);
+      }
+    };
+    publish(this.#issues, this.#diagnosed, authoringDiagnostics(authoringIssues(sources, path)).get(path) ?? [], 'openspec-authoring');
+    publish(this.#quality, this.#qualityDiagnosed, qualityDiagnostics(specQuality(sources, path).issues).get(path) ?? [], 'openspec-quality');
   }
 
   #path(document: vscode.TextDocument): string | null {
@@ -314,12 +345,13 @@ const SEVERITY = {
   info: vscode.DiagnosticSeverity.Information,
 } as const;
 
-function toDiagnostic(item: FileDiagnostic): vscode.Diagnostic {
+function toDiagnostic(item: FileDiagnostic, source: string): vscode.Diagnostic {
   const diagnostic = new vscode.Diagnostic(
     new vscode.Range(item.line, 0, item.line, Number.MAX_SAFE_INTEGER),
     item.message,
     SEVERITY[item.level],
   );
-  diagnostic.source = 'openspec-authoring';
+  diagnostic.source = source;
+  if (item.code !== undefined) diagnostic.code = item.code;
   return diagnostic;
 }

@@ -13,6 +13,7 @@ import { buildDeltaView, similarNames } from './delta.js';
 import type { DeltaOperation } from './specMarkdown.js';
 import { fenceMask, normalizeRequirementName, requirementBlocks, type RequirementBlock } from './specChange.js';
 import { type Trace, buildTrace } from './trace.js';
+import type { QualityConfig } from './specQuality.js';
 import { parseTrackedDocument } from './trackedItems.js';
 
 /** Основной спек capability. */
@@ -42,6 +43,8 @@ export interface AuthoringChange {
 export interface AuthoringSources {
   readonly mainSpecs: readonly AuthoringSpec[];
   readonly changes: readonly AuthoringChange[];
+  /** Настройки проверки качества спеков; без них — умолчания. */
+  readonly quality?: QualityConfig;
 }
 
 /** Вид документа OpenSpec. */
@@ -93,6 +96,7 @@ export function documentKind(sources: AuthoringSources, path: string): Authoring
 export function withDocumentText(sources: AuthoringSources, path: string, text: string): AuthoringSources {
   const target = normalizePath(path);
   return {
+    ...sources,
     mainSpecs: sources.mainSpecs.map((item) => (normalizePath(item.path) === target ? { ...item, text } : item)),
     changes: sources.changes.map((change) => ({
       ...change,

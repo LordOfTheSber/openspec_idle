@@ -14,7 +14,8 @@
   диагностика по коллекциям — валидация, структура, контекст, пересечения
   (модели `src/diagnosticsModel.ts`, `src/structureModel.ts`,
   `src/contextModel.ts`, `src/driftModel.ts`), помощь в редакторе
-  (`src/authoring.ts`: дополнение, переходы, быстрые исправления, подсказки).
+  (`src/authoring.ts`: дополнение, переходы, быстрые исправления, подсказки,
+  коллекция `openspec-quality` с замечаниями качества спеков).
 - Панель: `src/panel.ts` и `src/panelHtml.ts` (строгая CSP, nonce, без сети),
   `src/bridge.ts` пересылает запросы панели во встроенный бэкенд.
 
