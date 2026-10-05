@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type ContextBundle,
   type ContextIssue,
@@ -46,12 +46,19 @@ function short(label: string): string {
 }
 
 /**
+ * Последняя полученная карта. Раздел при переключении размонтируется, а сборка
+ * карты на сервере небыстрая, поэтому при возврате видна прежняя карта, пока
+ * не придёт ответ на новый запрос.
+ */
+let lastMap: ContextMapModel | null = null;
+
+/**
  * Раздел «Контекст»: модули из `openspec/context/modules/`, домены — спеки
  * из `openspec/specs/`, ADR из `openspec/context/adr/` и связи между ними.
  * Граф показывает связи многие-ко-многим, матрица — то же таблицей.
  */
 export function ContextMap({ revision }: { readonly revision: number }) {
-  const [map, setMap] = useState<ContextMapModel | null>(null);
+  const [map, setMap] = useState<ContextMapModel | null>(() => lastMap);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>(() => readPref('context-view', VIEWS, 'graph'));
   const [selected, setSelected] = useState<string | null>(null);
@@ -63,11 +70,21 @@ export function ContextMap({ revision }: { readonly revision: number }) {
   const [withModuleDomains, setWithModuleDomains] = useState(() => readPref('context-module-domains', SWITCH, 'on') === 'on');
   const [withInactiveAdrs, setWithInactiveAdrs] = useState(() => readPref('context-inactive-adrs', SWITCH, 'off') === 'on');
 
+  // Номер последнего запроса и запроса, чей ответ показан: ответ на более
+  // ранний запрос не заменяет карту из более позднего.
+  const requested = useRef(0);
+  const applied = useRef(0);
   const load = useCallback(async () => {
+    const request = ++requested.current;
     try {
-      setMap(await fetchContextMap());
+      const next = await fetchContextMap();
+      if (request < applied.current) return;
+      applied.current = request;
+      lastMap = next;
+      setMap(next);
       setError(null);
     } catch (problem) {
+      if (request < applied.current) return;
       setError(problem instanceof Error ? problem.message : String(problem));
     }
   }, []);

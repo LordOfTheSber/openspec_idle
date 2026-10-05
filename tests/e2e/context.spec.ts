@@ -174,6 +174,67 @@ test.describe('карта контекста', () => {
     await expect(page.getByTestId('ctx-cell-sds-impl-cm-cluster-api')).toBeVisible();
     await expect(page.getByTestId('context-issue-uncovered-domain')).toHaveCount(0);
   });
+
+  test('возврат в раздел сразу показывает прежнюю карту и обновляет её после ответа', async ({ page }) => {
+    await page.goto(ide.url);
+    await page.getByTestId('nav-context').click();
+    await page.getByTestId('context-view-control').click();
+    await expect(page.getByTestId('ctx-control-file-openspec/context/1.md')).toBeVisible();
+
+    await page.getByTestId('nav-board').click();
+    writeFileSync(join(ide.root, 'openspec/context/4.md'), '# Общий контекст 4\n\nНовый файл общего контекста.\n');
+
+    // Ответы карты задержаны, пока тест их не отпустит.
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    let held = 0;
+    await page.route('**/api/context-map', async (route) => {
+      held += 1;
+      await released;
+      await route.continue();
+    });
+
+    await page.getByTestId('nav-context').click();
+    await expect.poll(() => held).toBeGreaterThan(0);
+    await expect(page.getByTestId('context-control')).toBeVisible();
+    await expect(page.getByTestId('ctx-control-file-openspec/context/1.md')).toBeVisible();
+    await expect(page.getByTestId('ctx-control-file-openspec/context/4.md')).toHaveCount(0);
+
+    release();
+    await expect(page.getByTestId('ctx-control-file-openspec/context/4.md')).toBeVisible();
+  });
+
+  test('ответ на более ранний запрос карты не заменяет более поздний', async ({ page }) => {
+    // Первый ответ — состояние до правки — придёт последним.
+    let deliverFirst: () => void = () => undefined;
+    const firstDelivered = new Promise<void>((resolve) => (deliverFirst = resolve));
+    let firstFetched = false;
+    let firstSent = false;
+    let requests = 0;
+    await page.route('**/api/context-map', async (route) => {
+      requests += 1;
+      if (requests > 1) return route.continue();
+      const response = await route.fetch();
+      firstFetched = true;
+      await firstDelivered;
+      await route.fulfill({ response });
+      firstSent = true;
+    });
+
+    await page.goto(ide.url);
+    await page.getByTestId('nav-context').click();
+    await expect.poll(() => firstFetched).toBe(true);
+
+    writeFileSync(join(ide.root, 'openspec/context/4.md'), '# Общий контекст 4\n\nНовый файл общего контекста.\n');
+    await page.getByTestId('context-view-control').click();
+    await expect(page.getByTestId('ctx-control-file-openspec/context/4.md')).toBeVisible();
+
+    deliverFirst();
+    await expect.poll(() => firstSent).toBe(true);
+    // Обработка ответа в странице — следом за доставкой; даём ей завершиться.
+    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 200)));
+    await expect(page.getByTestId('ctx-control-file-openspec/context/4.md')).toBeVisible();
+  });
 });
 
 test.describe('контекст без модулей', () => {

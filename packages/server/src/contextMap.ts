@@ -157,9 +157,20 @@ interface ReadModule {
   readonly codePaths: readonly string[];
 }
 
+/**
+ * Свежесть `context.md` модулей под одним снимком состояния git. Ключ модуля —
+ * путь `context.md`, префиксы путей кода и текст `context.md`; в записи —
+ * обещание, поэтому одновременные сборки карты ждут один расчёт.
+ */
+interface FreshnessCache {
+  readonly snapshot: string;
+  readonly entries: Map<string, { readonly inputs: string; readonly result: Promise<ModuleFreshness | null> }>;
+}
+
 export class ContextMapService {
   readonly #root: string;
   readonly #git: GitHistory;
+  #freshnessCache: FreshnessCache | null = null;
 
   constructor(root: string) {
     this.#root = root;
@@ -185,8 +196,11 @@ export class ContextMapService {
     const specTexts = await Promise.all(domains.map(async (domain) => [specPathOf(domain), await readText(this.#abs(specPathOf(domain)))] as const));
     for (const [path, text] of specTexts) if (text !== null) texts.set(path, text);
 
+    // Снимок git — один на сборку и только если свежесть кому-то нужна.
+    let snapshot: Promise<string | null> | null = null;
+    const snapshotOf = (): Promise<string | null> => (snapshot ??= this.#git.snapshot());
     const modules = await Promise.all(
-      read.map(async (module) => ({ ...module.source, freshness: await this.#freshness(module) })),
+      read.map(async (module) => ({ ...module.source, freshness: await this.#freshness(module, snapshotOf) })),
     );
     const existingPaths = await this.#existingReferences(texts, general, read, adrs.map((adr) => adr.source.path));
     return buildContextMap({
@@ -361,8 +375,12 @@ export class ContextMapService {
    * Свежесть `context.md` по git: сколько коммитов в путях кода модуля сделано
    * после последнего коммита контекста. Без git, без `context.md` или без
    * существующих путей кода — `null`.
+   *
+   * Расчёт переиспользуется, пока не изменились снимок git (коммит `HEAD` и
+   * индекс), текст `context.md` и префиксы путей кода: от них и только от них
+   * зависит результат. Без снимка (нет коммитов, сбой git) — расчёт без кэша.
    */
-  async #freshness(module: ReadModule): Promise<ModuleFreshness | null> {
+  async #freshness(module: ReadModule, snapshotOf: () => Promise<string | null>): Promise<ModuleFreshness | null> {
     if (module.context === null) return null;
     const prefixes = module.codePaths
       .filter((path) => module.source.existingCodePaths.has(path))
@@ -370,6 +388,27 @@ export class ContextMapService {
       .filter((prefix): prefix is string => prefix !== null);
     if (prefixes.length === 0 || !(await this.#git.available())) return null;
     const contextPath = `${MODULES_DIR}/${module.source.folder}/${MODULE_CONTEXT_FILE}`;
+    const snapshot = await snapshotOf();
+    if (snapshot === null) return this.#gitFreshness(contextPath, prefixes);
+
+    if (this.#freshnessCache?.snapshot !== snapshot) this.#freshnessCache = { snapshot, entries: new Map() };
+    const entries = this.#freshnessCache.entries;
+    const inputs = JSON.stringify([[...new Set(prefixes)].sort(), module.context]);
+    const cached = entries.get(contextPath);
+    if (cached?.inputs === inputs) return cached.result;
+
+    const result = this.#gitFreshness(contextPath, prefixes);
+    const entry = { inputs, result };
+    entries.set(contextPath, entry);
+    // `null` после запросов git — сбой или таймаут: следующая сборка попробует снова.
+    void result.then((value) => {
+      if (value === null && entries.get(contextPath) === entry) entries.delete(contextPath);
+    });
+    return result;
+  }
+
+  /** Свежесть `context.md` по истории git — четыре запроса. */
+  async #gitFreshness(contextPath: string, prefixes: readonly string[]): Promise<ModuleFreshness | null> {
     const [uncommitted, last, codeDate] = await Promise.all([
       this.#git.hasChanges(contextPath),
       this.#git.lastCommit(contextPath),
