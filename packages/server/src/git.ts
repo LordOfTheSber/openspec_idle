@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { stat } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 /** Предел времени одного вызова git, мс. */
 const GIT_TIMEOUT_MS = 15_000;
@@ -73,6 +75,19 @@ export class GitHistory {
         .filter((line) => line !== '')
         .at(-1) ?? null
     );
+  }
+
+  /**
+   * Снимок состояния репозитория: коммит `HEAD`, время изменения и размер
+   * индекса. Пока снимок тот же, история, достижимая из `HEAD`, и статус файла
+   * с тем же содержимым не меняются. Без git, без коммитов или при сбое — `null`.
+   */
+  async snapshot(): Promise<string | null> {
+    const [head, index] = ((await this.#run(['rev-parse', 'HEAD', '--git-path', 'index'])) ?? '').trim().split('\n');
+    if (head === undefined || !/^[0-9a-f]{40,64}$/.test(head) || index === undefined) return null;
+    // Путь индекса — относительно корня или абсолютный (worktree, `GIT_DIR`).
+    const info = await stat(resolve(this.#root, index), { bigint: true }).catch(() => null);
+    return info === null ? `${head} -` : `${head} ${info.mtimeNs} ${info.size}`;
   }
 
   /** В пути есть незакоммиченные правки или неотслеживаемые файлы. */

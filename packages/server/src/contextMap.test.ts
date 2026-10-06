@@ -2,10 +2,11 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fixturePath } from '../../../tests/fixtures.js';
 import { ContextMapService, codePathExists, parseFrontmatter } from './contextMap.js';
 import { canonicalize } from './fs/workspace.js';
+import { GitHistory } from './git.js';
 
 let root: string;
 
@@ -14,6 +15,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -168,5 +170,96 @@ describe('контроль контекста с диска', () => {
     const edited = await new ContextMapService(root).build();
     expect(edited.modules[0]?.freshness).toMatchObject({ commitsAfter: 0, uncommitted: true });
     expect(edited.issues.some((issue) => issue.kind === 'stale-context')).toBe(false);
+  });
+
+  describe('кэш свежести', () => {
+    const git = (...args: string[]): void => {
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: root, stdio: 'ignore' });
+    };
+
+    /** Два модуля: у каждого свой код, после контекста — один коммит в коде `a`. */
+    function project(): void {
+      git('init', '-q');
+      for (const name of ['a', 'b']) {
+        write(`${name}/src/App.java`, 'class App {}');
+        write(`openspec/context/modules/${name}/index.md`, `---\nmodule: ${name}\ndomains: []\ncode_paths: [${name}/src]\n---\n# ${name}\n`);
+        write(`openspec/context/modules/${name}/context.md`, `# ${name}\n\nМодуль ${name}.\n`);
+      }
+      git('add', '.');
+      git('commit', '-q', '-m', 'init');
+      write('a/src/App.java', 'class App { int v = 1; }');
+      git('commit', '-q', '-am', 'code a');
+    }
+
+    function spyHistory() {
+      return {
+        hasChanges: vi.spyOn(GitHistory.prototype, 'hasChanges'),
+        lastCommit: vi.spyOn(GitHistory.prototype, 'lastCommit'),
+        lastCommitDate: vi.spyOn(GitHistory.prototype, 'lastCommitDate'),
+        commitsAfter: vi.spyOn(GitHistory.prototype, 'commitsAfter'),
+      };
+    }
+
+    const freshness = (map: Awaited<ReturnType<ContextMapService['build']>>, folder: string) =>
+      map.modules.find((module) => module.folder === folder)?.freshness;
+
+    it('повторная сборка без изменений не запрашивает историю git, а свежесть та же', async () => {
+      project();
+      const service = new ContextMapService(root);
+      const first = await service.build();
+      expect(freshness(first, 'a')).toMatchObject({ commitsAfter: 1, uncommitted: false });
+
+      const spies = spyHistory();
+      const second = await service.build();
+      for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
+      expect(second.modules.map((module) => module.freshness)).toEqual(first.modules.map((module) => module.freshness));
+      expect(second.issues).toEqual(first.issues);
+    });
+
+    it('новый коммит в коде модуля — отставание на один коммит больше, у другого модуля — как было', async () => {
+      project();
+      const service = new ContextMapService(root);
+      await service.build();
+
+      write('a/src/App.java', 'class App { int v = 2; }');
+      git('commit', '-q', '-am', 'code a 2');
+      const map = await service.build();
+      expect(freshness(map, 'a')).toMatchObject({ commitsAfter: 2, uncommitted: false });
+      expect(freshness(map, 'b')).toMatchObject({ commitsAfter: 0, uncommitted: false });
+    });
+
+    it('незакоммиченная правка context.md — свежий, пересчитан только этот модуль', async () => {
+      project();
+      const service = new ContextMapService(root);
+      await service.build();
+
+      write('openspec/context/modules/a/context.md', '# a\n\nМодуль a, версия 2.\n');
+      const spies = spyHistory();
+      const map = await service.build();
+      expect(freshness(map, 'a')).toMatchObject({ commitsAfter: 0, uncommitted: true });
+      expect(spies.hasChanges).toHaveBeenCalledTimes(1);
+      expect(spies.hasChanges).toHaveBeenCalledWith('openspec/context/modules/a/context.md');
+    });
+
+    it('одновременные сборки считают свежесть каждого модуля один раз', async () => {
+      project();
+      const service = new ContextMapService(root);
+      const spies = spyHistory();
+      const [left, right] = await Promise.all([service.build(), service.build()]);
+      expect(spies.commitsAfter).toHaveBeenCalledTimes(2);
+      expect(left.modules.map((module) => module.freshness)).toEqual(right.modules.map((module) => module.freshness));
+    });
+
+    it('сбой git не запоминается: следующая сборка пробует снова', async () => {
+      project();
+      const service = new ContextMapService(root);
+      const commitsAfter = vi.spyOn(GitHistory.prototype, 'commitsAfter').mockResolvedValueOnce(null);
+      const failed = await service.build();
+      expect(failed.modules.filter((module) => module.freshness === null)).toHaveLength(1);
+      const retried = await service.build();
+      expect(freshness(retried, 'a')).toMatchObject({ commitsAfter: 1 });
+      expect(freshness(retried, 'b')).toMatchObject({ commitsAfter: 0 });
+      expect(commitsAfter).toHaveBeenCalledTimes(3);
+    });
   });
 });
