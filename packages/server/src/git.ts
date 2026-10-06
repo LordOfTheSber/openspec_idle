@@ -75,6 +75,21 @@ export class GitHistory {
     );
   }
 
+  /** Коммит ревизии (ветки, тега, хеша); `null`, если такой нет. */
+  async resolve(ref: string): Promise<string | null> {
+    const out = (await this.#run(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]))?.trim();
+    return out === undefined || out === '' ? null : out;
+  }
+
+  /** Файлы ревизии под путями — относительно корня проекта. */
+  async listFiles(commit: string, paths: readonly string[]): Promise<string[]> {
+    const out = await this.#run(['ls-tree', '-r', '--name-only', commit, '--', ...paths]);
+    return (out ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '');
+  }
+
   /** В пути есть незакоммиченные правки или неотслеживаемые файлы. */
   async hasChanges(path: string): Promise<boolean> {
     const out = await this.#run(['status', '--porcelain', '--untracked-files=all', '--', path]);

@@ -262,6 +262,40 @@ export function buildTreeNodes(workspace: WorkspaceState): readonly TreeNode[] {
 }
 
 /** Текст строки состояния. */
+/**
+ * Ключ счётчика качества узла: `change:<имя>` — дельты и артефакты change,
+ * `spec:<capability>` — основной спек.
+ */
+export function qualityKey(path: string): string | null {
+  const change = /^openspec\/changes\/([^/]+)\//.exec(path)?.[1];
+  if (change !== undefined && change !== 'archive') return `change:${change}`;
+  const spec = /^openspec\/specs\/(.+)\/spec\.md$/.exec(path)?.[1];
+  return spec === undefined ? null : `spec:${spec}`;
+}
+
+/**
+ * Добавляет в описание узлов change и спеков число ошибок и предупреждений
+ * качества («⚠ 3»). Сведения не считаются: дерево — для того, что стоит
+ * исправить.
+ */
+export function withQualityCounts(nodes: readonly TreeNode[], counts: ReadonlyMap<string, number>): readonly TreeNode[] {
+  if (counts.size === 0) return nodes;
+  const mark = (node: TreeNode): TreeNode => {
+    const key = node.id.startsWith('change:') ? node.id : node.id.startsWith('capability:') && node.contextValue === 'capability' ? `spec:${node.id.slice('capability:'.length)}` : null;
+    const count = key === null ? 0 : (counts.get(key) ?? 0);
+    const children = node.children.map(mark);
+    if (count === 0) return children.every((child, index) => child === node.children[index]) ? node : { ...node, children };
+    const label = `⚠ ${count}`;
+    return {
+      ...node,
+      description: node.description === undefined ? label : `${node.description} · ${label}`,
+      tooltip: `${node.tooltip ?? node.label}\nКачество спеков: ${count} — раздел «Качество»`,
+      children,
+    };
+  };
+  return nodes.map(mark);
+}
+
 export function statusText(workspace: WorkspaceState | null): { readonly text: string; readonly tooltip: string } {
   if (workspace === null) return { text: '$(sync~spin) OpenSpec', tooltip: 'OpenSpec: загрузка' };
   switch (workspace.state) {

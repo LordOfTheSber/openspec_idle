@@ -15,6 +15,7 @@ export async function main(argv: readonly string[], cwd: string, write: (text: s
       only: args.only,
       skip: args.skip,
       cliPath: args.cli,
+      baseline: args.baseline,
     });
     const format = args.format === 'json' ? formatJson : args.format === 'github' ? formatGithub : formatText;
     write(format(report, args.failOn));

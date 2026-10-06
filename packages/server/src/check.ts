@@ -3,12 +3,20 @@ import { isAbsolute, join, relative } from 'node:path';
 import {
   type AuthoringSources,
   type ContextMap,
+  DEFAULT_QUALITY_CONFIG,
   type DriftReport,
+  type QualityIssue,
+  type QualityMetric,
+  type QualityMetrics,
   type Trace,
   type WorkspaceTree,
   authoringIssues,
   driftFindings,
+  metricRegressions,
+  ruleLevel,
+  specQuality,
 } from '@openspec-ide/core';
+import { baselineSources } from './quality.js';
 import { type EmbeddedBackend, createEmbeddedBackend } from './embedded.js';
 import { resolveOpenspecRoot } from './fs/workspace.js';
 import type { SpecValidationRun, ValidationEntry, ValidationRun } from './validation.js';
@@ -16,12 +24,12 @@ import type { RegistryEntry, SchemaCheck } from './schemaRegistry.js';
 import type { StructureReport } from './structure.js';
 
 /** Проверки команды `openspec-ide-check` в порядке выполнения. */
-export const CHECKS = ['validate', 'archived', 'structure', 'context', 'schemas', 'authoring', 'coverage', 'drift'] as const;
+export const CHECKS = ['validate', 'archived', 'structure', 'context', 'schemas', 'authoring', 'quality', 'coverage', 'drift'] as const;
 
 export type CheckId = (typeof CHECKS)[number];
 
 /** Проверки, которым нужен CLI OpenSpec. */
-const NEEDS_CLI: ReadonlySet<CheckId> = new Set(['validate', 'archived', 'schemas', 'authoring', 'coverage', 'drift']);
+const NEEDS_CLI: ReadonlySet<CheckId> = new Set(['validate', 'archived', 'schemas', 'authoring', 'quality', 'coverage', 'drift']);
 
 export type CheckLevel = 'error' | 'warning' | 'info';
 
@@ -44,6 +52,8 @@ export interface CheckSummary {
   readonly errors: number;
   readonly warnings: number;
   readonly infos: number;
+  /** Сводные метрики проверки, если она их считает (`quality`); `null` — метрику считать не по чему. */
+  readonly metrics?: Readonly<Partial<Record<QualityMetric, number | null>>>;
 }
 
 /** Отчёт команды. */
@@ -68,6 +78,8 @@ export interface CheckOptions {
   readonly skip?: readonly CheckId[];
   /** Путь к CLI OpenSpec; без него — поиск, как в расширении. */
   readonly cliPath?: string | null;
+  /** Ревизия git, с которой сравниваются метрики качества спеков (`--baseline`). */
+  readonly baseline?: string | null;
 }
 
 /** Разбирает список проверок через запятую; неизвестная — ошибка запуска. */
@@ -84,7 +96,7 @@ export function parseCheckList(value: string): CheckId[] {
   return ids as CheckId[];
 }
 
-type Outcome = { readonly findings: CheckFinding[] } | { readonly skipped: string };
+type Outcome = { readonly findings: CheckFinding[]; readonly metrics?: QualityMetrics } | { readonly skipped: string };
 
 /**
  * Выполняет проверки проекта теми же маршрутами встроенного бэкенда, что
@@ -117,7 +129,7 @@ export async function runCheck(options: CheckOptions): Promise<CheckReport> {
       );
     }
     const tree = workspace.state === 'ready' ? workspace.tree : null;
-    const context: RunContext = { backend, root, tree, authoring: null };
+    const context: RunContext = { backend, root, tree, authoring: null, baseline: options.baseline ?? null };
 
     const findings: CheckFinding[] = [];
     const checks: CheckSummary[] = [];
@@ -136,6 +148,7 @@ export async function runCheck(options: CheckOptions): Promise<CheckReport> {
         errors: count('error'),
         warnings: count('warning'),
         infos: count('info'),
+        ...(outcome.metrics === undefined ? {} : { metrics: outcome.metrics }),
       });
     }
     return { root, findings, checks };
@@ -149,6 +162,7 @@ interface RunContext {
   readonly root: string;
   readonly tree: WorkspaceTree | null;
   authoring: AuthoringSources | null;
+  readonly baseline: string | null;
 }
 
 async function get<T>(context: RunContext, path: string): Promise<T> {
@@ -282,6 +296,38 @@ const RUNNERS: Record<CheckId, (context: RunContext) => Promise<Outcome>> = {
         line: issue.line,
         message: issue.message,
       })),
+    };
+  },
+
+  async quality(context) {
+    const all = await sources(context);
+    const report = specQuality(all);
+    if (report.files.length === 0 && report.issues.length === 0) {
+      return { skipped: all.quality?.scope === 'changes' ? 'нет дельт в активных changes (scope: changes)' : 'нет спеков' };
+    }
+    const project = (await get<{ issues: QualityIssue[] }>(context, '/api/quality/project')).issues;
+    const findings: CheckFinding[] = [];
+    if (context.baseline !== null) {
+      const config = all.quality ?? DEFAULT_QUALITY_CONFIG;
+      const before = await baselineSources(context.root, context.baseline, config);
+      if (before === null) throw new CheckUsageError(`Ревизии «${context.baseline}» нет в git (или git недоступен) — сравнить метрики качества не с чем`);
+      const level = ruleLevel(config, 'metric-regression');
+      if (level !== 'off') {
+        for (const message of metricRegressions(report, specQuality(before), context.baseline)) {
+          findings.push({ check: 'quality', level, file: null, line: null, message: `${message} (metric-regression)` });
+        }
+      }
+    }
+    return {
+      findings: [...report.issues, ...project].map((issue): CheckFinding => ({
+        check: 'quality' as const,
+        level: issue.level,
+        file: issue.path,
+        line: issue.line,
+        // Имя правила — чтобы его можно было настроить в rules файла настроек.
+        message: `${issue.message} (${issue.rule})`,
+      })).concat(findings),
+      metrics: report.metrics,
     };
   },
 

@@ -61,6 +61,26 @@ describe('отчёт и код завершения', () => {
     expect(text).toContain('Ошибок: 1, предупреждений: 1, сведений: 1. Порог --fail-on error: проверка не пройдена.');
   });
 
+  it('text: метрики проверки качества — строкой под её итогом', () => {
+    const report: CheckReport = {
+      ...REPORT,
+      checks: [
+        {
+          check: 'quality',
+          status: 'passed',
+          reason: null,
+          errors: 0,
+          warnings: 0,
+          infos: 0,
+          metrics: { errorCodeTraceability: 1, branchCoverage: 0.5, boundaryCoverage: null, ambiguityDensity: 0.25 },
+        },
+      ],
+    };
+    expect(formatText(report, 'error')).toContain(
+      'quality  пройдена\n           трассируемость кодов ошибок 100 %, покрытие ветвлений 50 %, покрытие границ —, расплывчатых слов на 100 0,25',
+    );
+  });
+
   it('github: аннотации с файлом и строкой, перевод строки и % экранированы, итог со счётчиками', () => {
     const lines = formatGithub(REPORT, 'error').split('\n');
     expect(lines[0]).toBe(

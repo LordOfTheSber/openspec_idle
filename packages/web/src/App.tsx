@@ -11,6 +11,7 @@ import { EditorPane } from './components/EditorPane.js';
 import { Icon, type IconName } from './components/Icon.js';
 import { Metrics } from './components/Metrics.js';
 import { Processes } from './components/Processes.js';
+import { Quality } from './components/Quality.js';
 import { SpecView } from './components/SpecView.js';
 import { Structure } from './components/Structure.js';
 import { Tree, type Selection } from './components/Tree.js';
@@ -23,13 +24,14 @@ import {
 import { messageStreamTransport, onNavigate, openInEditor, vscodeHost } from './lib/host.js';
 import { ActionsTargetProvider, ToastProvider, useWidth } from './lib/ui.js';
 
-type Section = 'explorer' | 'board' | 'deltas' | 'metrics' | 'context' | 'structure' | 'processes';
+type Section = 'explorer' | 'board' | 'deltas' | 'metrics' | 'quality' | 'context' | 'structure' | 'processes';
 
 const SECTIONS: readonly { readonly id: Section; readonly title: string; readonly icon: IconName }[] = [
   { id: 'explorer', title: 'Обозреватель', icon: 'explorer' },
   { id: 'board', title: 'Доска', icon: 'board' },
   { id: 'deltas', title: 'Дельты', icon: 'diff' },
   { id: 'metrics', title: 'Метрики', icon: 'chart' },
+  { id: 'quality', title: 'Качество', icon: 'shield' },
   { id: 'context', title: 'Контекст', icon: 'context' },
   { id: 'structure', title: 'Структура', icon: 'structure' },
   { id: 'processes', title: 'Процессы', icon: 'workflow' },
@@ -76,6 +78,8 @@ function Shell() {
   const [palette, setPalette] = useState(false);
   const [deltasTab, setDeltasTab] = useState<DeltasTab>('deltas');
   const [boardRequest, setBoardRequest] = useState<BoardRequest | null>(null);
+  // Change, которым ограничен раздел «Качество» после перехода с доски.
+  const [qualityChange, setQualityChange] = useState<string | null>(null);
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
   const [appRef, width] = useWidth<HTMLDivElement>();
   const connectionRef = useRef<WorkspaceConnection | null>(null);
@@ -166,6 +170,11 @@ function Shell() {
 
   /** Переход с доски в раздел, показывающий один change. */
   const openForChange = (target: BoardTarget, change: string): void => {
+    if (target === 'quality') {
+      setQualityChange(change);
+      setSection('quality');
+      return;
+    }
     setSelection({ kind: 'change', id: change });
     if (target === 'trace') {
       setDeltasTab('trace');
@@ -248,7 +257,10 @@ function Shell() {
       title: `Перейти: ${item.title}`,
       icon: item.icon,
       keywords: 'раздел открыть',
-      run: () => setSection(item.id),
+      run: () => {
+        if (item.id === 'quality') setQualityChange(null);
+        setSection(item.id);
+      },
     })),
     {
       id: 'new-change',
@@ -313,7 +325,10 @@ function Shell() {
               aria-current={section === item.id ? 'page' : undefined}
               aria-label={item.title}
               title={item.title}
-              onClick={() => setSection(item.id)}
+              onClick={() => {
+                if (item.id === 'quality') setQualityChange(null);
+                setSection(item.id);
+              }}
               data-testid={`nav-${item.id}`}
             >
               <Icon name={item.icon} />
@@ -378,6 +393,8 @@ function Shell() {
                 <PageSkeleton />
               ) : !ready ? null : section === 'processes' ? (
                 <Processes revision={revision} onChanged={() => void reload()} />
+              ) : section === 'quality' ? (
+                <Quality revision={revision} focusChange={qualityChange} onClearFocus={() => setQualityChange(null)} onOpenFile={openFile} />
               ) : section === 'structure' ? (
                 <Structure revision={revision} />
               ) : section === 'context' ? (

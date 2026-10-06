@@ -17,6 +17,7 @@ structure:
   openspec:
     structure.yaml: file
     config.yaml: file
+    quality.yaml?: file
     changes: "*"
     specs: "*"
     schemas?: "*"

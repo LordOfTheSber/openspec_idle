@@ -1,3 +1,4 @@
+import { QUALITY_METRICS, QUALITY_METRIC_LABELS, formatQualityMetric } from '@openspec-ide/core';
 import {
   CHECKS,
   type CheckFinding,
@@ -18,6 +19,7 @@ export interface CheckArgs {
   readonly format: ReportFormat;
   readonly failOn: CheckLevel;
   readonly cli: string | null;
+  readonly baseline: string | null;
   readonly help: boolean;
 }
 
@@ -34,6 +36,8 @@ export const USAGE = `openspec-ide-check — проверка проекта Ope
   --format <формат>       text (по умолчанию), json или github
   --fail-on <уровень>     error (по умолчанию), warning или info — с какого уровня код 1
   --cli <путь>            путь к CLI OpenSpec (иначе OPENSPEC_CLI, node_modules/.bin, PATH)
+  --baseline <ревизия>    сравнить метрики качества спеков с ревизией git (например, origin/main):
+                          хуже — ошибка metric-regression
   -h, --help              эта справка
 
 Проверки: ${CHECKS.join(', ')}
@@ -44,7 +48,7 @@ export const USAGE = `openspec-ide-check — проверка проекта Ope
 
 /** Разбирает аргументы; неизвестный параметр или значение — ошибка запуска. */
 export function parseArgs(argv: readonly string[]): CheckArgs {
-  const args = { root: null as string | null, only: [] as CheckId[], skip: [] as CheckId[], format: 'text' as ReportFormat, failOn: 'error' as CheckLevel, cli: null as string | null, help: false };
+  const args = { root: null as string | null, only: [] as CheckId[], skip: [] as CheckId[], format: 'text' as ReportFormat, failOn: 'error' as CheckLevel, cli: null as string | null, baseline: null as string | null, help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index] ?? '';
     if (raw === '-h' || raw === '--help') {
@@ -88,6 +92,9 @@ export function parseArgs(argv: readonly string[]): CheckArgs {
       }
       case '--cli':
         args.cli = value();
+        break;
+      case '--baseline':
+        args.baseline = value();
         break;
       default:
         throw new CheckUsageError(`Неизвестный параметр «${raw}». Справка: openspec-ide-check --help`);
@@ -145,6 +152,7 @@ function summary(report: CheckReport, failOn: CheckLevel): string {
       check.infos > 0 ? `сведений ${check.infos}` : null,
     ].filter((part): part is string => part !== null);
     lines.push(`  ${name}  ${counts.length === 0 ? 'пройдена' : counts.join(', ')}`);
+    if (check.metrics !== undefined) lines.push(`  ${' '.repeat(width)}  ${metricsLine(check.metrics)}`);
   }
   const total = (level: CheckLevel): number => report.findings.filter((finding) => finding.level === level).length;
   const code = exitCode(report, failOn);
@@ -153,6 +161,13 @@ function summary(report: CheckReport, failOn: CheckLevel): string {
       `Порог --fail-on ${failOn}: ${code === 0 ? 'проверка пройдена' : 'проверка не пройдена'}.`,
   );
   return lines.join('\n');
+}
+
+/** Метрики проверки одной строкой: «трассируемость кодов ошибок 100 %, покрытие ветвлений 50 %, …». */
+function metricsLine(metrics: NonNullable<CheckReport['checks'][number]['metrics']>): string {
+  return QUALITY_METRICS.filter((metric) => metric in metrics)
+    .map((metric) => `${QUALITY_METRIC_LABELS[metric]} ${formatQualityMetric(metric, metrics[metric] ?? null)}`)
+    .join(', ');
 }
 
 /** Отчёт одним JSON-объектом. */

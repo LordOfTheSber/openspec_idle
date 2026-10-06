@@ -474,6 +474,50 @@ describe('расширение VS Code: помощь в редакторе', () 
     );
   });
 
+  it('качество спека при наборе: расплывчатое слово — предупреждение с именем правила', async () => {
+    const root = copyFixture('delta-ops');
+    const state = await activate([root]);
+    const path = join(root, DELTA);
+    const symbols = providerOf<{ provideWorkspaceSymbols(query: string): { name: string }[] }>(state, 'workspaceSymbol');
+    await until(() => symbols.provideWorkspaceSymbols('Ограничение').length > 0, 'источники функций редактора');
+
+    const text = readFileSync(path, 'utf8');
+    const document = new FakeTextDocument(Uri.file(path), text);
+    state.textDocuments.push(document);
+    const lines = text.split('\n');
+    const index = lines.findIndex((line) => line.includes('SHALL'));
+    lines[index] = `${lines[index]} При необходимости — в валидном формате.`;
+    state.changeDocument(document, lines.join('\n'));
+    await until(
+      () =>
+        (state.diagnostics.get(path) ?? []).some(
+          (item) => item.source === 'openspec-quality' && item.code === 'vague-wording' && item.range.start.line === index,
+        ),
+      'предупреждение о расплывчатых словах на строке требования',
+    );
+  });
+
+  it('правило артефактов из quality.yaml и ссылка плана на пропавший тест — в «Проблемах»', async () => {
+    const root = copyFixture('delta-ops');
+    writeFileSync(
+      join(root, 'openspec/quality.yaml'),
+      'version: 1\nartifacts:\n  - id: proposal-risks\n    artifact: proposal\n    require: "## Risks"\n    message: Нет раздела Risks\n',
+    );
+    const plan = join(root, 'openspec/changes/add-limits/tasks.md');
+    writeFileSync(plan, `${readFileSync(plan, 'utf8')}\n- [ ] 9.1 Лимит; проверка — тест \`src/limits.test.ts\` «лимит объёма»\n`);
+    const state = await activate([root]);
+
+    const proposal = join(root, 'openspec/changes/add-limits/proposal.md');
+    await until(
+      () => (state.diagnostics.get(proposal) ?? []).some((item) => item.source === 'openspec-quality' && item.code === 'artifact-rule'),
+      'замечание правила артефактов на proposal.md',
+    );
+    await until(
+      () => (state.diagnostics.get(plan) ?? []).some((item) => item.source === 'openspec-quality' && item.code === 'plan-test-ref'),
+      'замечание о ссылке на пропавший тест в плане',
+    );
+  });
+
   it('опечатка в MODIFIED при наборе: ошибка на строке и исправление заменой имени', async () => {
     const root = copyFixture('delta-ops');
     const state = await activate([root]);

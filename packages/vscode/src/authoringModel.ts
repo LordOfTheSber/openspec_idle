@@ -1,5 +1,5 @@
 import { isAbsolute, relative } from 'node:path';
-import type { AuthoringIssue, AuthoringLensAction } from '@openspec-ide/core';
+import type { AuthoringIssue, AuthoringLensAction, QualityIssue } from '@openspec-ide/core';
 import type { FileDiagnostic } from './diagnosticsModel.js';
 
 /** Внутренние команды подсказок над строками — в палитре их нет. */
@@ -37,6 +37,17 @@ export function authoringDiagnostics(issues: readonly AuthoringIssue[]): Map<str
   for (const issue of issues) {
     const list = result.get(issue.path) ?? [];
     list.push({ line: Math.max(0, issue.line - 1), level: issue.level, message: issue.message });
+    result.set(issue.path, list);
+  }
+  return result;
+}
+
+/** Раскладывает замечания качества спеков по файлам; код диагностики — имя правила. */
+export function qualityDiagnostics(issues: readonly QualityIssue[]): Map<string, FileDiagnostic[]> {
+  const result = new Map<string, FileDiagnostic[]>();
+  for (const issue of issues) {
+    const list = result.get(issue.path) ?? [];
+    list.push({ line: Math.max(0, issue.line - 1), level: issue.level, message: issue.message, code: issue.rule });
     result.set(issue.path, list);
   }
   return result;

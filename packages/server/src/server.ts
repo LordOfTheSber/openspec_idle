@@ -1,5 +1,12 @@
 import { fileURLToPath } from 'node:url';
-import { API_REVISION } from '@openspec-ide/core';
+import {
+  API_REVISION,
+  DEFAULT_QUALITY_CONFIG,
+  type QualityOverview,
+  applyExclusions,
+  qualityOverview,
+  specQuality,
+} from '@openspec-ide/core';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { EventBus, encodeSse } from './events.js';
@@ -17,6 +24,14 @@ import { StructureExistsError, StructureService, watchedStructureDirs } from './
 import { ContextMapService, ContextModuleError } from './contextMap.js';
 import { TraceService } from './trace.js';
 import { AuthoringService } from './authoring.js';
+import {
+  QualitySettingsError,
+  addExclusion,
+  initQualityConfig,
+  projectQualityIssues,
+  removeExclusion,
+  setRuleLevel,
+} from './quality.js';
 import { DriftService } from './drift.js';
 import { SchemaReader } from './schemaDefinition.js';
 import { SchemaOperationError, SchemaRegistry } from './schemaRegistry.js';
@@ -176,6 +191,10 @@ export function createApp(options: ServerOptions): AppParts {
       await reply.code(error.status).send({ error: error.message });
       return;
     }
+    if (error instanceof QualitySettingsError) {
+      await reply.code(error.status).send({ error: error.message });
+      return;
+    }
     if (error instanceof StructureExistsError) {
       await reply.code(409).send({ error: error.message });
       return;
@@ -332,6 +351,57 @@ export function createApp(options: ServerOptions): AppParts {
   app.get('/api/authoring', async () => {
     if (authoring === null) throw new Error('CLI OpenSpec недоступен');
     return authoring.sources();
+  });
+
+  // Проверки качества, которым нужен диск: ссылки плана на тесты и сверка спек с кодом модулей домена.
+  app.get('/api/quality/project', async () => {
+    if (authoring === null || root === null) throw new Error('CLI OpenSpec недоступен');
+    const sources = await authoring.sources();
+    return { issues: applyExclusions(await projectQualityIssues(root, sources), sources.quality ?? DEFAULT_QUALITY_CONFIG).kept };
+  });
+
+  // Раздел «Качество»: сводка и правка настроек. Каждая правка отвечает новой сводкой.
+  const qualityOverviewNow = async (): Promise<QualityOverview> => {
+    if (authoring === null || root === null) throw new Error('CLI OpenSpec недоступен');
+    const sources = await authoring.sources();
+    return qualityOverview(sources, specQuality(sources), await projectQualityIssues(root, sources));
+  };
+  const needRoot = (): string => {
+    if (root === null) throw new Error('Рабочее пространство не определено');
+    return root;
+  };
+
+  app.get('/api/quality', async () => qualityOverviewNow());
+
+  app.post('/api/quality/init', async () => {
+    await initQualityConfig(needRoot());
+    return qualityOverviewNow();
+  });
+
+  app.post('/api/quality/rule', async (request) => {
+    const body = (request.body ?? {}) as { rule?: unknown; level?: unknown };
+    if (typeof body.rule !== 'string') throw new QualitySettingsError('Не указано правило', 400);
+    if (body.level !== null && typeof body.level !== 'string') throw new QualitySettingsError('Уровень — строка или null', 400);
+    await setRuleLevel(needRoot(), body.rule, body.level);
+    return qualityOverviewNow();
+  });
+
+  app.post('/api/quality/exclusions', async (request) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const text = (key: string): string | null => {
+      const value = body[key];
+      if (value === undefined || value === null) return null;
+      if (typeof value !== 'string') throw new QualitySettingsError(`«${key}» — строка`, 400);
+      return value;
+    };
+    await addExclusion(needRoot(), { rule: text('rule'), path: text('path'), requirement: text('requirement'), reason: text('reason') });
+    return qualityOverviewNow();
+  });
+
+  app.delete('/api/quality/exclusions', async (request) => {
+    const index = Number((request.query as { index?: string }).index);
+    await removeExclusion(needRoot(), index);
+    return qualityOverviewNow();
   });
 
   app.get('/api/archive/preview', async (request) => {

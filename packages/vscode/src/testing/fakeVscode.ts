@@ -110,6 +110,7 @@ export enum DiagnosticSeverity {
 
 export class Diagnostic {
   source?: string;
+  code?: string | number;
 
   constructor(
     readonly range: Range,

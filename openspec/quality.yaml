@@ -1,0 +1,17 @@
+# Настройки проверки качества спеков: правила, словари, пороги.
+# Описание ключей — в README, раздел «Качество спеков».
+version: 1
+
+# Правила openspec/config.yaml, которые проверяются, а не только читаются агентом.
+artifacts:
+  - id: design-alternative
+    artifact: design
+    each: section
+    heading: '^###\s'
+    require: 'альтернатив'
+    message: 'Решение без рассмотренной альтернативы (config.yaml: «каждое решение сопровождается рассмотренной альтернативой»)'
+  - id: task-acceptance
+    artifact: tasks
+    each: item
+    require: 'провер|метрик|тест'
+    message: 'Пункт плана без метрики приёмки (config.yaml: «каждая задача содержит метрику приёмки»)'

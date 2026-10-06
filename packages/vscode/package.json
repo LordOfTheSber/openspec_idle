@@ -155,6 +155,12 @@
         "icon": "$(list-tree)"
       },
       {
+        "command": "openspec.openQuality",
+        "title": "Качество спеков",
+        "category": "OpenSpec",
+        "icon": "$(shield)"
+      },
+      {
         "command": "openspec.openContext",
         "title": "Карта контекста",
         "category": "OpenSpec",
@@ -211,6 +217,11 @@
         },
         {
           "command": "openspec.openStructure",
+          "when": "view == openspec.workspace && openspec.state == 'ready'",
+          "group": "sections@4"
+        },
+        {
+          "command": "openspec.openQuality",
           "when": "view == openspec.workspace && openspec.state == 'ready'",
           "group": "sections@4"
         },
