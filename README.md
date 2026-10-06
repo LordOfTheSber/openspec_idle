@@ -844,6 +844,10 @@ npm run package    # .vsix в packages/vscode/dist/
 npm run check:openspec   # проверка самого репозитория, как в CI
 ```
 
+**Как здесь работают с OpenSpec** — матрица модулей и доменов, раскладка
+файлов, форма артефактов и паттерны работы с агентом — в
+[`docs/openspec-patterns.md`](docs/openspec-patterns.md).
+
 **Отладка расширения.** Откройте репозиторий в VS Code и запустите конфигурацию
 «Расширение OpenSpec IDE» (F5): соберётся расширение и откроется окно Extension
 Development Host на фикстуре `tests/fixtures/full-change`.
