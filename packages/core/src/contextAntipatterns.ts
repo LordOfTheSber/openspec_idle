@@ -9,6 +9,7 @@
  */
 
 import { estimateTokens } from './contextControl.js';
+import { textCache } from './textCache.js';
 
 export type TokenAntipatternKind =
   | 'non-english-text'
@@ -422,7 +423,11 @@ function shouting(lines: readonly ScannedLine[]): TokenAntipattern | null {
  * вхождения. Большой блок кода целиком считается одной находкой: base64 и
  * псевдографика в нём отдельно не считаются.
  */
-export function findTokenAntipatterns(text: string): TokenAntipattern[] {
+export function findTokenAntipatterns(text: string): readonly TokenAntipattern[] {
+  return textCache.get(text, 'antipatterns', () => scanAntipatterns(text));
+}
+
+function scanAntipatterns(text: string): TokenAntipattern[] {
   const { lines, blocks } = scan(text);
   const large = largeCodeBlocks(blocks);
   const inLarge = new Set<number>();

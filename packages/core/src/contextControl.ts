@@ -5,7 +5,12 @@
  * Чистые функции над текстом markdown-файлов. Файловой системы и git здесь
  * нет: сервер читает файлы, проверяет существование путей и историю, а карта
  * контекста складывает из этого замечания.
+ *
+ * Расчёты по тексту целого файла запоминаются по тексту (`textCache.ts`):
+ * повторная сборка карты не анализирует заново файлы, которые не менялись.
  */
+
+import { textCache } from './textCache.js';
 
 /** Файл тяжелее этого числа токенов — предупреждение. */
 export const LARGE_FILE_TOKENS = 8000;
@@ -26,6 +31,10 @@ export const DUPLICATE_MIN_CHARS = 80;
  * точного счёта нужен токенизатор конкретной модели.
  */
 export function estimateTokens(text: string): number {
+  return textCache.get(text, 'tokens', () => countTokens(text));
+}
+
+function countTokens(text: string): number {
   let ascii = 0;
   let other = 0;
   for (const char of text) {
@@ -103,7 +112,11 @@ function looksLikePath(value: string): boolean {
  * якорей) и пути в `` `коде` `` — со слешем, с расширением файла или `/` на
  * конце. Frontmatter и блоки кода пропускаются.
  */
-export function extractReferences(text: string): MarkdownReference[] {
+export function extractReferences(text: string): readonly MarkdownReference[] {
+  return textCache.get(text, 'references', () => findReferences(text));
+}
+
+function findReferences(text: string): MarkdownReference[] {
   const found: MarkdownReference[] = [];
   for (const { text: line, line: number } of proseLines(text)) {
     for (const match of line.matchAll(RE_LINK)) {
@@ -183,6 +196,28 @@ export function referenceCandidates(
   return [...new Set(candidates)];
 }
 
+/** Ссылка из текста файла и пути, где она может лежать. */
+export interface ReferenceCandidates {
+  readonly reference: MarkdownReference;
+  /** Пути-кандидаты от корня проекта ({@link referenceCandidates}). */
+  readonly candidates: readonly string[];
+}
+
+/**
+ * Ссылки текста файла с путями-кандидатами каждой — то, что сервер проверяет
+ * на диске, а карта сверяет с найденным. Запоминается по тексту, пути файла и
+ * путям кода модуля.
+ */
+export function textReferenceCandidates(
+  text: string,
+  file: string,
+  codePaths: readonly string[] = [],
+): readonly ReferenceCandidates[] {
+  return textCache.get(text, `candidates:${JSON.stringify([file, codePaths])}`, () =>
+    extractReferences(text).map((reference) => ({ reference, candidates: referenceCandidates(reference, file, codePaths) })),
+  );
+}
+
 /** Абзац текста для поиска повторов. */
 interface Paragraph {
   /** Текст после схлопывания пробелов и приведения к нижнему регистру. */
@@ -193,6 +228,8 @@ interface Paragraph {
   readonly line: number;
   /** Последняя строка абзаца в файле. */
   readonly end: number;
+  /** Оценка токенов абзаца. */
+  readonly tokens: number;
 }
 
 const RE_LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
@@ -209,7 +246,11 @@ function withoutComments(text: string): string {
  * Абзацы текста: блоки между пустыми строками, каждый пункт списка — отдельно.
  * Заголовки, frontmatter, блоки кода и HTML-комментарии пропускаются.
  */
-function paragraphs(text: string): Paragraph[] {
+function paragraphs(text: string): readonly Paragraph[] {
+  return textCache.get(text, 'paragraphs', () => splitParagraphs(text));
+}
+
+function splitParagraphs(text: string): Paragraph[] {
   const result: Paragraph[] = [];
   let lines: string[] = [];
   let first = 0;
@@ -223,7 +264,7 @@ function paragraphs(text: string): Paragraph[] {
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
-    result.push({ key, text: original, line: first, end: last });
+    result.push({ key, text: original, line: first, end: last, tokens: estimateTokens(original) });
     lines = [];
   };
   let previous = 0;
@@ -291,6 +332,10 @@ export function findDuplicates(files: readonly { readonly path: string; readonly
 
 /** В файле контекста нет ничего, кроме frontmatter, заголовков и комментариев. */
 export function isEmptyContext(text: string): boolean {
+  return textCache.get(text, 'empty', () => hasNoBody(text));
+}
+
+function hasNoBody(text: string): boolean {
   const body = proseLines(withoutComments(text))
     .map(({ text: line }) => line.trim())
     .filter((line) => line !== '' && !/^#{1,6}(\s|$)/.test(line));
@@ -373,6 +418,17 @@ function isPlaceholder(key: string): boolean {
  * бывает нужен, поэтому она снижает коэффициент не больше чем вдвое.
  */
 export function measureUsefulness(text: string, options: UsefulnessOptions = {}): ContextUsefulness {
+  const lines = (set: ReadonlySet<number> | undefined): number[] => [...(set ?? [])].sort((a, b) => a - b);
+  const kind = `usefulness:${JSON.stringify([
+    options.grounding === true,
+    options.commitsAfter ?? null,
+    lines(options.duplicateLines),
+    lines(options.brokenLines),
+  ])}`;
+  return textCache.get(text, kind, () => usefulnessOf(text, options));
+}
+
+function usefulnessOf(text: string, options: UsefulnessOptions): ContextUsefulness {
   const tokens = estimateTokens(text);
   const freshness =
     options.commitsAfter === undefined || options.commitsAfter === null
@@ -399,7 +455,7 @@ export function measureUsefulness(text: string, options: UsefulnessOptions = {})
   let content = 0;
   let anchored = 0;
   for (const paragraph of paragraphs(text)) {
-    const size = estimateTokens(paragraph.text);
+    const size = paragraph.tokens;
     if (duplicateLines.has(paragraph.line)) duplicate += size;
     else if (isPlaceholder(paragraph.key)) placeholder += size;
     else if (brokenLines.some((line) => line >= paragraph.line && line <= paragraph.end)) broken += size;

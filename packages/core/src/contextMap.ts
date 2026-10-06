@@ -33,12 +33,11 @@ import {
   USEFULNESS_MIN_TOKENS,
   countLines,
   estimateTokens,
-  extractReferences,
   findDuplicates,
   isActiveAdrStatus,
   isEmptyContext,
   measureUsefulness,
-  referenceCandidates,
+  textReferenceCandidates,
 } from './contextControl.js';
 
 /** Папка контекста относительно корня рабочего пространства. */
@@ -930,8 +929,8 @@ function controlIssues(
     for (const { path, text } of prose) {
       if (inactive.has(path)) continue;
       const codePaths = moduleOf.get(path)?.codePaths.map((code) => code.path) ?? [];
-      for (const reference of extractReferences(text)) {
-        const resolved = referenceCandidates(reference, path, codePaths).some((candidate) => existing.has(candidate));
+      for (const { reference, candidates } of textReferenceCandidates(text, path, codePaths)) {
+        const resolved = candidates.some((candidate) => existing.has(candidate));
         references.push({ path, line: reference.line, target: reference.target, kind: reference.kind, resolved });
         if (resolved) continue;
         issues.push({

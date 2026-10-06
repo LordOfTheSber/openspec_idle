@@ -262,4 +262,55 @@ describe('контроль контекста с диска', () => {
       expect(commitsAfter).toHaveBeenCalledTimes(3);
     });
   });
+
+  describe('кэш анализа текстов', () => {
+    const paragraph = 'Мастер хранит сессии в `svc/src/Store.java` и реплицирует их синхронно на резервный узел до ответа клиенту.';
+    const large = (title: string): string =>
+      `# ${title}\n\n${Array.from({ length: 40 }, (_, index) => `${paragraph} Абзац ${index}.`).join('\n\n')}\n`;
+
+    function project(): void {
+      write('svc/src/Store.java', 'class Store {}');
+      write('openspec/context/1.md', large('Общий контекст'));
+      write('openspec/context/modules/svc/index.md', index('svc/src'));
+      write('openspec/context/modules/svc/context.md', large('svc'));
+    }
+
+    const file = (map: Awaited<ReturnType<ContextMapService['build']>>, path: string) => map.files.find((item) => item.path === path);
+
+    it('повторная сборка без правок берёт анализ файлов из кэша', async () => {
+      project();
+      const service = new ContextMapService(root);
+      const first = await service.build();
+      const second = await service.build();
+      for (const path of ['openspec/context/1.md', 'openspec/context/modules/svc/context.md']) {
+        expect(file(second, path)?.antipatterns).toBe(file(first, path)?.antipatterns);
+        expect(file(second, path)?.usefulness).toBe(file(first, path)?.usefulness);
+      }
+      expect(second.files).toEqual(first.files);
+      expect(second.issues).toEqual(first.issues);
+    });
+
+    it('правка одного файла — заново анализируется только он', async () => {
+      project();
+      const service = new ContextMapService(root);
+      const first = await service.build();
+      write('openspec/context/modules/svc/context.md', `${large('svc')}\nВНИМАНИЕ!! НИКОГДА не правьте конфигурацию руками, ОБЯЗАТЕЛЬНО через CLI.\n`);
+      const second = await service.build();
+
+      const general = 'openspec/context/1.md';
+      expect(file(second, general)?.antipatterns).toBe(file(first, general)?.antipatterns);
+      const edited = 'openspec/context/modules/svc/context.md';
+      expect(file(second, edited)?.antipatterns).not.toBe(file(first, edited)?.antipatterns);
+      expect(file(second, edited)?.tokens).toBeGreaterThan(file(first, edited)?.tokens ?? 0);
+      expect(file(second, edited)?.antipatterns.map((found) => found.kind)).toContain('shouting');
+    });
+
+    it('путь внутри файла не найден', async () => {
+      write('README.md', '# readme');
+      write('openspec/context/1.md', '# Общий\n\nСм. `README.md/part.md`.\n');
+      const map = await new ContextMapService(root).build();
+      expect(map.references).toEqual([expect.objectContaining({ target: 'README.md/part.md', resolved: false })]);
+    });
+  });
 });
+

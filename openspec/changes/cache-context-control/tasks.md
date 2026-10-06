@@ -16,6 +16,17 @@
   ↳ context-map / Возврат в раздел
   ↳ context-map / Ответы пришли не по порядку
 
-## 3. Документация и проверка
+## 3. Анализ текстов
 
-- [x] 3.1 Модуль `server` в `openspec/context/modules/server/context.md`: кэш свежести и его ключ; README — строка о том, что свежесть пересчитывается только при изменениях в git или `context.md`; проверка — `npm run verify` и `npm run test:e2e` проходят, `openspec validate cache-context-control --strict` проходит
+- [x] 3.1 Кэш анализа по тексту в `packages/core/src/contextControl.ts`: общий `Map` от текста к результатам по видам расчёта, вытеснение давно использованных при превышении 32 млн символов или числа записей, тексты короче 2 КБ не кэшируются; через него — `estimateTokens`, `extractReferences`, `isEmptyContext`, разбор на абзацы (с токенами абзаца), `measureUsefulness` (ключ — текст и параметры), `findTokenAntipatterns` в `contextAntipatterns.ts`; результаты — `readonly`; проверка — тесты `packages/core/src/contextControl.test.ts`: повторный вызов возвращает тот же объект, результат для изменённого текста другой, вытеснение по объёму, короткие тексты не запоминаются; существующие тесты `core` проходят без изменений
+  ↳ context-map / Повторная сборка без правок
+  ↳ context-map / Правка одного файла
+- [x] 3.2 Проверка через сервер: тест `packages/server/src/contextMap.test.ts` — вторая сборка без правок не вызывает `findTokenAntipatterns` для больших файлов заново (`vi.spyOn` на внутренний счётчик или проверка тем же объектом результата), правка одного файла меняет его антипаттерны; замер на синтетическом проекте с 9,9 МБ в `openspec/`: повторная сборка без правок и после правки одного файла; проверка — повторная сборка без правок хотя бы в 5 раз быстрее холодной, цифры в описании PR
+  ↳ context-map / Повторная сборка без правок
+  ↳ context-map / Правка одного файла
+- [x] 3.3 Пути-кандидаты ссылок — `textReferenceCandidates` в `contextControl.ts` с кэшем по тексту, пути файла и путям кода, в `buildContextMap` и в сервере; существование — `statSync` без исключения пачками по 500 с уступкой циклу событий в `ContextMapService`; проверка — существующие тесты ссылок проходят, тест «путь внутри файла не найден» (ENOTDIR), тест кэша кандидатов в `packages/core/src/textCache.test.ts`; на синтетическом проекте повторная сборка без правок — не дольше 500 мс
+
+## 4. Документация и проверка
+
+- [x] 4.1 Модуль `server` в `openspec/context/modules/server/context.md`: кэш свежести и его ключ; README — строка о том, что свежесть пересчитывается только при изменениях в git или `context.md`; проверка — `npm run verify` и `npm run test:e2e` проходят, `openspec validate cache-context-control --strict` проходит
+- [x] 4.2 Модуль `core` в `openspec/context/modules/core/context.md` и README: кэш анализа текстов, его ограничения; проверка — `npm run verify` и `npm run test:e2e` проходят, `openspec validate cache-context-control --strict` проходит

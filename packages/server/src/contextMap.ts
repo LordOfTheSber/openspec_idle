@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -14,11 +15,10 @@ import {
   type ModuleSource,
   buildContextMap,
   codePathPrefix,
-  extractReferences,
   firstHeading,
-  referenceCandidates,
   specPathOf,
   splitFrontmatter,
+  textReferenceCandidates,
 } from '@openspec-ide/core';
 import { LineCounter, isMap, isScalar, parseDocument } from 'yaml';
 import { GitHistory } from './git.js';
@@ -81,6 +81,19 @@ async function readText(path: string): Promise<string | null> {
     return await readFile(path, 'utf8');
   } catch {
     return null;
+  }
+}
+
+/** Сколько путей проверяется подряд, не уступая цикл событий. */
+const EXISTS_BATCH = 500;
+
+/** Путь существует (как `stat`: по симлинку — его цель). */
+function existsNow(path: string): boolean {
+  try {
+    return statSync(path, { throwIfNoEntry: false }) !== undefined;
+  } catch {
+    // ENOTDIR (путь внутри файла), нет доступа — пути нет.
+    return false;
   }
 }
 
@@ -363,12 +376,21 @@ export class ContextMapService {
     for (const { path, codePaths } of sources) {
       const text = texts.get(path);
       if (text === undefined) continue;
-      for (const reference of extractReferences(text)) {
-        for (const candidate of referenceCandidates(reference, path, codePaths)) candidates.add(candidate);
+      for (const found of textReferenceCandidates(text, path, codePaths)) {
+        for (const candidate of found.candidates) candidates.add(candidate);
       }
     }
-    const checked = await Promise.all([...candidates].map(async (path) => [path, await exists(this.#abs(path))] as const));
-    return new Set(checked.filter(([, found]) => found).map(([path]) => path));
+    // Проверка пачками синхронного `stat` без исключения на ненайденный путь:
+    // асинхронный `stat` тратит время на ошибку ENOENT, а в контексте большинство
+    // кандидатов не существует (ссылка ищется от файла, корня и путей кода).
+    // Между пачками цикл событий свободен.
+    const existing = new Set<string>();
+    const list = [...candidates];
+    for (let start = 0; start < list.length; start += EXISTS_BATCH) {
+      if (start > 0) await new Promise<void>((resolve) => setImmediate(resolve));
+      for (const path of list.slice(start, start + EXISTS_BATCH)) if (existsNow(this.#abs(path))) existing.add(path);
+    }
+    return existing;
   }
 
   /**

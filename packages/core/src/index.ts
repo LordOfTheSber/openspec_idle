@@ -251,11 +251,13 @@ export {
   measureUsefulness,
   normalizeProjectPath,
   referenceCandidates,
+  textReferenceCandidates,
   type ContextBallast,
   type ContextDuplicate,
   type ContextUsefulness,
   type UsefulnessOptions,
   type MarkdownReference,
+  type ReferenceCandidates,
   type TextLocation,
 } from './contextControl.js';
 
