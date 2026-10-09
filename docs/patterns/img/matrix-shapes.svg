@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="290" viewBox="0 0 800 290" role="img" aria-labelledby="t d">
+<title id="t">Формы матрицы модули × домены</title>
+<desc id="d">Четыре формы матрицы: диагональ, блочная диагональ (подсистемы), заполненный столбец (сквозная capability), заполненная строка (божественный модуль).</desc>
+<style>text{font-family:system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;fill:#0b0b0b}.title{font-size:16px;font-weight:600}.sub{font-size:12px;fill:#52514e}.h{font-size:13px;font-weight:600}.cap{font-size:12px;fill:#52514e}.ax{font-size:11px;fill:#52514e}</style>
+<rect x="0.5" y="0.5" width="799" height="289" rx="10" fill="#fcfcfb" stroke="#e4e3df"/>
+<text class="title" x="24" y="32">Формы матрицы модули × домены</text>
+<text class="sub" x="24" y="52">строки — модули, столбцы — домены; закрашено — модуль перечисляет домен в domains</text>
+<text class="h" x="40" y="84">Диагональ</text>
+<rect x="41" y="97" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="59" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="77" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="95" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="113" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="131" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="41" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="59" y="115" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="77" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="95" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="113" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="131" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="41" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="59" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="77" y="133" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="95" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="113" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="131" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="41" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="59" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="77" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="95" y="151" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="113" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="131" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="41" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="59" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="77" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="95" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="113" y="169" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="131" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="41" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="59" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="77" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="95" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="113" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="131" y="187" width="16" height="16" rx="3" fill="#2a78d6"/>
+<text class="cap" x="40" y="226">у модуля свой домен</text>
+<text class="h" x="230" y="84">Блочная диагональ</text>
+<rect x="227" y="93" width="60" height="60" rx="4" fill="none" stroke="#2a78d6" stroke-dasharray="4 3"/>
+<rect x="281" y="147" width="60" height="60" rx="4" fill="none" stroke="#2a78d6" stroke-dasharray="4 3"/>
+<rect x="231" y="97" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="249" y="97" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="267" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="285" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="303" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="321" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="231" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="249" y="115" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="267" y="115" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="285" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="303" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="321" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="231" y="133" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="249" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="267" y="133" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="285" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="303" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="321" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="231" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="249" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="267" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="285" y="151" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="303" y="151" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="321" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="231" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="249" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="267" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="285" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="303" y="169" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="321" y="169" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="231" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="249" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="267" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="285" y="187" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="303" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="321" y="187" width="16" height="16" rx="3" fill="#2a78d6"/>
+<text class="cap" x="230" y="226">подсистемы — цель</text>
+<text class="cap" x="230" y="242">большого проекта</text>
+<text class="h" x="420" y="84">Заполненный столбец</text>
+<rect x="421" y="97" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="439" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="457" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="475" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="493" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="511" y="97" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="421" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="439" y="115" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="457" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="475" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="493" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="511" y="115" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="421" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="439" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="457" y="133" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="475" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="493" y="133" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="511" y="133" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="421" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="439" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="457" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="475" y="151" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="493" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="511" y="151" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="421" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="439" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="457" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="475" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="493" y="169" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="511" y="169" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="421" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="439" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="457" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="475" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="493" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="511" y="187" width="16" height="16" rx="3" fill="#eb6834"/>
+<text class="cap" x="420" y="226">сквозная capability</text>
+<text class="h" x="610" y="84">Заполненная строка</text>
+<rect x="611" y="97" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="629" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="647" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="665" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="683" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="701" y="97" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="611" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="629" y="115" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="647" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="665" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="683" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="701" y="115" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="611" y="133" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="629" y="133" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="647" y="133" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="665" y="133" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="683" y="133" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="701" y="133" width="16" height="16" rx="3" fill="#eb6834"/>
+<rect x="611" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="629" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="647" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="665" y="151" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="683" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="701" y="151" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="611" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="629" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="647" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="665" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="683" y="169" width="16" height="16" rx="3" fill="#2a78d6"/>
+<rect x="701" y="169" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="611" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="629" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="647" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="665" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="683" y="187" width="16" height="16" rx="3" fill="#f1f0ec"/>
+<rect x="701" y="187" width="16" height="16" rx="3" fill="#2a78d6"/>
+<text class="cap" x="610" y="226">«божественный» модуль</text>
+<text class="ax" x="40" y="274">модули ↓  домены →; оранжевым — проблемная строка или столбец, пунктир — блоки подсистем</text>
+</svg>
