@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="610" viewBox="0 0 980 610" role="img" aria-labelledby="t d">
+  <title id="t">Граф контекста этого репозитория</title>
+  <desc id="d">Слева ADR, в середине модули core, server, web, vscode, check с дугами depends_on, справа домены. Подсвечен срез модуля core: шесть его доменов и ADR-003, ADR-004, ADR-006.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#52514e"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: #0b0b0b; }
+    .title { font-size: 16px; font-weight: 600; }
+    .sub { font-size: 12px; fill: #52514e; }
+    .head { font-size: 11px; fill: #52514e; text-transform: uppercase; letter-spacing: 0.05em; }
+    .node { fill: #ffffff; stroke: #c8c7c1; }
+    .node-hl { fill: #e3eefb; stroke: #2a78d6; }
+    .node-core { fill: #2a78d6; stroke: #2a78d6; }
+    .node-off { fill: #ffffff; stroke: #b9b8b2; stroke-dasharray: 4 3; }
+    .t { font-size: 12px; }
+    .t-mod { font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .t-core { font-size: 13px; font-weight: 600; text-anchor: middle; fill: #ffffff; }
+    .t-off { font-size: 12px; fill: #8a8984; }
+    .e { fill: none; stroke: #d6d5cf; stroke-width: 1; }
+    .e-hl { fill: none; stroke: #2a78d6; stroke-width: 1.8; }
+    .e-off { fill: none; stroke: #c8c7c1; stroke-width: 1; stroke-dasharray: 4 3; }
+    .dep { fill: none; stroke: #52514e; stroke-width: 1.3; }
+    .legend { font-size: 12px; fill: #52514e; }
+  </style>
+  <rect x="0.5" y="0.5" width="979" height="609" rx="10" fill="#fcfcfb" stroke="#e4e3df"/>
+  <text class="title" x="24" y="32">Граф контекста этого репозитория</text>
+  <text class="sub" x="24" y="52">ADR → модули → домены; дуги слева от модулей — depends_on. Синим — срез модуля core.</text>
+
+  <text class="head" x="24" y="86">ADR</text>
+  <text class="head" x="400" y="86">модули</text>
+  <text class="head" x="700" y="86">домены (спеки)</text>
+
+  <!-- рёбра ADR → модуль -->
+  <path class="e" d="M274 117 C337 117 337 400 400 400"/>
+  <path class="e" d="M274 117 C337 117 337 310 400 310"/>
+  <path class="e" d="M274 117 C337 117 337 220 400 220"/>
+  <path class="e" d="M274 189 C337 189 337 220 400 220"/>
+  <path class="e" d="M274 189 C337 189 337 400 400 400"/>
+  <path class="e" d="M274 189 C337 189 337 490 400 490"/>
+  <path class="e" d="M274 261 C337 261 337 220 400 220"/>
+  <path class="e" d="M274 333 C337 333 337 220 400 220"/>
+  <path class="e" d="M274 333 C337 333 337 310 400 310"/>
+  <path class="e-off" d="M274 405 C337 405 337 220 400 220"/>
+  <path class="e-off" d="M274 405 C337 405 337 310 400 310"/>
+  <path class="e" d="M274 477 C337 477 337 220 400 220"/>
+  <path class="e" d="M274 477 C337 477 337 310 400 310"/>
+  <path class="e" d="M274 477 C337 477 337 400 400 400"/>
+  <path class="e-hl" d="M274 261 C337 261 337 130 400 130"/>
+  <path class="e-hl" d="M274 333 C337 333 337 130 400 130"/>
+  <path class="e-hl" d="M274 477 C337 477 337 130 400 130"/>
+
+  <!-- рёбра модуль → домен -->
+  <path class="e" d="M550 220 C625 220 625 236 700 236"/>
+  <path class="e" d="M550 220 C625 220 625 278 700 278"/>
+  <path class="e" d="M550 220 C625 220 625 320 700 320"/>
+  <path class="e" d="M550 220 C625 220 625 362 700 362"/>
+  <path class="e" d="M550 220 C625 220 625 404 700 404"/>
+  <path class="e" d="M550 220 C625 220 625 446 700 446"/>
+  <path class="e" d="M550 310 C625 310 625 152 700 152"/>
+  <path class="e" d="M550 310 C625 310 625 194 700 194"/>
+  <path class="e" d="M550 310 C625 310 625 236 700 236"/>
+  <path class="e" d="M550 310 C625 310 625 278 700 278"/>
+  <path class="e" d="M550 310 C625 310 625 404 700 404"/>
+  <path class="e" d="M550 400 C625 400 625 320 700 320"/>
+  <path class="e" d="M550 400 C625 400 625 446 700 446"/>
+  <path class="e" d="M550 400 C625 400 625 488 700 488"/>
+  <path class="e-hl" d="M550 130 C625 130 625 110 700 110"/>
+  <path class="e-hl" d="M550 130 C625 130 625 152 700 152"/>
+  <path class="e-hl" d="M550 130 C625 130 625 194 700 194"/>
+  <path class="e-hl" d="M550 130 C625 130 625 236 700 236"/>
+  <path class="e-hl" d="M550 130 C625 130 625 278 700 278"/>
+  <path class="e-hl" d="M550 130 C625 130 625 320 700 320"/>
+
+  <!-- depends_on: дуги слева от модулей -->
+  <path class="dep" d="M400 214 C384 214 384 136 398 136" marker-end="url(#arrow)"/>
+  <path class="dep" d="M400 304 C370 304 370 128 398 128" marker-end="url(#arrow)"/>
+  <path class="dep" d="M400 394 C384 394 384 226 398 226" marker-end="url(#arrow)"/>
+  <path class="dep" d="M400 484 C362 484 362 216 398 216" marker-end="url(#arrow)"/>
+
+  <!-- ADR -->
+  <rect class="node" x="24" y="100" width="250" height="34" rx="6"/>
+  <text class="t" x="36" y="122">ADR-001 · расширение VS Code</text>
+  <rect class="node" x="24" y="172" width="250" height="34" rx="6"/>
+  <text class="t" x="36" y="194">ADR-002 · бэкенд через inject()</text>
+  <rect class="node-hl" x="24" y="244" width="250" height="34" rx="6"/>
+  <text class="t" x="36" y="266">ADR-003 · истина — файлы и CLI</text>
+  <rect class="node-hl" x="24" y="316" width="250" height="34" rx="6"/>
+  <text class="t" x="36" y="338">ADR-004 · чистый core</text>
+  <rect class="node-off" x="24" y="388" width="250" height="34" rx="6"/>
+  <text class="t-off" x="36" y="410">ADR-005 · агент в IDE (отменён)</text>
+  <rect class="node-hl" x="24" y="460" width="250" height="34" rx="6"/>
+  <text class="t" x="36" y="482">ADR-006 · контекст, а не агенты</text>
+
+  <!-- модули -->
+  <rect class="node-core" x="400" y="110" width="150" height="40" rx="8"/>
+  <text class="t-core" x="475" y="135">core</text>
+  <rect class="node" x="400" y="200" width="150" height="40" rx="8"/>
+  <text class="t-mod" x="475" y="225">server</text>
+  <rect class="node" x="400" y="290" width="150" height="40" rx="8"/>
+  <text class="t-mod" x="475" y="315">web</text>
+  <rect class="node" x="400" y="380" width="150" height="40" rx="8"/>
+  <text class="t-mod" x="475" y="405">vscode</text>
+  <rect class="node" x="400" y="470" width="150" height="40" rx="8"/>
+  <text class="t-mod" x="475" y="495">check</text>
+
+  <!-- домены -->
+  <rect class="node-hl" x="700" y="96" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="115">sdd-conformance</text>
+  <rect class="node-hl" x="700" y="138" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="157">workflow-board</text>
+  <rect class="node-hl" x="700" y="180" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="199">spec-delta-viewer</text>
+  <rect class="node-hl" x="700" y="222" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="241">task-metrics</text>
+  <rect class="node-hl" x="700" y="264" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="283">workflow-designer</text>
+  <rect class="node-hl" x="700" y="306" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="325">workspace-explorer</text>
+  <rect class="node" x="700" y="348" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="367">ide-runtime</text>
+  <rect class="node" x="700" y="390" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="409">archive-preview</text>
+  <rect class="node" x="700" y="432" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="451">artifact-editor</text>
+  <rect class="node" x="700" y="474" width="256" height="28" rx="6"/>
+  <text class="t" x="712" y="493">vscode-extension</text>
+  <rect class="node-off" x="700" y="516" width="256" height="28" rx="6"/>
+  <text class="t-off" x="712" y="535">agent-bridge — ничей, удаляется</text>
+
+  <!-- легенда -->
+  <line x1="24" y1="580" x2="56" y2="580" class="e-hl"/>
+  <text class="legend" x="64" y="584">срез core: ≈ 17,6 тыс. токенов, 12 файлов</text>
+  <line x1="340" y1="580" x2="372" y2="580" class="e"/>
+  <text class="legend" x="380" y="584">прочие связи</text>
+  <path class="dep" d="M486 580 h30" marker-end="url(#arrow)"/>
+  <text class="legend" x="524" y="584">depends_on</text>
+  <line x1="620" y1="580" x2="652" y2="580" class="e-off"/>
+  <text class="legend" x="660" y="584">недействующий ADR, домен без модулей</text>
+</svg>

@@ -30,6 +30,9 @@ structure:
       adr?:
         "*.md": file
   docs:
-    "*.md": file
     mockups:
       "*.html": file
+    patterns?:
+      "*.md": file
+      img?:
+        "*.svg": file
