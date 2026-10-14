@@ -50,9 +50,10 @@ export class GitHistory {
     return out === undefined || out === '' ? null : out;
   }
 
-  /** Последний коммит, затронувший путь, и его дата. */
-  async lastCommit(path: string): Promise<{ commit: string; date: string } | null> {
-    const [commit, date] = ((await this.#run(['log', '-1', '--format=%H%x09%cI', '--', path])) ?? '').trim().split('\t');
+  /** Последний коммит, затронувший путь (или любой из путей), и его дата. */
+  async lastCommit(path: string | readonly string[]): Promise<{ commit: string; date: string } | null> {
+    const paths = typeof path === 'string' ? [path] : path;
+    const [commit, date] = ((await this.#run(['log', '-1', '--format=%H%x09%cI', '--', ...paths])) ?? '').trim().split('\t');
     return commit === undefined || commit === '' || date === undefined ? null : { commit, date };
   }
 
@@ -90,9 +91,10 @@ export class GitHistory {
       .filter((line) => line !== '');
   }
 
-  /** В пути есть незакоммиченные правки или неотслеживаемые файлы. */
-  async hasChanges(path: string): Promise<boolean> {
-    const out = await this.#run(['status', '--porcelain', '--untracked-files=all', '--', path]);
+  /** В пути (или в любом из путей) есть незакоммиченные правки или неотслеживаемые файлы. */
+  async hasChanges(path: string | readonly string[]): Promise<boolean> {
+    const paths = typeof path === 'string' ? [path] : path;
+    const out = await this.#run(['status', '--porcelain', '--untracked-files=all', '--', ...paths]);
     return out !== null && out.trim() !== '';
   }
 

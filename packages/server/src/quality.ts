@@ -2,6 +2,7 @@ import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, normalize } from 'node:path';
 import {
   type AuthoringSources,
+  CONTEXT_DIR,
   DEFAULT_QUALITY_CONFIG,
   type DomainCode,
   type ModuleFile,
@@ -20,7 +21,7 @@ import {
   specCodeIssues,
 } from '@openspec-ide/core';
 import { type Document, LineCounter, isMap, isScalar, isSeq, parseDocument } from 'yaml';
-import { parseFrontmatter } from './contextMap.js';
+import { parseFrontmatter, scanContext } from './contextMap.js';
 import { GitHistory } from './git.js';
 
 /**
@@ -108,7 +109,7 @@ const MAX_CODE_FILES = 5_000;
 /**
  * Проверки качества, которым нужен диск: ссылки плана на тесты и сверка спек с
  * кодом модулей их домена по карте контекста (`domains` и `code_paths` в
- * `index.md` модулей).
+ * файлах метаданных модулей).
  */
 export async function projectQualityIssues(root: string, sources: AuthoringSources): Promise<QualityIssue[]> {
   const refs = planTestReferences(sources);
@@ -133,22 +134,16 @@ async function readText(path: string): Promise<string | null> {
 
 /** Код модулей карты контекста: по доменам и всех модулей вместе; без модулей — пусто. */
 async function domainCode(root: string): Promise<{ domains: DomainCode[]; everywhere: ModuleFile[] }> {
-  const modulesDir = join(root, OPENSPEC_DIR, 'context', 'modules');
-  let folders: string[];
-  try {
-    folders = (await readdir(modulesDir, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  } catch {
-    return { domains: [], everywhere: [] };
-  }
   const cache = new Map<string, { path: string; text: string }[]>();
   const modules: { name: string; domains: string[]; files: ModuleFile[] }[] = [];
-  for (const folder of folders) {
-    const index = await readText(join(modulesDir, folder, 'index.md'));
+  for (const module of (await scanContext(root)).modules) {
+    if (module.index === null) continue;
+    const index = await readText(join(root, ...CONTEXT_DIR.split('/'), ...module.folder.split('/'), module.index));
     if (index === null) continue;
     const value = parseFrontmatter(index).value as { module?: unknown; domains?: unknown; code_paths?: unknown } | null;
     if (value === null) continue;
     const list = (raw: unknown): string[] => (Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string') : []);
-    const name = typeof value.module === 'string' ? value.module : folder;
+    const name = typeof value.module === 'string' ? value.module : (module.folder.split('/').pop() ?? module.folder);
     const files: ModuleFile[] = [];
     for (const path of new Set(list(value.code_paths))) {
       const relative = normalize(path).replaceAll('\\', '/').replace(/\/$/, '');

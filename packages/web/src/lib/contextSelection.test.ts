@@ -4,9 +4,9 @@ import { bundleKeys, parseNodeKey, selectionOf, togglePicked } from './contextSe
 
 function module(folder: string, frontmatter: Record<string, unknown>): ModuleSource {
   return {
-    folder,
-    hasIndex: true,
-    hasContext: true,
+    folder: `modules/${folder}`,
+    index: 'index.md',
+    files: ['context.md'],
     frontmatter,
     frontmatterError: null,
     lineOf: () => null,

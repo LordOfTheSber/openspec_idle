@@ -13,9 +13,9 @@ const LINES: Record<string, number> = { module: 2, description: 3, domains: 4, c
 
 function module(folder: string, frontmatter: unknown, overrides: Partial<ModuleSource> = {}): ModuleSource {
   return {
-    folder,
-    hasIndex: true,
-    hasContext: true,
+    folder: `modules/${folder}`,
+    index: 'index.md',
+    files: ['context.md'],
     frontmatter,
     frontmatterError: null,
     lineOf: (key) => LINES[key] ?? null,
@@ -81,9 +81,12 @@ describe('карта контекста: модули и домены', () => {
 
   it('идентификатор — из поля module, иначе имя папки; пути файлов модуля', () => {
     const master = map.modules[0];
-    expect(master?.folder).toBe('master');
+    expect(master?.folder).toBe('modules/master');
+    expect(master?.section).toBe('modules');
     expect(master?.indexPath).toBe('openspec/context/modules/master/index.md');
-    expect(master?.contextPath).toBe('openspec/context/modules/master/context.md');
+    // Текст index.md не прочитан — в набор идёт только context.md.
+    expect(master?.files).toEqual(['openspec/context/modules/master/context.md']);
+    expect(master?.groupFiles).toEqual([]);
     expect(map.modules[1]?.id).toBe('sds-impl');
   });
 
@@ -221,10 +224,10 @@ describe('карта контекста: замечания', () => {
       general: [],
       adrs: [],
       modules: [
-        module('no-index', null, { hasIndex: false }),
+        module('no-index', null, { index: null }),
         module('no-meta', null),
         module('broken', null, { frontmatterError: { message: 'bad indentation', line: 3 } }),
-        module('no-context', { module: 'x' }, { hasContext: false }),
+        module('no-context', { module: 'x' }, { files: [] }),
         module('bad-field', { module: 'y', domains: { a: 1 } }),
         module('z-dup', { module: 'x' }),
       ],
@@ -241,6 +244,7 @@ describe('карта контекста: замечания', () => {
       ]),
     );
     expect(map.issues.find((issue) => issue.kind === 'bad-frontmatter' && issue.module === 'broken')?.line).toBe(3);
+    expect(map.issues.find((issue) => issue.kind === 'missing-index')?.path).toBe('openspec/context/modules/no-index');
   });
 
   it('отсутствующий путь кода — предупреждение', () => {
@@ -365,7 +369,7 @@ describe('контроль контекста', () => {
     expect(issue('bad-field')).toEqual([expect.objectContaining({ module: 'impl', path: 'openspec/context/modules/impl/index.md' })]);
   });
 
-  it('лишнее: повтор абзаца, пустой контекст, файл вне наборов', () => {
+  it('лишнее: повтор абзаца, пустой файл модуля, файл вне наборов', () => {
     expect(issue('duplicate-text')).toEqual([
       expect.objectContaining({ path: 'openspec/context/modules/master/context.md', line: 3, module: 'sds-master' }),
     ]);
@@ -400,7 +404,7 @@ describe('контроль контекста', () => {
     expect(contextBundle(map, { adrs: ['openspec/context/adr/ADR-001.md'] }).adrs).toEqual(['openspec/context/adr/ADR-001.md']);
   });
 
-  it('полезность: повтор и битый путь — балласт, привязка и свежесть — у context.md, сумма по набору', () => {
+  it('полезность: повтор и битый путь — балласт, привязка и свежесть — у файлов модуля, сумма по набору', () => {
     const master = map.files.find((file) => file.path === 'openspec/context/modules/master/context.md')?.usefulness;
     expect(master?.ballast.duplicate).toBeGreaterThan(0);
     expect(master?.ballast.broken).toBeGreaterThan(0);
@@ -471,5 +475,119 @@ describe('контроль контекста', () => {
     expect(plain.files).toEqual([]);
     expect(plain.references).toEqual([]);
     expect(plain.issues).toEqual([]);
+  });
+});
+
+describe('карта контекста: произвольная раскладка', () => {
+  const START = '---\nmodule: master\ndomains: [replication]\ncode_paths: [svc/src]\n---\n\n# master\n\nСначала прочитайте 01-product-context.md, затем архитектуру.\n';
+  const texts = new Map<string, string>([
+    ['openspec/context/modules/back/master/00-start-here.md', START],
+    ['openspec/context/modules/back/master/01-product-context.md', '# Продукт\n\nОперации Master по точкам входа.\n'],
+    ['openspec/context/modules/back/master/02-architecture.md', '# Архитектура\n\nИнварианты и анти-паттерны.\n'],
+    ['openspec/context/modules/back/master/05-testing-and-quality.md', '# Тестирование\n'],
+    ['openspec/context/modules/back/master/failure-log.md', '# Журнал сбоев\n\nСбой репликации при рестарте.\n'],
+    ['openspec/context/modules/back/master/details/replication.md', '# Репликация\n\nПодробности.\n'],
+    ['openspec/context/modules/back/03-engineering-standards.md', '# Backend\n\nСборка и стиль кода бэкенда.\n'],
+    ['openspec/context/modules/back/cm/00-start-here.md', '---\nmodule: cm\ndepends_on: [master]\n---\n\n# cm\n'],
+    ['openspec/context/modules/back/cm/01-product-context.md', '# cm\n\nУправление кластером.\n'],
+    ['openspec/context/modules/conf/index.md', '---\nmodule: conf\n---\n# conf\n'],
+    ['openspec/context/modules/conf/context.md', '# conf\n\nКонфигурация стендов.\n'],
+    ['openspec/context/functions/billing/00-start-here.md', '---\nmodule: billing\ndepends_on: [cm]\n---\n# billing\n\nФункция биллинга.\n'],
+    ['openspec/context/01-product-context.md', '# Продукт\n\nОбщий контекст.\n'],
+    ['openspec/context/glossary.md', '# Глоссарий\n\nТермины.\n'],
+  ]);
+  const source = (folder: string, index: string | null, files: string[], frontmatter: unknown): ModuleSource => ({
+    folder,
+    index,
+    files,
+    frontmatter,
+    frontmatterError: null,
+    lineOf: () => null,
+    existingCodePaths: new Set(['svc/src']),
+  });
+  const map = buildContextMap({
+    domains: ['replication'],
+    general: ['openspec/context/glossary.md', 'openspec/context/01-product-context.md'],
+    groups: [{ folder: 'modules/back', files: ['openspec/context/modules/back/03-engineering-standards.md'] }],
+    adrs: [],
+    modules: [
+      source(
+        'modules/back/master',
+        '00-start-here.md',
+        ['failure-log.md', '05-testing-and-quality.md', 'details/replication.md', '02-architecture.md', '01-product-context.md'],
+        { module: 'master', domains: ['replication'], code_paths: ['svc/src'] },
+      ),
+      source('modules/back/cm', '00-start-here.md', ['01-product-context.md'], { module: 'cm', depends_on: ['master'], code_paths: ['svc/src'] }),
+      source('modules/conf', 'index.md', ['context.md'], { module: 'conf', code_paths: ['svc/src'] }),
+      source('functions/billing', '00-start-here.md', [], { module: 'billing', depends_on: ['cm'], code_paths: ['svc/src'] }),
+    ],
+    texts,
+  });
+  const byId = (id: string) => map.modules.find((item) => item.id === id);
+
+  it('модули на любой глубине и в любом разделе; файл метаданных с текстом — первым, части — по номеру', () => {
+    expect(map.modules.map((item) => [item.id, item.section, item.folder])).toEqual([
+      ['billing', 'functions', 'functions/billing'],
+      ['cm', 'modules', 'modules/back/cm'],
+      ['master', 'modules', 'modules/back/master'],
+      ['conf', 'modules', 'modules/conf'],
+    ]);
+    expect(byId('master')?.indexPath).toBe('openspec/context/modules/back/master/00-start-here.md');
+    expect(byId('master')?.files).toEqual([
+      'openspec/context/modules/back/master/00-start-here.md',
+      'openspec/context/modules/back/master/01-product-context.md',
+      'openspec/context/modules/back/master/02-architecture.md',
+      'openspec/context/modules/back/master/05-testing-and-quality.md',
+      'openspec/context/modules/back/master/details/replication.md',
+      'openspec/context/modules/back/master/failure-log.md',
+    ]);
+    // В 00-start-here.md модуля cm только frontmatter и заголовок, в прежнем index.md — тоже.
+    expect(byId('cm')?.files).toEqual(['openspec/context/modules/back/cm/01-product-context.md']);
+    expect(byId('conf')?.files).toEqual(['openspec/context/modules/conf/context.md']);
+    // Модуль, весь контекст которого — в файле метаданных, не «без контекста».
+    expect(byId('billing')?.files).toEqual(['openspec/context/functions/billing/00-start-here.md']);
+    expect(map.issues.some((issue) => issue.kind === 'missing-context')).toBe(false);
+  });
+
+  it('общий контекст группы — у модулей под ней и в их наборе перед файлами модуля', () => {
+    expect(byId('master')?.groupFiles).toEqual(['openspec/context/modules/back/03-engineering-standards.md']);
+    expect(byId('conf')?.groupFiles).toEqual([]);
+    expect(map.groups).toEqual([{ folder: 'modules/back', files: ['openspec/context/modules/back/03-engineering-standards.md'] }]);
+    expect(map.files.find((file) => file.path.endsWith('03-engineering-standards.md'))).toMatchObject({ kind: 'group', owner: 'modules/back' });
+    expect(contextBundle(map, { modules: ['billing'] }).files).toEqual([
+      'openspec/context/01-product-context.md',
+      'openspec/context/glossary.md',
+      'openspec/context/functions/billing/00-start-here.md',
+      'openspec/context/modules/back/03-engineering-standards.md',
+      'openspec/context/modules/back/cm/01-product-context.md',
+      'openspec/context/modules/back/master/00-start-here.md',
+      'openspec/context/modules/back/master/01-product-context.md',
+      'openspec/context/modules/back/master/02-architecture.md',
+      'openspec/context/modules/back/master/05-testing-and-quality.md',
+      'openspec/context/modules/back/master/details/replication.md',
+      'openspec/context/modules/back/master/failure-log.md',
+      'openspec/specs/replication/spec.md',
+    ]);
+  });
+
+  it('пустая часть модуля — предупреждение на её файле', () => {
+    expect(map.issues.filter((issue) => issue.kind === 'empty-context')).toEqual([
+      expect.objectContaining({ path: 'openspec/context/modules/back/master/05-testing-and-quality.md', module: 'master', severity: 'warning' }),
+    ]);
+    expect(map.issues.find((issue) => issue.kind === 'empty-context')?.message).toContain('05-testing-and-quality.md модуля master пуст');
+  });
+
+  it('модуль без поля module называется по последней папке, совпадение имён — ошибка', () => {
+    const twins = buildContextMap({
+      domains: [],
+      general: [],
+      adrs: [],
+      modules: [source('modules/back/cm', 'index.md', ['context.md'], {}), source('modules/ui/cm', 'index.md', ['context.md'], {})],
+    });
+    expect(twins.modules.map((item) => [item.id, item.folder])).toEqual([['cm', 'modules/back/cm']]);
+    expect(twins.issues.find((issue) => issue.kind === 'duplicate-module')).toMatchObject({
+      path: 'openspec/context/modules/ui/cm/index.md',
+      module: 'cm',
+    });
   });
 });

@@ -31,9 +31,12 @@ context: |
   - artifact — proposal.md, specs/**/*.md, design.md, tasks.md.
   - spec / capability — файл `openspec/specs/<capability-path>/spec.md`.
   - delta — секции ADDED/MODIFIED/REMOVED/RENAMED Requirements в спеке change.
-  - module — папка `openspec/context/modules/<папка>/` с `index.md`
-    (frontmatter: module, description, domains, code_paths, depends_on) и
-    `context.md`.
+  - module — папка в `openspec/context/` на любой глубине (`modules/<папка>/`,
+    `modules/<группа>/<папка>/`, `functions/<папка>/`) с файлом метаданных
+    `00-start-here.md` или `index.md` (frontmatter: module, description,
+    domains, code_paths, depends_on); остальные `.md` папки — части контекста
+    модуля (`01-product-context.md`… или `context.md`). `.md` папки-группы над
+    модулями — общий контекст модулей под ней.
   - domain — спека модуля: путь из `openspec/specs/`; связь модуль ↔ домен —
     многие-ко-многим.
   - ADR — `openspec/context/adr/*.md` с полями modules и domains.

@@ -557,7 +557,7 @@ export function addTraceItem(
   return send<TraceResponse>('/api/trace/item', 'POST', { change, ...target });
 }
 
-/** Заводит папку модуля контекста с `index.md` и `context.md`. */
+/** Заводит папку модуля контекста с файлом метаданных и первым файлом контекста. */
 export function createContextModule(id: string): Promise<{ index: string; context: string }> {
   return send<{ index: string; context: string }>('/api/context/module', 'POST', { id });
 }

@@ -139,13 +139,13 @@ describe('источники для функций редактора', () => {
 });
 
 describe('создание модуля контекста', () => {
-  it('заводит index.md и context.md, повтор отклоняется', async () => {
+  it('заводит 00-start-here.md и 01-product-context.md, повтор отклоняется', async () => {
     const created = await request<{ index: string; context: string }>('POST', '/api/context/module', { id: 'web' });
 
     expect(created.status).toBe(200);
-    expect(created.body.index).toBe('openspec/context/modules/web/index.md');
+    expect(created.body.index).toBe('openspec/context/modules/web/00-start-here.md');
     expect(readFileSync(join(root, created.body.index), 'utf8')).toContain('module: web\n');
-    expect(existsSync(join(root, 'openspec/context/modules/web/context.md'))).toBe(true);
+    expect(existsSync(join(root, 'openspec/context/modules/web/01-product-context.md'))).toBe(true);
 
     const again = await request<{ error: string }>('POST', '/api/context/module', { id: 'web' });
     expect(again.status).toBe(409);

@@ -241,7 +241,7 @@ const RUNNERS: Record<CheckId, (context: RunContext) => Promise<Outcome>> = {
 
   async context(context) {
     const map = await get<ContextMap>(context, '/api/context-map');
-    if (!map.configured) return { skipped: 'нет openspec/context/modules и openspec/context/adr' };
+    if (!map.configured) return { skipped: 'в openspec/context нет модулей и ADR' };
     return {
       findings: map.issues.map((issue) => ({
         check: 'context' as const,

@@ -185,13 +185,15 @@ structure:
   openspec:
     structure.yaml: file
 ${openspecLines.join('\n')}
-    # Контекст модулей для раздела «Контекст» — раскомментируйте и поправьте:
+    # Контекст модулей для раздела «Контекст» — раскомментируйте и поправьте.
+    # Модуль — папка с 00-start-here.md (или index.md), его части — .md рядом:
     # context:
     #   "*.md": file
     #   modules:
     #     "*":
-    #       index.md: file
-    #       context.md: file
+    #       00-start-here.md: file
+    #       01-product-context.md: file
+    #       "*.md": file
     #   adr?:
     #     "*.md": file
 `;
