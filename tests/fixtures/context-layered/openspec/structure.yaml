@@ -1,0 +1,32 @@
+# Раскладка контекста из нумерованных частей — тот же пример, что в README.
+version: 1
+structure:
+  openspec:
+    structure.yaml: file
+    config.yaml: file
+    specs: "*"
+    changes: "*"
+    context:
+      "*.md": file
+      adr?:
+        "*.md": file
+      functions?: "*"
+      modules:
+        back:
+          "*.md": file          # общий контекст бэкенд-модулей
+          "*":
+            00-start-here.md: file
+            01-product-context.md: file
+            02-architecture.md: file
+            03-engineering-standards.md: file
+            04-security-and-compliance.md: file
+            05-testing-and-quality.md: file
+            "*.md": file        # glossary.md, failure-log.md и другие части
+        conf:
+          00-start-here.md: file
+          01-product-context.md: file
+          02-architecture.md: file
+          03-engineering-standards.md: file
+          04-security-and-compliance.md: file
+          "*.md": file
+        "*": "*"                # ui, db, doc — пока без требований

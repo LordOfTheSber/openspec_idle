@@ -100,7 +100,7 @@ test.describe('карта контекста', () => {
       join(ide.root, 'openspec/context/2.md'),
       '# Общий контекст 2\n\nВНИМАНИЕ!! НИКОГДА не правьте конфигурацию руками, ОБЯЗАТЕЛЬНО через CLI.\n',
     );
-    writeFileSync(join(ide.root, 'openspec/context/modules/master/notes.md'), '# черновик\n');
+    writeFileSync(join(ide.root, 'openspec/context/modules/master/notes.txt'), 'черновик\n');
     writeFileSync(
       join(ide.root, 'openspec/context/adr/ADR-000-async.md'),
       '---\nstatus: superseded\nmodules: [sds-master]\n---\n# ADR-000: Асинхронная репликация\n',
@@ -133,7 +133,7 @@ test.describe('карта контекста', () => {
     // Лишнее: повтор, пустой контекст, файл вне наборов, недействующий ADR.
     await expect(page.getByTestId('ctx-control-duplicates')).toContainText('openspec/context/1.md:3');
     await expect(page.getByTestId('ctx-control-empty')).toContainText('modules/sds-impl/context.md');
-    await expect(page.getByTestId('ctx-control-unused')).toContainText('modules/master/notes.md');
+    await expect(page.getByTestId('ctx-control-unused')).toContainText('modules/master/notes.txt');
     await expect(page.getByTestId('ctx-control-inactive')).toContainText('ADR-000-async.md');
     // Связь с реальностью: путь, которого нет; проект не в git — свежесть неизвестна.
     await expect(page.getByTestId('ctx-control-broken')).toContainText('session/Store.java');
@@ -198,7 +198,47 @@ test.describe('контекст без модулей', () => {
 
     await expect(page.getByTestId('context-summary')).toContainText('1 модуль');
     await expect(page.getByTestId('toast')).toContainText('Модуль web создан');
-    const index = readFileSync(join(ide.root, 'openspec/context/modules/web/index.md'), 'utf8');
+    const index = readFileSync(join(ide.root, 'openspec/context/modules/web/00-start-here.md'), 'utf8');
     expect(index).toContain('module: web');
+  });
+});
+
+test.describe('контекст из нумерованных частей', () => {
+  let ide: LaunchedIde;
+
+  test.beforeEach(async () => {
+    ide = await launchIde('context-layered', { writable: true });
+  });
+
+  test.afterEach(async () => {
+    await ide?.stop();
+  });
+
+  test('модули в группе modules/back/: карточка перечисляет части, набор берёт их по номерам, новая часть подхватывается', async ({ page }) => {
+    await page.goto(ide.url);
+    await page.getByTestId('nav-context').click();
+
+    await expect(page.getByTestId('context-summary')).toContainText('4 модуля');
+    await expect(page.getByTestId('ctx-edge-depends:cm->master')).toBeAttached();
+
+    await page.getByTestId('ctx-node-module:master').click();
+    await expect(page.getByTestId('context-module-folder')).toContainText('modules/back/master/');
+    const files = page.getByTestId('context-module-files');
+    await expect(files).toContainText('00-start-here.md');
+    await expect(files).toContainText('05-testing-and-quality.md');
+    await expect(page.getByTestId('context-module-volume')).toContainText('6 файлов модуля');
+
+    const bundle = page.getByTestId('context-bundle').locator('ol');
+    await expect(bundle).toContainText('openspec/context/glossary.md');
+    await expect(bundle).toContainText('openspec/context/modules/back/master/00-start-here.md');
+    await expect(bundle).toContainText('openspec/context/modules/back/master/02-architecture.md');
+    // Транзитивная зависимость conf — без 05-testing-and-quality.md, как и положено конфигурации.
+    await expect(bundle).toContainText('openspec/context/modules/back/configuration/05-testing-and-quality.md');
+    await expect(bundle).toContainText('openspec/context/modules/conf/04-security-and-compliance.md');
+    await expect(bundle).not.toContainText('conf/05-testing-and-quality.md');
+
+    // Новая часть модуля сразу попадает в набор.
+    writeFileSync(join(ide.root, 'openspec/context/modules/back/master/failure-log.md'), '# Журнал сбоев master\n\nПотеря реплики.\n');
+    await expect(bundle).toContainText('openspec/context/modules/back/master/failure-log.md');
   });
 });

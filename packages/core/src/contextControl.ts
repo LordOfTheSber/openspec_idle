@@ -347,7 +347,7 @@ export interface UsefulnessOptions {
   readonly duplicateLines?: ReadonlySet<number>;
   /** Строки ссылок на пути, которых нет. */
   readonly brokenLines?: ReadonlySet<number>;
-  /** Оценивать привязку к коду — для `context.md` модуля. */
+  /** Оценивать привязку к коду — для файлов модуля. */
   readonly grounding?: boolean;
   /** Коммитов в коде после правки контекста; не задано — свежесть не оценивается. */
   readonly commitsAfter?: number | null;

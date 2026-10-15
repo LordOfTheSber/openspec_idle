@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  CONTEXT_DIR,
   type ContextBundle,
   type ContextIssue,
   type ContextMap as ContextMapModel,
+  type ContextModule,
   LOW_USEFULNESS,
   contextBundle,
 } from '@openspec-ide/core';
@@ -46,7 +48,8 @@ function short(label: string): string {
 }
 
 /**
- * Раздел «Контекст»: модули из `openspec/context/modules/`, домены — спеки
+ * Раздел «Контекст»: модули из `openspec/context/` (папки с `00-start-here.md`
+ * или `index.md` в любом разделе и группе), домены — спеки
  * из `openspec/specs/`, ADR из `openspec/context/adr/` и связи между ними.
  * Граф показывает связи многие-ко-многим, матрица — то же таблицей.
  */
@@ -317,9 +320,11 @@ function NotConfigured({ onCreated }: { readonly onCreated: () => void }) {
       </span>
       <h2>Модули ещё не описаны</h2>
       <p>
-        Карта строится из папок <code>openspec/context/modules/&lt;модуль&gt;/</code>: <code>index.md</code> с доменами во
-        frontmatter и <code>context.md</code> с самим контекстом. Опишите первый модуль — связи с доменами и ADR появятся
-        сами.
+        Модуль — папка в <code>openspec/context/</code> (например, <code>modules/back/cm/</code> или{' '}
+        <code>functions/&lt;функция&gt;/</code>) с файлом <code>00-start-here.md</code> или <code>index.md</code>: в его
+        frontmatter — домены и зависимости, остальные <code>.md</code> папки (<code>01-product-context.md</code>,{' '}
+        <code>02-architecture.md</code>, <code>context.md</code>…) — сам контекст. Опишите первый модуль — связи с доменами и
+        ADR появятся сами.
       </p>
       <pre className="code-sample context-sample">{`---
 module: web
@@ -330,7 +335,8 @@ depends_on: [core]
 ---`}</pre>
       <p className="muted">
         Решения — в <code>openspec/context/adr/*.md</code> с полями <code>modules</code> и <code>domains</code>. Общий
-        контекст проекта — файлы <code>openspec/context/*.md</code>.
+        контекст проекта — файлы <code>openspec/context/*.md</code>, общий контекст группы модулей — <code>.md</code> в
+        папке группы (<code>modules/back/*.md</code>).
       </p>
       {creating ? (
         <form
@@ -343,7 +349,7 @@ depends_on: [core]
           <input
             className="mono"
             value={name}
-            placeholder="имя-модуля"
+            placeholder="имя-модуля или группа/модуль"
             aria-label="Имя модуля"
             autoFocus
             onChange={(event) => setName(event.target.value)}
@@ -672,6 +678,12 @@ function Matrix({
   );
 }
 
+/** Путь файла модуля относительно папки модуля: `02-architecture.md`, `details/x.md`. */
+function inModule(module: ContextModule, path: string): string {
+  const base = `${CONTEXT_DIR}/${module.folder}/`;
+  return path.startsWith(base) ? path.slice(base.length) : path;
+}
+
 function FileButton({ path, label }: { readonly path: string | null; readonly label: string }) {
   const vscode = inVsCode();
   if (path === null) return <span className="chip bad">{label}: нет файла</span>;
@@ -968,13 +980,16 @@ function Details({
             {close}
           </header>
           <p className="empty">
-            На модуль ссылаются, но папки <code>openspec/context/modules/</code> с <code>module: {id}</code> нет.
+            На модуль ссылаются, но папки в <code>openspec/context/</code> с <code>module: {id}</code> нет.
           </p>
         </aside>
       );
     }
     const bundle = contextBundle(map, { modules: [module.id] });
-    const contextFile = map.files.find((file) => file.path === module.contextPath);
+    const ownFiles = map.files.filter((file) => module.files.includes(file.path));
+    const ownTokens = ownFiles.reduce((sum, file) => sum + file.tokens, 0);
+    const ownUseful = ownFiles.reduce((sum, file) => sum + file.usefulness.usefulTokens, 0);
+    const ownScore = ownTokens === 0 ? null : ownUseful / ownTokens;
     return (
       <aside className="context-details" data-testid="context-details">
         <header>
@@ -984,9 +999,19 @@ function Details({
           {close}
         </header>
         {module.description !== null && <p>{module.description}</p>}
-        <div className="ctx-files">
-          <FileButton path={module.hasIndex ? module.indexPath : null} label="index.md" />
-          <FileButton path={module.contextPath} label="context.md" />
+        <p className="muted mono small" data-testid="context-module-folder">
+          {module.folder}/
+        </p>
+        <div className="ctx-files" data-testid="context-module-files">
+          {module.hasIndex ? (
+            module.files.includes(module.indexPath) ? null : <FileButton path={module.indexPath} label={inModule(module, module.indexPath)} />
+          ) : (
+            <FileButton path={null} label="00-start-here.md" />
+          )}
+          {module.files.map((path) => (
+            <FileButton key={path} path={path} label={inModule(module, path)} />
+          ))}
+          {module.files.length === 0 && <span className="chip warn">нет файлов контекста</span>}
         </div>
         <dl className="ctx-kv">
           <dt>Домены</dt>
@@ -1007,13 +1032,16 @@ function Details({
           </dd>
           <dt>Объём</dt>
           <dd data-testid="context-module-volume">
-            {contextFile === undefined ? (
-              <>context.md {tokens(0)}</>
+            {ownFiles.length === 0 ? (
+              <>файлы модуля {tokens(0)}</>
             ) : (
               <>
-                context.md {tokens(contextFile.tokens)}, полезно{' '}
-                <span className={contextFile.usefulness.score < LOW_USEFULNESS ? 'chip bad' : undefined} title={usefulnessSummary(contextFile.usefulness)}>
-                  {formatShare(contextFile.usefulness.score)}
+                {plural(ownFiles.length, ['файл', 'файла', 'файлов'])} модуля {tokens(ownTokens)}, полезно{' '}
+                <span
+                  className={ownScore !== null && ownScore < LOW_USEFULNESS ? 'chip bad' : undefined}
+                  title={ownFiles.length === 1 && ownFiles[0] !== undefined ? usefulnessSummary(ownFiles[0].usefulness) : undefined}
+                >
+                  {formatShare(ownScore)}
                 </span>
               </>
             )}{' '}
@@ -1043,7 +1071,7 @@ function Details({
         </dl>
         <BundleFiles
           title="Контекст для работы над модулем"
-          note={`Общий контекст, модуль и его зависимости по depends_on (${bundle.modules.join(' → ')}), спеки их доменов и действующие ADR.`}
+          note={`Общий контекст и контекст групп, модуль и его зависимости по depends_on (${bundle.modules.join(' → ')}), спеки их доменов и действующие ADR.`}
           map={map}
           bundle={bundle}
           budget={module.maxTokens}

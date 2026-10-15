@@ -4,9 +4,9 @@ import { layoutContextMap, neighbourhood, nodeKey } from './contextLayout.js';
 
 function module(folder: string, frontmatter: Record<string, unknown>): ModuleSource {
   return {
-    folder,
-    hasIndex: true,
-    hasContext: true,
+    folder: `modules/${folder}`,
+    index: 'index.md',
+    files: ['context.md'],
     frontmatter,
     frontmatterError: null,
     lineOf: () => null,

@@ -1,8 +1,12 @@
 /**
  * Карта контекста проекта: модули, домены (спеки) и ADR и связи между ними.
  *
- * Модуль — папка `openspec/context/modules/<папка>/` с файлами `index.md`
- * (frontmatter с метаданными) и `context.md` (сам контекст). Домен — спека
+ * Модуль — любая папка в `openspec/context/` (кроме `adr/`) с файлом
+ * метаданных `00-start-here.md` или `index.md`: его frontmatter описывает
+ * модуль, остальные `.md` папки (`01-product-context.md`, `context.md`,
+ * `glossary.md`…) — сам контекст. Модули лежат в разделах (`modules/`,
+ * `functions/`…) и могут быть вложены в папки-группы (`modules/back/cm/`);
+ * `.md` группы — общий контекст всех модулей под ней. Домен — спека
  * `openspec/specs/<путь>/spec.md`. Модуль перечисляет свои домены в поле
  * `domains`, поэтому связь многие-ко-многим: у модуля несколько доменов, домен
  * встречается у нескольких модулей. ADR — файл `openspec/context/adr/*.md`,
@@ -43,16 +47,19 @@ import {
 
 /** Папка контекста относительно корня рабочего пространства. */
 export const CONTEXT_DIR = 'openspec/context';
-/** Папка модулей: в ней одна подпапка на модуль. */
+/** Раздел модулей по умолчанию: сюда «Создать модуль…» кладёт новый модуль. */
 export const MODULES_DIR = `${CONTEXT_DIR}/modules`;
 /** Папка ADR. */
 export const ADR_DIR = `${CONTEXT_DIR}/adr`;
 /** Папка доменов — спеков OpenSpec. */
 export const SPECS_DIR = 'openspec/specs';
-/** Файл метаданных модуля. */
-export const MODULE_INDEX_FILE = 'index.md';
-/** Файл контекста модуля. */
-export const MODULE_CONTEXT_FILE = 'context.md';
+/**
+ * Файлы метаданных модуля в порядке предпочтения: `00-start-here.md` — формат
+ * с нумерованными частями, `index.md` — прежний. Папка с любым из них — модуль.
+ */
+export const MODULE_INDEX_FILES: readonly string[] = ['00-start-here.md', 'index.md'];
+/** Файлы метаданных для сообщений: «00-start-here.md или index.md». */
+const INDEX_NAMES = MODULE_INDEX_FILES.join(' или ');
 
 /** Frontmatter, отделённый от тела markdown-файла. */
 export interface Frontmatter {
@@ -92,15 +99,21 @@ export type KeyLine = (key: string) => number | null;
 
 /** Модуль, как его прочитал сервер. */
 export interface ModuleSource {
-  /** Имя папки модуля. */
-  readonly folder: string;
-  /** Есть ли `index.md`. */
-  readonly hasIndex: boolean;
-  /** Есть ли `context.md`. */
-  readonly hasContext: boolean;
   /**
-   * Значение frontmatter `index.md` после разбора YAML; `null` — frontmatter
-   * нет или файла нет.
+   * Папка модуля относительно `openspec/context/`: `modules/master`,
+   * `modules/back/cm`, `functions/billing`.
+   */
+  readonly folder: string;
+  /** Имя файла метаданных ({@link MODULE_INDEX_FILES}); `null` — его нет. */
+  readonly index: string | null;
+  /**
+   * Файлы контекста модуля относительно его папки, кроме файла метаданных:
+   * `.md` в папке и в её подпапках, которые сами не модули.
+   */
+  readonly files: readonly string[];
+  /**
+   * Значение frontmatter файла метаданных после разбора YAML; `null` —
+   * frontmatter нет или файла нет.
    */
   readonly frontmatter: unknown;
   /** Ошибка разбора YAML с её строкой. */
@@ -108,20 +121,31 @@ export interface ModuleSource {
   readonly lineOf: KeyLine;
   /** Какие из путей `code_paths` существуют. */
   readonly existingCodePaths: ReadonlySet<string>;
-  /** Свежесть `context.md` относительно кода по git; `null` — не известна. */
+  /** Свежесть файлов модуля относительно кода по git; `null` — не известна. */
   readonly freshness?: ModuleFreshness | null;
 }
 
-/** Насколько `context.md` модуля отстаёт от его кода по истории git. */
+/** Насколько файлы контекста модуля отстают от его кода по истории git. */
 export interface ModuleFreshness {
-  /** Дата последнего коммита `context.md`; `null` — файл ещё не в git. */
+  /** Дата последнего коммита файлов модуля; `null` — они ещё не в git. */
   readonly contextDate: string | null;
   /** Дата последнего коммита в путях кода модуля. */
   readonly codeDate: string | null;
-  /** Коммитов в путях кода после последнего коммита `context.md`. */
+  /** Коммитов в путях кода после последнего коммита файлов модуля. */
   readonly commitsAfter: number;
-  /** В `context.md` есть незакоммиченные правки — контекст считается свежим. */
+  /** В файлах модуля есть незакоммиченные правки — контекст считается свежим. */
   readonly uncommitted: boolean;
+}
+
+/**
+ * Папка-группа над модулями (`modules/back/`): её `.md` — общий контекст всех
+ * модулей под ней.
+ */
+export interface ContextGroup {
+  /** Папка относительно `openspec/context/`. */
+  readonly folder: string;
+  /** Пути файлов от корня. */
+  readonly files: readonly string[];
 }
 
 /** ADR, как его прочитал сервер. */
@@ -143,9 +167,12 @@ export interface ContextMapInput {
   readonly adrs: readonly AdrSource[];
   /** Общие файлы контекста — `openspec/context/*.md`. */
   readonly general: readonly string[];
+  /** Папки-группы над модулями с их файлами. */
+  readonly groups?: readonly ContextGroup[];
   /**
-   * Тексты файлов контекста по путям: общий контекст, `context.md`, ADR,
-   * спеки доменов. Без текста файл не оценивается по объёму и не проверяется.
+   * Тексты файлов контекста по путям: общий контекст, группы, файлы модулей,
+   * ADR, спеки доменов. Без текста файл не оценивается по объёму и не
+   * проверяется, а файл метаданных модуля не входит в набор.
    */
   readonly texts?: ReadonlyMap<string, string>;
   /**
@@ -166,14 +193,22 @@ export interface CodePath {
 export interface ContextModule {
   /** Идентификатор из поля `module`, иначе имя папки. */
   readonly id: string;
+  /** Папка модуля относительно `openspec/context/`. */
   readonly folder: string;
+  /** Раздел контекста — первая папка пути: `modules`, `functions`… */
+  readonly section: string;
   readonly description: string | null;
-  /** `openspec/context/modules/<папка>/index.md`. */
+  /** Путь файла метаданных; без него — путь папки модуля. */
   readonly indexPath: string;
-  /** Есть ли `index.md`: без него связи модуля неизвестны. */
+  /** Есть ли файл метаданных: без него связи модуля неизвестны. */
   readonly hasIndex: boolean;
-  /** Путь `context.md`; `null`, если файла нет. */
-  readonly contextPath: string | null;
+  /**
+   * Файлы контекста модуля в порядке загрузки: файл метаданных, если в нём
+   * есть текст кроме заголовков, затем остальные по имени.
+   */
+  readonly files: readonly string[];
+  /** Общий контекст групп над модулем — от верхней группы к нижней. */
+  readonly groupFiles: readonly string[];
   readonly domains: readonly string[];
   readonly dependsOn: readonly string[];
   readonly codePaths: readonly CodePath[];
@@ -216,8 +251,8 @@ export interface ContextAdr {
 /** Файл контекста с оценкой объёма. */
 export interface ContextFile {
   readonly path: string;
-  readonly kind: 'general' | 'module' | 'spec' | 'adr';
-  /** Модуль — для `context.md`, домен — для спеки. */
+  readonly kind: 'general' | 'group' | 'module' | 'spec' | 'adr';
+  /** Модуль — для файла модуля, папка — для группы, домен — для спеки. */
   readonly owner: string | null;
   readonly lines: number;
   /** Оценка числа токенов. */
@@ -308,6 +343,8 @@ export interface ContextMap {
   /** Есть ли папка модулей или ADR — иначе контекст не заведён. */
   readonly configured: boolean;
   readonly general: readonly string[];
+  /** Папки-группы над модулями с их файлами. */
+  readonly groups: readonly ContextGroup[];
   readonly modules: readonly ContextModule[];
   readonly domains: readonly ContextDomain[];
   readonly adrs: readonly ContextAdr[];
@@ -323,7 +360,7 @@ export interface ContextMap {
   readonly usefulTokens: number;
   /** Токены, которые можно сэкономить, исправив антипаттерны во всех файлах. */
   readonly savableTokens: number;
-  /** Абзацы, повторяющиеся в общем контексте, `context.md` и ADR. */
+  /** Абзацы, повторяющиеся в общем контексте, группах, файлах модулей и ADR. */
   readonly duplicates: readonly ContextDuplicate[];
   /** Пути, на которые ссылаются тексты контекста. */
   readonly references: readonly ContextReference[];
@@ -340,9 +377,14 @@ export function specPathOf(domain: string): string {
   return `${SPECS_DIR}/${domain}/spec.md`;
 }
 
-/** Путь файла модуля. */
+/** Путь файла модуля: папка — относительно `openspec/context/`, файл — относительно папки. */
 export function modulePath(folder: string, file: string): string {
-  return `${MODULES_DIR}/${folder}/${file}`;
+  return `${CONTEXT_DIR}/${folder}/${file}`;
+}
+
+/** Раздел контекста по папке модуля: `modules/back/cm` → `modules`. */
+export function sectionOf(folder: string): string {
+  return folder.split('/')[0] ?? folder;
 }
 
 /**
@@ -396,12 +438,15 @@ interface ParsedModule {
   readonly dependsOn: readonly string[];
   readonly codePaths: readonly CodePath[];
   readonly hasIndex: boolean;
-  readonly hasContext: boolean;
+  /** Файлы контекста модуля в порядке загрузки — см. {@link ContextModule.files}. */
+  readonly files: readonly string[];
+  /** Файлы модуля, кроме файла метаданных: у них проверяется пустота. */
+  readonly contentFiles: readonly string[];
   readonly lineOf: KeyLine;
   readonly indexPath: string;
   readonly maxTokens: number | null;
   readonly freshness: ModuleFreshness | null;
-  /** Frontmatter `index.md` разобран: поля модуля известны. */
+  /** Frontmatter файла метаданных разобран: поля модуля известны. */
   readonly described: boolean;
 }
 
@@ -412,17 +457,30 @@ function readBudget(value: unknown): number | null | 'bad' {
   return Number.isInteger(number) && number > 0 ? number : 'bad';
 }
 
-function parseModule(source: ModuleSource, issues: ContextIssue[]): ParsedModule {
-  const indexPath = modulePath(source.folder, MODULE_INDEX_FILE);
+/** Имя модуля по умолчанию — последняя папка пути. */
+function folderName(folder: string): string {
+  return folder.split('/').pop() ?? folder;
+}
+
+function parseModule(source: ModuleSource, texts: ReadonlyMap<string, string> | undefined, issues: ContextIssue[]): ParsedModule {
+  const base = `${CONTEXT_DIR}/${source.folder}`;
+  const indexPath = source.index === null ? base : `${base}/${source.index}`;
+  const contentFiles = [...source.files].sort(byPath).map((file) => `${base}/${file}`);
+  // Файл метаданных входит в набор, только если в нём есть текст: в прежнем
+  // `index.md` — лишь frontmatter и заголовок, в `00-start-here.md` — маршрут
+  // по частям контекста, который агент читает первым.
+  const indexText = source.index === null ? undefined : texts?.get(indexPath);
+  const files = indexText !== undefined && !isEmptyContext(indexText) ? [indexPath, ...contentFiles] : contentFiles;
   const fallback: ParsedModule = {
-    id: source.folder,
+    id: folderName(source.folder),
     folder: source.folder,
     description: null,
     domains: [],
     dependsOn: [],
     codePaths: [],
-    hasIndex: source.hasIndex,
-    hasContext: source.hasContext,
+    hasIndex: source.index !== null,
+    files,
+    contentFiles,
     lineOf: source.lineOf,
     indexPath,
     maxTokens: null,
@@ -430,14 +488,14 @@ function parseModule(source: ModuleSource, issues: ContextIssue[]): ParsedModule
     described: false,
   };
 
-  if (!source.hasIndex) {
+  if (source.index === null) {
     issues.push({
       kind: 'missing-index',
       severity: 'error',
-      path: `${MODULES_DIR}/${source.folder}`,
+      path: base,
       line: null,
-      message: `У модуля ${source.folder} нет ${MODULE_INDEX_FILE} — связи модуля неизвестны`,
-      module: source.folder,
+      message: `У модуля ${source.folder} нет ${INDEX_NAMES} — связи модуля неизвестны`,
+      module: fallback.id,
     });
     return fallback;
   }
@@ -448,7 +506,7 @@ function parseModule(source: ModuleSource, issues: ContextIssue[]): ParsedModule
       path: indexPath,
       line: source.frontmatterError.line,
       message: `Frontmatter не разбирается как YAML: ${source.frontmatterError.message}`,
-      module: source.folder,
+      module: fallback.id,
     });
     return fallback;
   }
@@ -458,14 +516,14 @@ function parseModule(source: ModuleSource, issues: ContextIssue[]): ParsedModule
       severity: 'error',
       path: indexPath,
       line: 1,
-      message: 'Нет frontmatter: в начале index.md нужен блок --- с полями module, description, domains, depends_on',
-      module: source.folder,
+      message: `Нет frontmatter: в начале ${source.index} нужен блок --- с полями module, description, domains, depends_on`,
+      module: fallback.id,
     });
     return fallback;
   }
 
   const meta = source.frontmatter;
-  const id = readText(meta['module']) ?? source.folder;
+  const id = readText(meta['module']) ?? fallback.id;
   const extra = { module: id };
   const domains = readList(meta['domains'], 'domains', indexPath, source.lineOf('domains'), issues, extra).map(
     normalizeDomain,
@@ -502,7 +560,8 @@ function parseModule(source: ModuleSource, issues: ContextIssue[]): ParsedModule
     dependsOn,
     codePaths,
     hasIndex: true,
-    hasContext: source.hasContext,
+    files,
+    contentFiles,
     lineOf: source.lineOf,
     indexPath,
     maxTokens,
@@ -561,6 +620,8 @@ function cyclicEdges(nodes: readonly string[], edges: ReadonlyMap<string, readon
 }
 
 const byName = (a: string, b: string): number => a.localeCompare(b);
+/** Порядок файлов: числа по значению — `2-…` раньше `10-…`. */
+const byPath = (a: string, b: string): number => a.localeCompare(b, undefined, { numeric: true });
 
 /** Строит карту контекста и собирает замечания. */
 export function buildContextMap(input: ContextMapInput): ContextMap {
@@ -569,8 +630,8 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
 
   // Модули.
   const parsed = [...input.modules]
-    .sort((a, b) => byName(a.folder, b.folder))
-    .map((source) => parseModule(source, issues));
+    .sort((a, b) => byPath(a.folder, b.folder))
+    .map((source) => parseModule(source, input.texts, issues));
   const modules = new Map<string, ParsedModule>();
   for (const module of parsed) {
     const previous = modules.get(module.id);
@@ -580,7 +641,7 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
         severity: 'error',
         path: module.indexPath,
         line: module.lineOf('module'),
-        message: `Модуль ${module.id} уже описан в ${previous.indexPath} — идентификаторы модулей должны быть уникальны`,
+        message: `Модуль ${module.id} уже описан в ${previous.indexPath} — идентификаторы модулей должны быть уникальны: задайте другое поле module`,
         module: module.id,
       });
       continue;
@@ -592,13 +653,13 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
   const links: ModuleDomainLink[] = [];
   const edges = new Map<string, string[]>();
   for (const module of modules.values()) {
-    if (module.hasIndex && !module.hasContext) {
+    if (module.hasIndex && module.files.length === 0) {
       issues.push({
         kind: 'missing-context',
         severity: 'warning',
         path: module.indexPath,
         line: null,
-        message: `У модуля ${module.id} нет ${MODULE_CONTEXT_FILE} — загружать в контекст нечего`,
+        message: `У модуля ${module.id} нет файлов контекста — загружать нечего: напишите текст в файле метаданных или добавьте рядом файлы .md (01-product-context.md, context.md…)`,
         module: module.id,
       });
     }
@@ -637,7 +698,7 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
           severity: 'error',
           path: module.indexPath,
           line: module.lineOf('depends_on'),
-          message: `Модуль ${target} из depends_on модуля ${module.id} не описан в ${MODULES_DIR}/`,
+          message: `Модуль ${target} из depends_on модуля ${module.id} не описан в ${CONTEXT_DIR}/`,
           module: module.id,
         });
       }
@@ -669,7 +730,7 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
         issues.push({
           kind: 'dependency-cycle',
           severity: 'error',
-          path: module?.indexPath ?? MODULES_DIR,
+          path: module?.indexPath ?? CONTEXT_DIR,
           line: module?.lineOf('depends_on') ?? null,
           message: `Модуль ${from} входит в цикл зависимостей (через ${to})`,
           module: from,
@@ -757,23 +818,31 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
         severity: 'warning',
         path: domain.specPath,
         line: null,
-        message: `Домен ${domain.id} не относится ни к одному модулю: добавьте его в domains нужного index.md`,
+        message: `Домен ${domain.id} не относится ни к одному модулю: добавьте его в domains нужного модуля (${INDEX_NAMES})`,
         domain: domain.id,
       });
     }
   }
 
-  const sizes = contextFiles(input, modules, domains, adrs);
+  const groups = [...(input.groups ?? [])]
+    .map((group) => ({ folder: group.folder, files: [...group.files].sort(byPath) }))
+    .sort((a, b) => byPath(a.folder, b.folder));
+  const groupFilesOf = (folder: string): string[] =>
+    groups.filter((group) => folder.startsWith(`${group.folder}/`)).flatMap((group) => group.files);
+
+  const sizes = contextFiles(input, modules, groups, domains, adrs);
   const control = controlIssues(input, modules, adrs, sizes, issues);
   const files = withAntipatterns(input, adrs, withUsefulness(input, modules, sizes, control, issues), issues);
 
   const contextModules: ContextModule[] = [...modules.values()].map((module) => ({
     id: module.id,
     folder: module.folder,
+    section: sectionOf(module.folder),
     description: module.description,
     indexPath: module.indexPath,
     hasIndex: module.hasIndex,
-    contextPath: module.hasContext ? modulePath(module.folder, MODULE_CONTEXT_FILE) : null,
+    files: module.files,
+    groupFiles: groupFilesOf(module.folder),
     domains: module.domains,
     dependsOn: module.dependsOn.filter((target) => target !== module.id),
     codePaths: module.codePaths,
@@ -787,7 +856,8 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
 
   const map: ContextMap = {
     configured,
-    general: [...input.general].sort(byName),
+    general: [...input.general].sort(byPath),
+    groups,
     modules: contextModules,
     domains,
     adrs,
@@ -801,7 +871,7 @@ export function buildContextMap(input: ContextMapInput): ContextMap {
     savableTokens: files.reduce((sum, file) => sum + file.savableTokens, 0),
     duplicates: control.duplicates,
     references: control.references,
-    unusedFiles: [...(input.unusedFiles ?? [])].sort(byName),
+    unusedFiles: [...(input.unusedFiles ?? [])].sort(byPath),
   };
   return withBudgets(map, (id) => modules.get(id)?.lineOf('max_tokens') ?? null);
 }
@@ -812,10 +882,18 @@ type SizedFile = Omit<ContextFile, 'usefulness' | 'antipatterns' | 'savableToken
 /** Файл с оценкой полезности, но ещё без антипаттернов. */
 type MeasuredFile = Omit<ContextFile, 'antipatterns' | 'savableTokens'>;
 
+/** Модуль каждого файла модулей — по путям. */
+function moduleFiles(modules: ReadonlyMap<string, ParsedModule>): Map<string, ParsedModule> {
+  const owners = new Map<string, ParsedModule>();
+  for (const module of modules.values()) for (const path of module.files) owners.set(path, module);
+  return owners;
+}
+
 /** Файлы контекста, чей текст прочитан, с оценкой объёма — в порядке набора. */
 function contextFiles(
   input: ContextMapInput,
   modules: ReadonlyMap<string, ParsedModule>,
+  groups: readonly ContextGroup[],
   domains: readonly ContextDomain[],
   adrs: readonly ContextAdr[],
 ): SizedFile[] {
@@ -827,10 +905,9 @@ function contextFiles(
     if (text === undefined || files.some((file) => file.path === path)) return;
     files.push({ path, kind, owner, lines: countLines(text), tokens: estimateTokens(text) });
   };
-  for (const path of [...input.general].sort(byName)) add(path, 'general', null);
-  for (const module of modules.values()) {
-    if (module.hasContext) add(modulePath(module.folder, MODULE_CONTEXT_FILE), 'module', module.id);
-  }
+  for (const path of [...input.general].sort(byPath)) add(path, 'general', null);
+  for (const group of groups) for (const path of group.files) add(path, 'group', group.folder);
+  for (const module of modules.values()) for (const path of module.files) add(path, 'module', module.id);
   for (const domain of domains) if (domain.specPath !== null) add(domain.specPath, 'spec', domain.id);
   for (const adr of adrs) add(adr.path, 'adr', null);
   return files;
@@ -848,10 +925,7 @@ function controlIssues(
   issues: ContextIssue[],
 ): { duplicates: ContextDuplicate[]; references: ContextReference[] } {
   const texts = input.texts ?? new Map<string, string>();
-  const moduleOf = new Map<string, ParsedModule>();
-  for (const module of modules.values()) {
-    if (module.hasContext) moduleOf.set(modulePath(module.folder, MODULE_CONTEXT_FILE), module);
-  }
+  const moduleOf = moduleFiles(modules);
   const owner = (path: string): Pick<ContextIssue, 'module'> => {
     const id = moduleOf.get(path)?.id;
     return id === undefined ? {} : { module: id };
@@ -872,22 +946,25 @@ function controlIssues(
   }
 
   // Лишнее: пустой контекст, повторы, файлы вне наборов.
-  for (const [path, module] of moduleOf) {
-    const text = texts.get(path);
-    if (text === undefined || !isEmptyContext(text)) continue;
-    issues.push({
-      kind: 'empty-context',
-      severity: 'warning',
-      path,
-      line: null,
-      message: `${MODULE_CONTEXT_FILE} модуля ${module.id} пуст — кроме заголовков, в набор нечего положить`,
-      module: module.id,
-    });
+  for (const module of modules.values()) {
+    for (const path of module.contentFiles) {
+      const text = texts.get(path);
+      if (text === undefined || !isEmptyContext(text)) continue;
+      issues.push({
+        kind: 'empty-context',
+        severity: 'warning',
+        path,
+        line: null,
+        message: `${path.slice(path.lastIndexOf('/') + 1)} модуля ${module.id} пуст — кроме заголовков, в набор нечего положить`,
+        module: module.id,
+      });
+    }
   }
 
-  // Тексты, которые пишут люди, — в порядке набора: общий контекст, модули, ADR.
+  // Тексты, которые пишут люди, — в порядке набора: общий контекст, группы, модули, ADR.
   const prose = [
-    ...[...input.general].sort(byName),
+    ...[...input.general].sort(byPath),
+    ...files.filter((file) => file.kind === 'group').map((file) => file.path),
     ...moduleOf.keys(),
     ...adrs.map((adr) => adr.path),
   ].flatMap((path) => {
@@ -917,7 +994,7 @@ function controlIssues(
       severity: 'warning',
       path,
       line: null,
-      message: `Файл не входит ни в один набор контекста — агент его не увидит. Перенесите нужное в ${MODULE_CONTEXT_FILE} или общий контекст ${CONTEXT_DIR}/*.md, лишнее удалите`,
+      message: `Файл не входит ни в один набор контекста — агент его не увидит. Перенесите нужное в .md папки модуля (рядом с ${INDEX_NAMES}) или в общий контекст ${CONTEXT_DIR}/*.md, лишнее удалите`,
     });
   }
 
@@ -948,14 +1025,14 @@ function controlIssues(
 
   for (const module of modules.values()) {
     const freshness = module.freshness;
-    if (freshness !== null && module.hasContext && freshness.commitsAfter > 0) {
+    if (freshness !== null && module.files.length > 0 && freshness.commitsAfter > 0) {
       issues.push({
         kind: 'stale-context',
         severity: 'info',
-        path: modulePath(module.folder, MODULE_CONTEXT_FILE),
+        path: module.indexPath,
         line: null,
         message:
-          `Контекст модуля ${module.id} отстаёт от кода: после последней правки ${MODULE_CONTEXT_FILE}` +
+          `Контекст модуля ${module.id} отстаёт от кода: после последней правки его файлов` +
           `${freshness.contextDate === null ? '' : ` (${freshness.contextDate.slice(0, 10)})`} в путях кода ` +
           `${freshness.commitsAfter} ${commitsWord(freshness.commitsAfter)} — проверьте, что описание актуально`,
         module: module.id,
@@ -999,10 +1076,7 @@ function withUsefulness(
   }
   const broken = new Map<string, Set<number>>();
   for (const reference of control.references) if (!reference.resolved) linesOf(broken, reference.path, reference.line);
-  const moduleOf = new Map<string, ParsedModule>();
-  for (const module of modules.values()) {
-    if (module.hasContext) moduleOf.set(modulePath(module.folder, MODULE_CONTEXT_FILE), module);
-  }
+  const moduleOf = moduleFiles(modules);
 
   return files.map((file) => {
     const module = file.kind === 'module' ? moduleOf.get(file.path) : undefined;
@@ -1140,7 +1214,7 @@ export interface ContextBundle {
   readonly domains: readonly string[];
   /** ADR набора — пути файлов. */
   readonly adrs: readonly string[];
-  /** Файлы в порядке загрузки: общий контекст, модули, спеки доменов, ADR. */
+  /** Файлы в порядке загрузки: общий контекст, группы и файлы модулей, спеки доменов, ADR. */
   readonly files: readonly string[];
   /** Недействующие ADR, которые относятся к набору, но в него не вошли. */
   readonly skippedAdrs: readonly string[];
@@ -1151,7 +1225,8 @@ export interface ContextBundle {
 }
 
 /**
- * Собирает контекст по выбору: модули (и транзитивно их зависимости), спеки
+ * Собирает контекст по выбору: модули (и транзитивно их зависимости) с общим
+ * контекстом их групп, спеки
  * их доменов и выбранных доменов, ADR, которые ссылаются на модули набора или
  * на выбранные домены, и выбранные ADR. Циклы и неописанные модули не
  * мешают: каждый модуль берётся один раз, неизвестные пропускаются; каждый
@@ -1206,7 +1281,11 @@ export function contextBundle(
   const add = (path: string | null | undefined): void => {
     if (path !== null && path !== undefined && !files.includes(path)) files.push(path);
   };
-  for (const id of order) add(byId.get(id)?.contextPath);
+  for (const id of order) {
+    const module = byId.get(id);
+    for (const path of module?.groupFiles ?? []) add(path);
+    for (const path of module?.files ?? []) add(path);
+  }
   for (const id of domains) add(specs.get(id));
   for (const path of adrs) add(path);
   const known = new Map((map.files ?? []).map((file) => [file.path, file]));

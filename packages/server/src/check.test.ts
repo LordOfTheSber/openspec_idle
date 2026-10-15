@@ -180,12 +180,13 @@ describe('проверка проекта для CI', () => {
     );
     mkdirSync(join(dir, 'src'), { recursive: true });
     writeFileSync(join(dir, 'src/export.ts'), "export const DONE = 'Файл выгрузки собран';\n");
-    mkdirSync(join(dir, 'openspec/context/modules/export'), { recursive: true });
+    // Модуль вложен в группу и описан файлом 00-start-here.md — сверка его всё равно находит.
+    mkdirSync(join(dir, 'openspec/context/modules/back/export'), { recursive: true });
     writeFileSync(
-      join(dir, 'openspec/context/modules/export/index.md'),
+      join(dir, 'openspec/context/modules/back/export/00-start-here.md'),
       '---\nmodule: export\ndomains: [data-export]\ncode_paths: [src]\ndepends_on: []\n---\n',
     );
-    writeFileSync(join(dir, 'openspec/context/modules/export/context.md'), '# export\n');
+    writeFileSync(join(dir, 'openspec/context/modules/back/export/01-product-context.md'), '# export\n');
 
     const report = await runCheck({ cwd: dir, only: ['quality'] });
 

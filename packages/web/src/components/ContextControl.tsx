@@ -37,7 +37,7 @@ export function tokens(value: number): string {
   return `≈\u00a0${formatTokens(value)}`;
 }
 
-/** Свежесть `context.md` относительно кода модуля одной фразой. */
+/** Свежесть файлов контекста модуля относительно его кода одной фразой. */
 export function FreshnessNote({ freshness }: { readonly freshness: ModuleFreshness | null }) {
   if (freshness === null) return <span className="muted">нет данных git</span>;
   const age = formatAge(freshness.contextDate);
@@ -64,6 +64,8 @@ function fileKind(file: ContextFile): string {
   switch (file.kind) {
     case 'general':
       return 'общий';
+    case 'group':
+      return `группа ${file.owner ?? ''}`;
     case 'module':
       return `модуль ${file.owner ?? ''}`;
     case 'spec':
@@ -179,8 +181,9 @@ function VolumeCard({ map, onShow }: { readonly map: ContextMapModel; readonly o
         <>
           <h4>Наборы модулей</h4>
           <p className="muted">
-            Набор модуля — общий контекст, модуль и его зависимости по depends_on, спеки их доменов и действующие ADR. Бюджет
-            задаётся полем <code>max_tokens</code> в <code>index.md</code>.
+            Набор модуля — общий контекст и контекст групп, файлы модуля и его зависимостей по depends_on, спеки их доменов и
+            действующие ADR. Бюджет задаётся полем <code>max_tokens</code> в файле метаданных модуля (<code>00-start-here.md</code>{' '}
+            или <code>index.md</code>).
           </p>
           <table className="ctx-control-table" data-testid="ctx-control-bundles">
             <thead>
@@ -282,7 +285,7 @@ function BallastChips({ usefulness }: { readonly usefulness: ContextUsefulness }
 
 function FreshnessFactor({ usefulness, file, map }: { readonly usefulness: ContextUsefulness; readonly file: ContextFile; readonly map: ContextMapModel }) {
   if (file.kind !== 'module') return <span className="muted">—</span>;
-  const module = map.modules.find((item) => item.contextPath === file.path);
+  const module = map.modules.find((item) => item.files.includes(file.path));
   if (module !== undefined && module.codePaths.length === 0) return <span className="muted">не привязан к коду</span>;
   if (usefulness.freshness === null) return <span className="muted">нет данных git</span>;
   if (usefulness.freshness >= 1) return <span className="chip ok">актуален</span>;
@@ -314,7 +317,7 @@ function UsefulnessCard({ map }: { readonly map: ContextMapModel }) {
       </p>
       <p className="muted small">
         Коэффициент = плотность × (0,5 + 0,5 × привязка) × свежесть. Плотность — доля токенов без балласта: повторов, заготовок
-        шаблона, абзацев с ненайденными путями. Привязка и свежесть — только у context.md модулей. Это оценка по тексту, а не по
+        шаблона, абзацев с ненайденными путями. Привязка и свежесть — только у файлов модулей. Это оценка по тексту, а не по
         работе агента.
       </p>
       {losing.length === 0 ? (
@@ -536,7 +539,7 @@ function RealityCard({ map, onShow }: { readonly map: ContextMapModel; readonly 
   const missingCode = map.modules.flatMap((module) =>
     module.codePaths.filter((code) => !code.exists).map((code) => ({ module: module.id, path: code.path })),
   );
-  const withContext = map.modules.filter((module) => module.contextPath !== null);
+  const withContext = map.modules.filter((module) => module.files.length > 0);
 
   return (
     <section className="ctx-control-card" aria-labelledby="ctx-reality">
@@ -585,7 +588,7 @@ function RealityCard({ map, onShow }: { readonly map: ContextMapModel; readonly 
                 <th scope="col" className="wide">
                   Пути кода
                 </th>
-                <th scope="col">context.md относительно кода</th>
+                <th scope="col">Контекст относительно кода</th>
               </tr>
             </thead>
             <tbody>

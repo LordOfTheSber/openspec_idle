@@ -86,6 +86,14 @@ export const FIXTURES: readonly FixtureExpectation[] = [
     validates: true,
     tasks: null,
   },
+  {
+    dir: 'context-layered',
+    about: 'контекст из нумерованных частей: 00-start-here.md и 01…05 в корне и в модулях, модули в группе modules/back/, конфигурации без 05-testing-and-quality.md',
+    schema: null,
+    change: null,
+    validates: true,
+    tasks: null,
+  },
 ] as const;
 
 /** Абсолютный путь к фикстуре по её каталогу. */
