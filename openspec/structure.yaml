@@ -32,3 +32,7 @@ structure:
   docs:
     mockups:
       "*.html": file
+    patterns?:
+      "*.md": file
+      img?:
+        "*.svg": file

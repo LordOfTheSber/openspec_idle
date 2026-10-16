@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="560" viewBox="0 0 980 560" role="img" aria-labelledby="t d">
+  <title id="t">Роли и потоки мультиагентной разработки</title>
+  <desc id="d">Оркестратор управляет планировщиком, исполнителями по модулям волнами и ревьюером. Все роли читают и пишут файлы openspec — общий протокол. Результат проходит ворота проверок. Хранитель контекста обновляет context.md и ADR.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#52514e"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: #0b0b0b; }
+    .title { font-size: 16px; font-weight: 600; }
+    .sub { font-size: 12px; fill: #52514e; }
+    .role { fill: #ffffff; stroke: #c8c7c1; }
+    .orch { fill: #2a78d6; stroke: #2a78d6; }
+    .gate { fill: #fff3d6; stroke: #c98500; }
+    .proto { fill: #e3eefb; stroke: #2a78d6; }
+    .group { fill: none; stroke: #9b9a94; stroke-dasharray: 5 4; }
+    .exec { fill: #ffffff; stroke: #2a78d6; }
+    .h { font-size: 14px; font-weight: 600; }
+    .h-w { font-size: 14px; font-weight: 600; fill: #ffffff; }
+    .s { font-size: 12px; fill: #52514e; }
+    .s-w { font-size: 12px; fill: #e3eefb; }
+    .wave { font-size: 11px; fill: #2a78d6; font-weight: 600; }
+    .flow { fill: none; stroke: #52514e; stroke-width: 1.3; }
+    .rw { fill: none; stroke: #2a78d6; stroke-width: 1.3; stroke-dasharray: 3 3; }
+    .lbl { font-size: 11px; fill: #52514e; }
+  </style>
+  <rect x="0.5" y="0.5" width="979" height="559" rx="10" fill="#fcfcfb" stroke="#e4e3df"/>
+  <text class="title" x="24" y="32">Роли и потоки</text>
+  <text class="sub" x="24" y="52">протокол — файлы openspec/, разделение — по графу модулей, арбитр — проверки</text>
+
+  <!-- оркестратор -->
+  <rect class="orch" x="340" y="70" width="300" height="58" rx="10"/>
+  <text class="h-w" x="490" y="94" text-anchor="middle">Оркестратор</text>
+  <text class="s-w" x="490" y="114" text-anchor="middle">tasks.md · отчёты · волны · слияние · архивация</text>
+
+  <!-- планировщик -->
+  <rect class="role" x="24" y="170" width="230" height="96" rx="10"/>
+  <text class="h" x="40" y="196">Планировщик</text>
+  <text class="s" x="40" y="218">срез доменов + ADR</text>
+  <text class="s" x="40" y="236">explore → propose</text>
+  <text class="s" x="40" y="254">пишет: changes/&lt;имя&gt;/</text>
+
+  <!-- исполнители -->
+  <rect class="group" x="292" y="156" width="396" height="188" rx="12"/>
+  <text class="s" x="306" y="176">Исполнители — свой срез, своя ветка, свои code_paths</text>
+  <rect class="exec" x="306" y="190" width="176" height="62" rx="8"/>
+  <text class="wave" x="318" y="208">ВОЛНА 0 · контракт</text>
+  <text class="h" x="318" y="228">core</text>
+  <text class="s" x="318" y="244">≈ 17,6 тыс. + change</text>
+  <rect class="exec" x="498" y="190" width="176" height="62" rx="8"/>
+  <text class="wave" x="510" y="208">ВОЛНА 1</text>
+  <text class="h" x="510" y="228">server</text>
+  <text class="s" x="510" y="244">≈ 24,7 тыс. + change</text>
+  <rect class="exec" x="306" y="266" width="176" height="62" rx="8"/>
+  <text class="wave" x="318" y="284">ВОЛНА 1</text>
+  <text class="h" x="318" y="304">web</text>
+  <text class="s" x="318" y="320">≈ 20,0 тыс. + change</text>
+  <rect class="exec" x="498" y="266" width="176" height="62" rx="8"/>
+  <text class="wave" x="510" y="284">ВОЛНА 2</text>
+  <text class="h" x="510" y="304">vscode</text>
+  <text class="s" x="510" y="320">≈ 29,2 тыс. + change</text>
+
+  <!-- ревьюер -->
+  <rect class="role" x="726" y="170" width="230" height="96" rx="10"/>
+  <text class="h" x="742" y="196">Ревьюер</text>
+  <text class="s" x="742" y="218">дифф + спеки + ADR + план</text>
+  <text class="s" x="742" y="236">без переписки исполнителя</text>
+  <text class="s" x="742" y="254">пишет: только отчёт</text>
+
+  <!-- хранитель -->
+  <rect class="role" x="24" y="300" width="230" height="80" rx="10"/>
+  <text class="h" x="40" y="326">Хранитель контекста</text>
+  <text class="s" x="40" y="348">git log code_paths, design.md</text>
+  <text class="s" x="40" y="366">пишет: context.md, ADR</text>
+
+  <!-- ворота -->
+  <rect class="gate" x="726" y="300" width="230" height="80" rx="10"/>
+  <text class="h" x="742" y="326">Ворота</text>
+  <text class="s" x="742" y="348">verify · check:openspec</text>
+  <text class="s" x="742" y="366">validate --strict · drift</text>
+
+  <!-- протокол -->
+  <rect class="proto" x="24" y="430" width="932" height="76" rx="10"/>
+  <text class="h" x="490" y="458" text-anchor="middle">openspec/ — общий протокол</text>
+  <text class="s" x="490" y="480" text-anchor="middle">proposal · дельты · design · tasks · context.md · ADR</text>
+  <text class="s" x="490" y="497" text-anchor="middle">агенты обмениваются файлами, а не перепиской; у каждого файла один писатель</text>
+
+  <!-- управление -->
+  <path class="flow" d="M340 110 C260 110 160 120 150 168" marker-end="url(#a)"/>
+  <path class="flow" d="M490 128 L490 154" marker-end="url(#a)"/>
+  <path class="flow" d="M640 110 C720 110 820 120 830 168" marker-end="url(#a)"/>
+  <!-- результат исполнителей → ворота → оркестратор -->
+  <path class="flow" d="M688 300 L724 330" marker-end="url(#a)"/>
+  <text class="lbl" x="692" y="294">результат</text>
+  <path class="flow" d="M956 340 C976 340 976 99 642 99" marker-end="url(#a)"/>
+  <text class="lbl" x="900" y="148">зелёно →</text>
+  <text class="lbl" x="900" y="162">слияние</text>
+  <!-- ревьюер → ворота -->
+  <path class="flow" d="M841 266 L841 298" marker-end="url(#a)"/>
+  <text class="lbl" x="848" y="286">замечания</text>
+  <!-- чтение и запись протокола -->
+  <path class="rw" d="M24 218 H12 V466 H22" marker-start="url(#a)" marker-end="url(#a)"/>
+  <path class="rw" d="M139 380 L139 428" marker-start="url(#a)" marker-end="url(#a)"/>
+  <path class="rw" d="M490 344 L490 428" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text class="lbl" x="498" y="392">читают change, пишут код</text>
+  <path class="rw" d="M800 380 L800 428" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text class="lbl" x="806" y="410">проверяют файлы</text>
+
+  <text class="sub" x="24" y="536">Синий пунктир — чтение и запись файлов; сплошные стрелки — управление и результат. Срезы — оценка IDE для этого репозитория.</text>
+</svg>

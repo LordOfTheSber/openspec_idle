@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="460" viewBox="0 0 760 460" role="img" aria-labelledby="t d">
+  <title id="t">Срез вместо всего контекста</title>
+  <desc id="d">Весь контекст 136,5 тыс. токенов. Срезы модулей: vscode 29,2, check 25,0, server 24,7, web 20,0, core 17,6 тыс. Срезы доменов: vscode-extension 6,0, workflow-board 4,8, ide-runtime 3,9 тыс.</desc>
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: #0b0b0b; }
+    .title { font-size: 16px; font-weight: 600; }
+    .sub { font-size: 12px; fill: #52514e; }
+    .label { font-size: 13px; text-anchor: end; }
+    .value { font-size: 12px; fill: #52514e; }
+    .tick { font-size: 11px; fill: #52514e; text-anchor: middle; }
+    .group { font-size: 11px; fill: #52514e; text-transform: uppercase; letter-spacing: 0.04em; }
+    .whole { fill: #9b9a94; }
+    .module { fill: #2a78d6; }
+    .domain { fill: #eb6834; }
+    .grid { stroke: #ecebe7; }
+  </style>
+  <rect x="0.5" y="0.5" width="759" height="459" rx="10" fill="#fcfcfb" stroke="#e4e3df"/>
+  <text class="title" x="24" y="32">Срез вместо всего контекста</text>
+  <text class="sub" x="24" y="52">≈ тыс. токенов по оценке IDE; срез = общий контекст + модули с depends_on + спеки их доменов + действующие ADR</text>
+
+  <!-- легенда -->
+  <rect class="whole" x="24" y="66" width="12" height="12" rx="3"/>
+  <text class="value" x="42" y="76">весь контекст</text>
+  <rect class="module" x="142" y="66" width="12" height="12" rx="3"/>
+  <text class="value" x="160" y="76">срез модуля</text>
+  <rect class="domain" x="252" y="66" width="12" height="12" rx="3"/>
+  <text class="value" x="270" y="76">срез домена</text>
+
+  <!-- сетка: 0, 35, 70, 105, 140 тыс. → x = 218 + t × 3,1429 -->
+  <line class="grid" x1="328" y1="92" x2="328" y2="414"/>
+  <line class="grid" x1="438" y1="92" x2="438" y2="414"/>
+  <line class="grid" x1="548" y1="92" x2="548" y2="414"/>
+  <line class="grid" x1="658" y1="92" x2="658" y2="414"/>
+  <line x1="218" y1="92" x2="218" y2="414" stroke="#c8c7c1"/>
+  <text class="tick" x="218" y="432">0</text>
+  <text class="tick" x="328" y="432">35</text>
+  <text class="tick" x="438" y="432">70</text>
+  <text class="tick" x="548" y="432">105</text>
+  <text class="tick" x="658" y="432">140 тыс.</text>
+
+  <!-- весь контекст -->
+  <text class="label" x="210" y="111">весь контекст</text>
+  <path class="whole" d="M218 96 h425 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-425 z"/>
+  <text class="value" x="655" y="111">136,5</text>
+
+  <!-- модули -->
+  <text class="group" x="24" y="140">модули</text>
+  <text class="label" x="210" y="163">модуль vscode</text>
+  <path class="module" d="M218 148 h88 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-88 z"/>
+  <text class="value" x="318" y="163">29,2 · 21 %</text>
+  <text class="label" x="210" y="195">модуль check</text>
+  <path class="module" d="M218 180 h75 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-75 z"/>
+  <text class="value" x="305" y="195">25,0 · 18 %</text>
+  <text class="label" x="210" y="227">модуль server</text>
+  <path class="module" d="M218 212 h74 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-74 z"/>
+  <text class="value" x="304" y="227">24,7 · 18 %</text>
+  <text class="label" x="210" y="259">модуль web</text>
+  <path class="module" d="M218 244 h59 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-59 z"/>
+  <text class="value" x="289" y="259">20,0 · 15 %</text>
+  <text class="label" x="210" y="291">модуль core</text>
+  <path class="module" d="M218 276 h51 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-51 z"/>
+  <text class="value" x="281" y="291">17,6 · 13 %</text>
+
+  <!-- домены -->
+  <text class="group" x="24" y="320">домены</text>
+  <text class="label" x="210" y="343">vscode-extension</text>
+  <path class="domain" d="M218 328 h15 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-15 z"/>
+  <text class="value" x="245" y="343">6,0 · 4 %</text>
+  <text class="label" x="210" y="375">workflow-board</text>
+  <path class="domain" d="M218 360 h11 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-11 z"/>
+  <text class="value" x="241" y="375">4,8 · 4 %</text>
+  <text class="label" x="210" y="407">ide-runtime</text>
+  <path class="domain" d="M218 392 h8 a4 4 0 0 1 4 4 v12 a4 4 0 0 1 -4 4 h-8 z"/>
+  <text class="value" x="238" y="407">3,9 · 3 %</text>
+
+  <text class="sub" x="24" y="450">Срез модуля в 5–8 раз меньше всего контекста, срез домена — в 23–35 раз. 81–84 % среза модуля — спеки доменов.</text>
+</svg>

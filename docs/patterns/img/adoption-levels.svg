@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="340" viewBox="0 0 900 340" role="img" aria-labelledby="t d">
+  <title id="t">Уровни зрелости разработки с OpenSpec и ИИ</title>
+  <desc id="d">Шесть ступеней: 0 чат, 1 changes, 2 карта контекста, 3 проверки, 4 исполняемые правила, 5 несколько агентов. Этот репозиторий — на уровне 4.</desc>
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: #0b0b0b; }
+    .title { font-size: 16px; font-weight: 600; }
+    .sub { font-size: 12px; fill: #52514e; }
+    .n { font-size: 11px; fill: #0d366b; }
+    .h { font-size: 14px; font-weight: 600; fill: #0b0b0b; }
+    .s { font-size: 11px; fill: #0d366b; }
+    .n-w { font-size: 11px; fill: #e3eefb; }
+    .h-w { font-size: 14px; font-weight: 600; fill: #ffffff; }
+    .s-w { font-size: 11px; fill: #e3eefb; }
+    .pin { font-size: 12px; font-weight: 600; fill: #0b0b0b; text-anchor: middle; }
+  </style>
+  <rect x="0.5" y="0.5" width="899" height="339" rx="10" fill="#fcfcfb" stroke="#e4e3df"/>
+  <text class="title" x="24" y="32">Уровни зрелости</text>
+  <text class="sub" x="24" y="52">каждый уровень опирается на предыдущий; переходить, когда видны признаки из 10-adoption.md</text>
+
+  <!-- ступени: ширина 138, шаг 142, низ y=320 -->
+  <path d="M24 256 h134 a4 4 0 0 1 4 4 v60 h-138 z" fill="#86b6ef"/>
+  <text class="n" x="36" y="272">уровень 0</text>
+  <text class="h" x="36" y="290">Чат</text>
+  <text class="s" x="36" y="306">задача словами</text>
+
+  <path d="M166 230 h134 a4 4 0 0 1 4 4 v86 h-138 z" fill="#6da7ec"/>
+  <text class="n" x="178" y="246">уровень 1</text>
+  <text class="h" x="178" y="264">Changes</text>
+  <text class="s" x="178" y="282">proposal · дельта</text>
+  <text class="s" x="178" y="296">design · tasks</text>
+
+  <path d="M308 196 h134 a4 4 0 0 1 4 4 v120 h-138 z" fill="#5598e7"/>
+  <text class="n-w" x="320" y="212">уровень 2</text>
+  <text class="h-w" x="320" y="230">Карта контекста</text>
+  <text class="s-w" x="320" y="248">модули · домены</text>
+  <text class="s-w" x="320" y="262">ADR · срез</text>
+
+  <path d="M450 162 h134 a4 4 0 0 1 4 4 v154 h-138 z" fill="#3987e5"/>
+  <text class="n-w" x="462" y="178">уровень 3</text>
+  <text class="h-w" x="462" y="196">Проверки</text>
+  <text class="s-w" x="462" y="214">pre-commit · CI</text>
+  <text class="s-w" x="462" y="228">бюджеты токенов</text>
+
+  <path d="M592 128 h134 a4 4 0 0 1 4 4 v188 h-138 z" fill="#256abf"/>
+  <text class="n-w" x="604" y="144">уровень 4</text>
+  <text class="h-w" x="604" y="162">Правила</text>
+  <text class="s-w" x="604" y="180">quality.yaml</text>
+  <text class="s-w" x="604" y="194">--baseline в PR</text>
+
+  <path d="M734 94 h134 a4 4 0 0 1 4 4 v222 h-138 z" fill="#184f95"/>
+  <text class="n-w" x="746" y="110">уровень 5</text>
+  <text class="h-w" x="746" y="128">Агенты</text>
+  <text class="s-w" x="746" y="146">роли · волны</text>
+  <text class="s-w" x="746" y="160">ревьюер · drift</text>
+
+  <!-- метка репозитория -->
+  <text class="pin" x="661" y="106">этот репозиторий</text>
+  <path d="M655 112 L661 120 L667 112 z" fill="#0b0b0b"/>
+</svg>

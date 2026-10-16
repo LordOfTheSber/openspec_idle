@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="300" viewBox="0 0 760 300" role="img" aria-labelledby="t d">
+  <title id="t">Из чего состоят ≈137 тыс. токенов контекста</title>
+  <desc id="d">Активные changes 84,4 тыс. (62 %), основные спеки 27,8 тыс. (20 %), README 17,0 тыс. (12 %), контекст 5,8 тыс. (4 %), настройки 1,5 тыс. (1 %).</desc>
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: #0b0b0b; }
+    .title { font-size: 16px; font-weight: 600; }
+    .sub { font-size: 12px; fill: #52514e; }
+    .label { font-size: 13px; text-anchor: end; }
+    .value { font-size: 12px; fill: #52514e; }
+    .value-strong { font-size: 12px; font-weight: 600; }
+    .bar { fill: #2a78d6; }
+  </style>
+  <rect x="0.5" y="0.5" width="759" height="299" rx="10" fill="#fcfcfb" stroke="#e4e3df"/>
+  <text class="title" x="24" y="32">Из чего состоят ≈ 137 тыс. токенов контекста</text>
+  <text class="sub" x="24" y="52">оценка IDE: латиница / 4 + прочее / 2,5; точность около ±35 % по файлу</text>
+
+  <line x1="252" y1="70" x2="252" y2="268" stroke="#c8c7c1"/>
+
+  <text class="label" x="244" y="94">активные changes (14)</text>
+  <path class="bar" d="M252 78 h390 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-390 z"/>
+  <text class="value-strong" x="654" y="94">84,4 тыс. · 62 %</text>
+
+  <text class="label" x="244" y="134">основные спеки</text>
+  <path class="bar" d="M252 118 h126 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-126 z"/>
+  <text class="value" x="390" y="134">27,8 тыс. · 20 %</text>
+
+  <text class="label" x="244" y="174">README.md</text>
+  <path class="bar" d="M252 158 h75 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-75 z"/>
+  <text class="value" x="339" y="174">17,0 тыс. · 12 %</text>
+
+  <text class="label" x="244" y="214">контекст: общий, модули, ADR</text>
+  <path class="bar" d="M252 198 h23 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-23 z"/>
+  <text class="value" x="287" y="214">5,8 тыс. · 4 %</text>
+
+  <text class="label" x="244" y="254">config, structure, quality</text>
+  <path class="bar" d="M252 238 h3 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-3 z"/>
+  <text class="value" x="267" y="254">1,5 тыс. · 1 %</text>
+
+  <text class="sub" x="24" y="288">Не входят: архив changes ≈ 58,6 тыс., навыки агента ≈ 47 тыс. (подгружаются по требованию), код пакетов ≈ 446 тыс.</text>
+</svg>
